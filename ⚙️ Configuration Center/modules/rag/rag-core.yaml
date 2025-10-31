@@ -1,0 +1,97 @@
+# RAG 核心配置 - 对应需求 1.1-1.9
+# 文件编号: 16
+# 路径: ⚙️ Configuration Center/modules/rag/rag-core.yaml
+
+rag:
+  # 核心引擎配置
+  core_engine:
+    enabled: true
+    version: "1.0.0"
+    mode: "hybrid"  # hybrid, semantic, keyword
+    max_concurrent_operations: 10
+    query_timeout_seconds: 30
+
+  # 检索配置
+  retrieval:
+    top_k: 10
+    similarity_threshold: 0.7
+    rerank_enabled: true
+    rerank_model: "bge-reranker-large"
+    hybrid_search_ratio: 0.6  # 语义搜索权重
+
+  # 分块配置
+  chunking:
+    strategy: "semantic"  # semantic, fixed, adaptive
+    chunk_size: 512
+    chunk_overlap: 50
+    max_chunks_per_document: 1000
+    smart_segmentation: true
+
+  # 预处理管道配置 - 对应需求 1.2
+  preprocessing:
+    enabled: true
+    stages:
+      - "format_normalization"
+      - "content_cleaning"
+      - "quality_validation"
+      - "truth_verification"
+    batch_size: 100
+    parallel_workers: 4
+
+  # 真实性验证配置 - 对应需求 1.3
+  truth_verification:
+    enabled: true
+    verification_sources:
+      - "internal_knowledge_base"
+      - "external_trusted_sources"
+      - "cross_reference_check"
+    confidence_threshold: 0.8
+    auto_correction: true
+
+  # 自主分组配置 - 对应需求 1.6
+  autonomous_grouping:
+    enabled: true
+    grouping_strategy: "semantic_clustering"
+    cluster_threshold: 0.75
+    max_groups: 50
+    dynamic_regrouping: true
+    regrouping_interval_hours: 24
+
+  # 知识图谱集成配置 - 对应需求 1.8
+  knowledge_graph_integration:
+    enabled: true
+    auto_sync: true
+    sync_interval_minutes: 60
+    entity_extraction: true
+    relationship_mining: true
+
+  # WebUI 集成配置 - 对应需求 1.7, 5.3
+  webui_integration:
+    enabled: true
+    api_endpoint: "/api/rag"
+    websocket_enabled: true
+    real_time_updates: true
+    max_file_size_mb: 500
+
+  # 性能优化配置
+  performance:
+    cache_enabled: true
+    cache_ttl_minutes: 60
+    prewarm_cache: true
+    compression_enabled: true
+    async_processing: true
+
+  # 监控配置
+  monitoring:
+    health_check_interval_seconds: 30
+    performance_metrics_enabled: true
+    error_tracking_enabled: true
+    detailed_logging: true
+
+  # 进化学习配置 - 对应需求 9.1, 9.2
+  evolution:
+    self_learning_enabled: true
+    feedback_learning: true
+    performance_optimization: true
+    adaptive_configuration: true
+    learning_rate: 0.1

@@ -1,0 +1,114 @@
+# 向量数据库配置 - 对应需求 1.1, 1.6, 1.7
+# 文件编号: 18
+# 路径: ⚙️ Configuration Center/modules/rag/vector-db.yaml
+
+vector_database:
+  # 数据库类型配置
+  provider: "chroma"  # chroma, weaviate, qdrant, pinecone
+  version: "1.0.0"
+
+  # 连接配置
+  connection:
+    host: "localhost"
+    port: 8001
+    database: "ai_stack_rag"
+    collection: "documents"
+    timeout_seconds: 30
+    ssl_enabled: false
+
+  # 嵌入模型配置
+  embedding_model:
+    name: "bge-large-zh"
+    dimensions: 1024
+    max_sequence_length: 512
+    batch_size: 32
+    device: "auto"  # auto, cpu, cuda
+
+  # 索引配置
+  indexing:
+    enabled: true
+    index_type: "hnsw"  # hnsw, ivf, flat
+    metric: "cosine"  # cosine, l2, ip
+
+    hnsw_config:
+      m: 16
+      ef_construction: 200
+      ef_search: 50
+
+    ivf_config:
+      nlist: 1000
+      nprobe: 10
+
+  # 向量存储配置
+  storage:
+    persistence_enabled: true
+    storage_path: "/Volumes/Huawei-1/ai-stack-data/vector_db"
+    backup_enabled: true
+    backup_interval_hours: 24
+    compression_enabled: true
+
+  # 查询配置
+  query:
+    max_results: 100
+    include_metadata: true
+    include_vectors: false
+    score_threshold: 0.5
+    hybrid_search_enabled: true
+
+  # 语义分组配置 - 对应需求 1.6
+  semantic_grouping:
+    enabled: true
+    clustering_algorithm: "kmeans"  # kmeans, dbscan, hierarchical
+    auto_grouping: true
+    group_update_interval_hours: 6
+
+    kmeans_config:
+      n_clusters: 50
+      max_iter: 100
+
+    dbscan_config:
+      eps: 0.5
+      min_samples: 5
+
+  # 性能优化配置
+  performance:
+    cache_enabled: true
+    cache_size_mb: 1024
+    prewarm_cache: true
+    batch_operations: true
+    batch_size: 1000
+
+  # 监控配置
+  monitoring:
+    health_check_enabled: true
+    metrics_collection: true
+    query_performance_tracking: true
+    storage_usage_monitoring: true
+
+  # 扩展性配置
+  scalability:
+    sharding_enabled: true
+    replication_enabled: false
+    auto_scaling: true
+    max_connections: 100
+
+  # 维护配置
+  maintenance:
+    auto_vacuum: true
+    vacuum_interval_hours: 24
+    index_rebuild_interval_days: 7
+    statistics_update_interval_hours: 6
+
+  # 集成配置 - 对应需求 1.7
+  integrations:
+    webui_integration:
+      enabled: true
+      real_time_sync: true
+
+    knowledge_graph_integration:
+      enabled: true
+      auto_sync: true
+
+    erp_integration:
+      enabled: true
+      business_data_sync: true

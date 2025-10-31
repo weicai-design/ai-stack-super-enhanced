@@ -1,0 +1,33 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "API: Uvicorn (.env API_PORT)",
+            "type": "python",
+            "request": "launch",
+            "module": "uvicorn",
+            "cwd": "${workspaceFolder}/📚 Enhanced RAG & Knowledge Graph/api",
+            "args": [
+                "app:app",
+                "--reload",
+                "--port",
+                "${env:API_PORT}"
+            ],
+            "envFile": "${workspaceFolder}/.env",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "preLaunchTask": "Kill port (.env API_PORT)"
+        },
+        {
+            "name": "Tests: pytest -q",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "-q"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

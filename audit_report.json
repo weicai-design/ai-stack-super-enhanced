@@ -1,0 +1,72 @@
+{
+  "timestamp": "2025-10-27T20:26:52",
+  "root": "/Users/ywc/ai-stack-super-enhanced",
+  "top_dirs": {
+    "🚀 Core System & Entry Points": true,
+    "⚙️ Configuration Center": true,
+    "🔧 Core Engine": true,
+    "📚 Enhanced RAG & Knowledge Graph": true,
+    "💼 Intelligent ERP & Business Management": true,
+    "📈 Intelligent Stock Trading": true,
+    "🎨 Intelligent Content Creation": true,
+    "🔍 Intelligent Trend Analysis": true,
+    "🤖 Intelligent Task Agent": true,
+    "💬 Intelligent OpenWebUI Interaction Center": true,
+    "🛠️ Intelligent System Resource Management": true,
+    "🐳 Intelligent Docker Containerization": true,
+    "📖 Intelligent Documentation & Testing": true,
+    "extensions": true,
+    "plugins": true,
+    "scripts": true,
+    "models": true,
+    ".vscode": true
+  },
+  "key_checks": {
+    "📚 Enhanced RAG & Knowledge Graph": {
+      "exists": true,
+      "items": {
+        "📚 Enhanced RAG & Knowledge Graph/api/app.py": true,
+        "📚 Enhanced RAG & Knowledge Graph/core": true,
+        "📚 Enhanced RAG & Knowledge Graph/pipelines": true,
+        "📚 Enhanced RAG & Knowledge Graph/knowledge_graph": true
+      }
+    },
+    ".vscode": {
+      "exists": true,
+      "items": {
+        ".vscode/settings.json": true
+      }
+    },
+    "models": {
+      "exists": true,
+      "items": {
+        "models/all-MiniLM-L6-v2": true,
+        "models/all-MiniLM-L6-v2/modules.json": true,
+        "models/all-MiniLM-L6-v2/1_Pooling": true,
+        "models/all-MiniLM-L6-v2/0_Transformer": false
+      }
+    },
+    "scripts": {
+      "exists": true,
+      "items": {
+        "scripts/dev.sh": false,
+        "scripts/smoke.sh": false,
+        "scripts/scaffold_minimal.py": true,
+        "scripts/audit_repo.py": true
+      }
+    }
+  },
+  "service": {
+    "port_8011_alive": false,
+    "api_probe": {
+      "error": "server not listening on :8011"
+    }
+  },
+  "notes": [],
+  "summary_gaps": [
+    "缺少脚本: scripts/dev.sh",
+    "缺少脚本: scripts/smoke.sh",
+    "uvicorn 未监听 8011 端口"
+  ],
+  "ok": false
+}

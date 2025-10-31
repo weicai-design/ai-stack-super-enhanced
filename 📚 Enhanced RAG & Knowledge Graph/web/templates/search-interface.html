@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能搜索 - AI Stack超级增强版</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/rag-enhanced.css') }}">
+    <style>
+        .search-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .search-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .search-main {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+
+        .search-input-group {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 20px 60px 20px 30px;
+            font-size: 18px;
+            border: 2px solid #e1e5e9;
+            border-radius: 50px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+
+        .search-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .search-btn:hover {
+            background: #0056b3;
+        }
+
+        .search-options {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-option {
+            background: #f8f9fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 20px;
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .search-option.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .filters-panel {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            margin-bottom: 15px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .filter-select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .search-results {
+            margin-top: 30px;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .results-count {
+            color: #6c757d;
+        }
+
+        .sort-options {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .result-item {
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .result-item:hover {
+            border-color: #007bff;
+            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+
+        .result-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #007bff;
+            margin: 0;
+        }
+
+        .result-source {
+            background: #e9ecef;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .result-preview {
+            color: #495057;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .result-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .highlight {
+            background: #fff3cd;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
+        .confidence-score {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .confidence-bar {
+            width: 60px;
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s ease;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        .page-btn {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .page-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .page-btn:hover:not(.active) {
+            background: #f8f9fa;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .suggestions {
+            margin-top: 20px;
+        }
+
+        .suggestion-title {
+            font-size: 14px;
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+
+        .suggestion-list {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .suggestion-item {
+            background: #e7f1ff;
+            color: #007bff;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .suggestion-item:hover {
+            background: #007bff;
+            color: white;
+        }
+
+        .loading-indicator {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .advanced-search-toggle {
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .toggle-btn {
+            background: none;
+            border: none;
+            color: #007bff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .related-concepts {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .concepts-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .concepts-list {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .concept-tag {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 15px;
+            padding: 4px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .concept-tag:hover {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <!-- 搜索头部 -->
+        <div class="search-header">
+            <h1>智能语义搜索</h1>
+            <p>基于AI Stack超级增强版的RAG和知识图谱技术</p>
+        </div>
+
+        <!-- 主要搜索区域 -->
+        <div class="search-main">
+            <!-- 搜索输入 -->
+            <div class="search-input-group">
+                <input type="text" id="search-query" class="search-input" placeholder="输入您要搜索的内容..." autocomplete="off">
+                <button id="search-button" class="search-btn">
+                    <span style="font-size: 18px;">🔍</span>
+                </button>
+            </div>
+
+            <!-- 搜索选项 -->
+            <div class="search-options">
+                <div class="search-option active" data-scope="all">全部内容</div>
+                <div class="search-option" data-scope="documents">文档</div>
+                <div class="search-option" data-scope="images">图片</div>
+                <div class="search-option" data-scope="audio">音频</div>
+                <div class="search-option" data-scope="video">视频</div>
+                <div class="search-option" data-scope="knowledge">知识图谱</div>
+            </div>
+
+            <!-- 高级搜索切换 -->
+            <div class="advanced-search-toggle">
+                <button class="toggle-btn" id="toggle-advanced-search">
+                    + 高级搜索选项
+                </button>
+            </div>
+
+            <!-- 高级搜索面板 -->
+            <div id="advanced-search-panel" class="filters-panel hidden">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="filter-group">
+                        <label for="file-type">文件类型</label>
+                        <select id="file-type" class="filter-select">
+                            <option value="">所有类型</option>
+                            <option value="pdf">PDF文档</option>
+                            <option value="doc">Word文档</option>
+                            <option value="ppt">演示文稿</option>
+                            <option value="image">图片文件</option>
+                            <option value="audio">音频文件</option>
+                            <option value="video">视频文件</option>
+                            <option value="code">代码文件</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="date-range">时间范围</label>
+                        <select id="date-range" class="filter-select">
+                            <option value="">所有时间</option>
+                            <option value="today">今天</option>
+                            <option value="week">本周</option>
+                            <option value="month">本月</option>
+                            <option value="year">今年</option>
+                            <option value="custom">自定义</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="confidence-threshold">置信度阈值</label>
+                        <input type="range" id="confidence-threshold" min="0" max="100" value="80" class="filter-select">
+                        <span id="confidence-value">80%</span>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="sort-by">排序方式</label>
+                        <select id="sort-by" class="filter-select">
+                            <option value="relevance">相关性</option>
+                            <option value="date-desc">最新优先</option>
+                            <option value="date-asc">最旧优先</option>
+                            <option value="confidence">置信度</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 搜索建议 -->
+            <div id="search-suggestions" class="suggestions hidden">
+                <div class="suggestion-title">搜索建议：</div>
+                <div class="suggestion-list" id="suggestion-list"></div>
+            </div>
+        </div>
+
+        <!-- 搜索结果 -->
+        <div class="search-results">
+            <div class="results-header">
+                <div class="results-count" id="results-count">请输入搜索词</div>
+                <div class="sort-options hidden" id="sort-options">
+                    <span>排序:</span>
+                    <select id="results-sort">
+                        <option value="relevance">相关性</option>
+                        <option value="date">日期</option>
+                        <option value="confidence">置信度</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 搜索结果列表 -->
+            <div id="results-list">
+                <div class="no-results">
+                    <div style="font-size: 48px; margin-bottom: 20px;">🔍</div>
+                    <h3>开始搜索</h3>
+                    <p>使用上方的搜索框查找您需要的信息</p>
+                </div>
+            </div>
+
+            <!-- 加载指示器 -->
+            <div id="loading-indicator" class="loading-indicator hidden">
+                <div class="spinner"></div>
+                <p>正在搜索中...</p>
+            </div>
+
+            <!-- 相关概念 -->
+            <div id="related-concepts" class="related-concepts hidden">
+                <div class="concepts-title">相关概念：</div>
+                <div class="concepts-list" id="concepts-list"></div>
+            </div>
+
+            <!-- 分页 -->
+            <div class="pagination hidden" id="pagination">
+                <button class="page-btn" id="prev-page">上一页</button>
+                <div id="page-numbers"></div>
+                <button class="page-btn" id="next-page">下一页</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/real-time-search.js') }}"></script>
+    <script>
+        // 搜索界面交互逻辑
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('search-query');
+            const searchButton = document.getElementById('search-button');
+            const searchOptions = document.querySelectorAll('.search-option');
+            const advancedSearchPanel = document.getElementById('advanced-search-panel');
+            const toggleAdvancedBtn = document.getElementById('toggle-advanced-search');
+            const confidenceSlider = document.getElementById('confidence-threshold');
+            const confidenceValue = document.getElementById('confidence-value');
+
+            // 搜索选项切换
+            searchOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    searchOptions.forEach(opt => opt.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+
+            // 高级搜索切换
+            toggleAdvancedBtn.addEventListener('click', function() {
+                advancedSearchPanel.classList.toggle('hidden');
+                this.textContent = advancedSearchPanel.classList.contains('hidden')
+                    ? '+ 高级搜索选项'
+                    : '- 隐藏高级选项';
+            });
+
+            // 置信度滑块
+            confidenceSlider.addEventListener('input', function() {
+                confidenceValue.textContent = this.value + '%';
+            });
+
+            // 搜索功能
+            searchButton.addEventListener('click', performSearch);
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    performSearch();
+                }
+            });
+
+            function performSearch() {
+                const query = searchInput.value.trim();
+                if (query) {
+                    // 显示加载指示器
+                    document.getElementById('loading-indicator').classList.remove('hidden');
+                    document.getElementById('results-list').innerHTML = '';
+
+                    // 模拟搜索过程
+                    setTimeout(() => {
+                        displaySearchResults(query);
+                    }, 1000);
+                }
+            }
+
+            function displaySearchResults(query) {
+                // 这里应该调用实际的搜索API
+                // 目前使用模拟数据
+                const resultsList = document.getElementById('results-list');
+                const resultsCount = document.getElementById('results-count');
+                const sortOptions = document.getElementById('sort-options');
+                const pagination = document.getElementById('pagination');
+                const relatedConcepts = document.getElementById('related-concepts');
+
+                // 显示结果计数和控件
+                resultsCount.textContent = `找到 15 个相关结果 (搜索词: "${query}")`;
+                sortOptions.classList.remove('hidden');
+                pagination.classList.remove('hidden');
+                relatedConcepts.classList.remove('hidden');
+
+                // 隐藏加载指示器
+                document.getElementById('loading-indicator').classList.add('hidden');
+
+                // 显示模拟结果
+                resultsList.innerHTML = `
+                    <div class="result-item">
+                        <div class="result-header">
+                            <h3 class="result-title">AI Stack超级增强版开发文档</h3>
+                            <span class="result-source">PDF文档</span>
+                        </div>
+                        <div class="result-preview">
+                            本文档详细介绍了<mark class="highlight">AI Stack超级增强版</mark>的系统架构、功能模块和技术实现细节。包含RAG系统、知识图谱、文件管理等核心组件的完整说明。
+                        </div>
+                        <div class="result-meta">
+                            <span>修改时间: 2024-01-15</span>
+                            <span>文件大小: 2.3 MB</span>
+                            <span class="confidence-score">
+                                置信度:
+                                <div class="confidence-bar">
+                                    <div class="confidence-fill" style="width: 95%"></div>
+                                </div>
+                                95%
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="result-item">
+                        <div class="result-header">
+                            <h3 class="result-title">知识图谱构建指南</h3>
+                            <span class="result-source">知识库条目</span>
+                        </div>
+                        <div class="result-preview">
+                            如何构建和维护企业级<mark class="highlight">知识图谱</mark>，包括实体识别、关系抽取、图谱存储和可视化等关键技术。
+                        </div>
+                        <div class="result-meta">
+                            <span>更新时间: 2024-01-14</span>
+                            <span>来源: 内部知识库</span>
+                            <span class="confidence-score">
+                                置信度:
+                                <div class="confidence-bar">
+                                    <div class="confidence-fill" style="width: 88%"></div>
+                                </div>
+                                88%
+                            </span>
+                        </div>
+                    </div>
+                `;
+
+                // 显示相关概念
+                document.getElementById('concepts-list').innerHTML = `
+                    <div class="concept-tag">RAG系统</div>
+                    <div class="concept-tag">向量数据库</div>
+                    <div class="concept-tag">语义搜索</div>
+                    <div class="concept-tag">实体识别</div>
+                    <div class="concept-tag">关系抽取</div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

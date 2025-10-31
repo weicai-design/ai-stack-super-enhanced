@@ -1,0 +1,25 @@
+{
+    "system_resources": {
+        "timestamp": "2025-10-10T07:59:12+08:00",
+        "cpu_usage": 2.89,
+        "memory_usage": ,
+        "disk_usage": 20,
+        "processes": [{"pid": "515", "name": "ollama", "cpu": 0.0, "memory": 0.0, "command": "/usr/local/opt/ollama/bin/ollama"},{"pid": "575", "name": "docker", "cpu": 0.5, "memory": 0.3, "command": "/Applications/Docker.app/Contents/MacOS/com.docker.backend"},{"pid": "1732", "name": "node", "cpu": 0.0, "memory": 0.2, "command": "/private/var/folders/lq/0fkjwswd24d7rwx4k9hcwfl00000gn/T/AppTranslocation/7683089C-5228-496A-9E20-4C3C0380D92F/d/Visual"}],
+        "containers": [],
+        "load_average": " 2.45, 2.37, 2.47"
+    },
+    "status_assessment": {
+        "overall_status": "healthy",
+        "cpu_usage": ,
+        "memory_usage": ,
+        "disk_usage": ,
+        "issues": [""],
+        "timestamp": "2025-10-10T07:59:12+08:00"
+    },
+    "optimization_applied": "2025-10-10T07:59:13+08:00",
+    "recommendations": [
+        "定期监控系统资源",
+        "根据使用模式调整服务配置",
+        "考虑使用外接硬盘扩展存储"
+    ]
+}

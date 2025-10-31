@@ -1,0 +1,15 @@
+# 忽略虚拟环境
+.venv
+
+# 忽略密钥文件
+.env
+.env.*
+
+# 忽略备份文件
+.git.bak_*/
+
+# 忽略离线包
+offline_bundle/
+offline_bundle_no_model.tar.gz
+.git.corrupt_*/
+.git.corrupt_*/

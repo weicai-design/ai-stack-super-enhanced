@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+"""
+Enhanced RAG Web Application
+对应需求: 1.7 RAG前端功能在open webui上实现，1.9 形成前端操作界面
+文件位置: ai-stack-super-enhanced/📚 Enhanced RAG & Knowledge Graph/web/111. app.py
+"""
+
+import logging
+import os
+
+# 导入RAG核心模块
+import sys
+from datetime import datetime
+from typing import Any, Dict
+
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from core.dynamic_knowledge_graph import DynamicKnowledgeGraph
+from core.hybrid_rag_engine import HybridRAGEngine
+from pipelines.smart_ingestion_pipeline import SmartIngestionPipeline
+from processors.file_processors.universal_file_parser import UniversalFileParser
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("/Users/ywc/ai-stack-super-enhanced/logs/rag_web.log"),
+        logging.StreamHandler(),
+    ],
+)
+logger = logging.getLogger("rag_web_app")
+
+
+class RAGWebApp:
+    """增强RAG Web应用"""
+
+    def __init__(self):
+        self.app = FastAPI(
+            title="Enhanced RAG System",
+            description="AI Stack超级增强版 - RAG知识检索系统",
+            version="1.0.0",
+            docs_url="/api/docs",
+            redoc_url="/api/redoc",
+        )
+
+        # 初始化核心组件
+        self.rag_engine = None
+        self.knowledge_graph = None
+        self.file_parser = None
+        self.ingestion_pipeline = None
+
+        self._setup_middleware()
+        self._setup_routes()
+        self._setup_static_files()
+        self.templates = Jinja2Templates(
+            directory=os.path.join(os.path.dirname(__file__), "templates")
+        )
+
+    def _setup_middleware(self):
+        """设置中间件"""
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+        # 添加性能监控中间件
+        @self.app.middleware("http")
+        async def add_process_time_header(request, call_next):
+            start_time = datetime.now()
+            response = await call_next(request)
+            process_time = (datetime.now() - start_time).total_seconds()
+            response.headers["X-Process-Time"] = str(process_time)
+            logger.info(
+                f"Request processed in {process_time:.3f}s: {request.method} {request.url}"
+            )
+            return response
+
+    def _setup_static_files(self):
+        """设置静态文件"""
+        static_dir = os.path.join(os.path.dirname(__file__), "static")
+        self.app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    def _setup_routes(self):
+        """设置路由"""
+
+        # 健康检查
+        @self.app.get("/health", response_model=Dict[str, Any])
+        async def health_check():
+            """系统健康检查"""
+            status = {
+                "status": "healthy",
+                "timestamp": datetime.now().isoformat(),
+                "version": "1.0.0",
+                "components": {
+                    "rag_engine": self.rag_engine is not None,
+                    "knowledge_graph": self.knowledge_graph is not None,
+                    "file_parser": self.file_parser is not None,
+                },
+            }
+            return status
+
+        # 主页面
+        @self.app.get("/", response_class=HTMLResponse)
+        async def read_root():
+            """RAG系统主页面"""
+            return self.templates.TemplateResponse(
+                "rag-dashboard.html", {"request": {}}
+            )
+
+        # 知识图谱页面
+        @self.app.get("/knowledge-graph", response_class=HTMLResponse)
+        async def knowledge_graph_page():
+            """知识图谱可视化页面"""
+            return self.templates.TemplateResponse(
+                "knowledge-graph.html", {"request": {}}
+            )
+
+        # 文件管理页面
+        @self.app.get("/file-management", response_class=HTMLResponse)
+        async def file_management_page():
+            """文件管理页面"""
+            return self.templates.TemplateResponse(
+                "file-management.html", {"request": {}}
+            )
+
+        # 搜索界面
+        @self.app.get("/search", response_class=HTMLResponse)
+        async def search_interface():
+            """搜索界面"""
+            return self.templates.TemplateResponse(
+                "search-interface.html", {"request": {}}
+            )
+
+    async def initialize_components(self):
+        """异步初始化核心组件"""
+        try:
+            logger.info("Initializing RAG Web Application components...")
+
+            # 初始化文件解析器
+            self.file_parser = UniversalFileParser()
+            await self.file_parser.initialize()
+
+            # 初始化RAG引擎
+            self.rag_engine = HybridRAGEngine()
+            await self.rag_engine.initialize()
+
+            # 初始化知识图谱
+            self.knowledge_graph = DynamicKnowledgeGraph()
+            await self.knowledge_graph.initialize()
+
+            # 初始化注入管道
+            self.ingestion_pipeline = SmartIngestionPipeline()
+            await self.ingestion_pipeline.initialize()
+
+            logger.info("RAG Web Application components initialized successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize RAG components: {str(e)}")
+            raise
+
+    def get_app(self):
+        """获取FastAPI应用实例"""
+        return self.app
+
+
+# 创建应用实例
+rag_web_app = RAGWebApp()
+app = rag_web_app.get_app()
+
+
+@app.on_event("startup")
+async def startup_event():
+    """应用启动事件"""
+    await rag_web_app.initialize_components()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭事件"""
+    logger.info("Shutting down RAG Web Application...")
+
+
+def main():
+    """主运行函数"""
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8001,  # RAG专用端口
+        reload=True,
+        log_level="info",
+        access_log=True,
+    )
+
+
+if __name__ == "__main__":
+    main()

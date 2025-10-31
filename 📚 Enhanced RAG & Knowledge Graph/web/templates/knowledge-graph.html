@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能知识图谱 - AI Stack超级增强版</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/kg-visualization.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/rag-enhanced.css') }}">
+</head>
+<body>
+    <div class="kg-container">
+        <!-- 头部导航 -->
+        <header class="kg-header">
+            <div class="header-left">
+                <h1>智能知识图谱</h1>
+                <nav class="breadcrumb">
+                    <a href="/rag-dashboard">RAG仪表板</a> &gt;
+                    <span class="current">知识图谱</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="user-info">
+                    <span class="username">{{ user.name }}</span>
+                    <div class="status-indicator online"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 控制面板 -->
+        <div class="control-panel">
+            <div class="search-section">
+                <input type="text" id="kg-search" placeholder="搜索实体、关系或概念..." class="search-input">
+                <button id="search-btn" class="btn-primary">搜索</button>
+                <button id="advanced-search-btn" class="btn-secondary">高级搜索</button>
+            </div>
+
+            <div class="filter-section">
+                <select id="entity-type-filter" class="filter-select">
+                    <option value="">所有实体类型</option>
+                    <option value="person">人物</option>
+                    <option value="organization">组织</option>
+                    <option value="location">地点</option>
+                    <option value="concept">概念</option>
+                    <option value="event">事件</option>
+                    <option value="product">产品</option>
+                </select>
+
+                <select id="relationship-type-filter" class="filter-select">
+                    <option value="">所有关系类型</option>
+                    <option value="belongs_to">属于</option>
+                    <option value="located_in">位于</option>
+                    <option value="works_for">工作于</option>
+                    <option value="related_to">相关于</option>
+                    <option value="part_of">部分属于</option>
+                </select>
+
+                <button id="reset-filters" class="btn-outline">重置筛选</button>
+            </div>
+
+            <div class="visualization-controls">
+                <button id="zoom-in" class="btn-icon" title="放大">+</button>
+                <button id="zoom-out" class="btn-icon" title="缩小">-</button>
+                <button id="fit-to-screen" class="btn-secondary">适应屏幕</button>
+                <button id="export-graph" class="btn-primary">导出图谱</button>
+            </div>
+        </div>
+
+        <!-- 主要内容区域 -->
+        <div class="main-content">
+            <!-- 图谱可视化区域 -->
+            <div class="visualization-area">
+                <div id="knowledge-graph" class="graph-container">
+                    <!-- 知识图谱将通过D3.js或类似库动态渲染 -->
+                    <div class="graph-loading">
+                        <div class="loading-spinner"></div>
+                        <p>正在加载知识图谱...</p>
+                    </div>
+                </div>
+
+                <!-- 图例 -->
+                <div class="graph-legend">
+                    <h4>图例</h4>
+                    <div class="legend-item">
+                        <span class="legend-color person"></span>
+                        <span>人物</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color organization"></span>
+                        <span>组织</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color location"></span>
+                        <span>地点</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color concept"></span>
+                        <span>概念</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color event"></span>
+                        <span>事件</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 侧边信息面板 -->
+            <div class="sidebar">
+                <div class="entity-details" id="entity-details">
+                    <h3>实体详情</h3>
+                    <div class="details-placeholder">
+                        <p>点击图谱中的节点查看详细信息</p>
+                    </div>
+                    <div class="details-content hidden">
+                        <div class="entity-header">
+                            <h4 id="entity-name"></h4>
+                            <span id="entity-type" class="entity-type-badge"></span>
+                        </div>
+                        <div class="entity-properties">
+                            <h5>属性</h5>
+                            <div id="entity-properties" class="properties-list"></div>
+                        </div>
+                        <div class="entity-relationships">
+                            <h5>关系</h5>
+                            <div id="entity-relationships" class="relationships-list"></div>
+                        </div>
+                        <div class="entity-sources">
+                            <h5>数据来源</h5>
+                            <div id="entity-sources" class="sources-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="graph-statistics">
+                    <h3>图谱统计</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-number" id="total-entities">0</span>
+                            <span class="stat-label">总实体数</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number" id="total-relationships">0</span>
+                            <span class="stat-label">总关系数</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number" id="last-updated">-</span>
+                            <span class="stat-label">最后更新</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 高级搜索模态框 -->
+        <div id="advanced-search-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>高级搜索</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="advanced-search-form">
+                        <div class="form-group">
+                            <label for="entity-name-search">实体名称</label>
+                            <input type="text" id="entity-name-search" placeholder="输入实体名称">
+                        </div>
+                        <div class="form-group">
+                            <label for="property-search">属性值</label>
+                            <input type="text" id="property-search" placeholder="搜索特定属性值">
+                        </div>
+                        <div class="form-group">
+                            <label for="relationship-search">关系描述</label>
+                            <input type="text" id="relationship-search" placeholder="搜索关系描述">
+                        </div>
+                        <div class="form-group">
+                            <label for="date-range">时间范围</label>
+                            <div class="date-range-inputs">
+                                <input type="date" id="start-date" placeholder="开始日期">
+                                <span>至</span>
+                                <input type="date" id="end-date" placeholder="结束日期">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancel-advanced-search" class="btn-outline">取消</button>
+                    <button id="apply-advanced-search" class="btn-primary">应用搜索</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/kg-visualizer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/real-time-search.js') }}"></script>
+</body>
+</html>

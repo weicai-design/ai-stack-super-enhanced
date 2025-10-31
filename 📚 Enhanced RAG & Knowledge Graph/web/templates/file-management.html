@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件管理 - AI Stack超级增强版</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/file-manager.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/rag-enhanced.css') }}">
+</head>
+<body>
+    <div class="file-manager-container">
+        <!-- 头部导航 -->
+        <header class="fm-header">
+            <div class="header-left">
+                <h1>智能文件管理</h1>
+                <nav class="breadcrumb">
+                    <a href="/rag-dashboard">RAG仪表板</a> &gt;
+                    <span class="current">文件管理</span>
+                </nav>
+            </div>
+            <div class="header-right">
+                <div class="storage-info">
+                    <span class="storage-label">存储使用:</span>
+                    <div class="storage-bar">
+                        <div class="storage-progress" id="storage-progress"></div>
+                    </div>
+                    <span class="storage-text" id="storage-text">0 GB / 0 GB</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 操作工具栏 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button id="upload-btn" class="btn-primary">
+                    <span class="icon">📁</span>上传文件
+                </button>
+                <button id="create-folder-btn" class="btn-secondary">
+                    <span class="icon">📂</span>新建文件夹
+                </button>
+                <button id="refresh-btn" class="btn-outline">
+                    <span class="icon">🔄</span>刷新
+                </button>
+            </div>
+
+            <div class="toolbar-right">
+                <div class="view-controls">
+                    <button id="grid-view" class="view-btn active" title="网格视图">
+                        <span class="icon">⏹️</span>
+                    </button>
+                    <button id="list-view" class="view-btn" title="列表视图">
+                        <span class="icon">📋</span>
+                    </button>
+                </div>
+
+                <div class="sort-controls">
+                    <select id="sort-by" class="sort-select">
+                        <option value="name">按名称</option>
+                        <option value="date">按日期</option>
+                        <option value="size">按大小</option>
+                        <option value="type">按类型</option>
+                    </select>
+                    <button id="sort-order" class="sort-order-btn" title="升序/降序">
+                        <span class="icon">⬆️</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件操作区域 -->
+        <div class="file-operations">
+            <!-- 文件上传区域 -->
+            <div id="upload-area" class="upload-area hidden">
+                <div class="upload-container">
+                    <div class="upload-icon">📤</div>
+                    <h3>拖放文件到此处上传</h3>
+                    <p>或</p>
+                    <button id="browse-files" class="btn-primary">选择文件</button>
+                    <input type="file" id="file-input" multiple style="display: none;">
+
+                    <div class="upload-options">
+                        <label>
+                            <input type="checkbox" id="auto-process" checked>
+                            自动预处理文件
+                        </label>
+                        <label>
+                            <input type="checkbox" id="add-to-rag" checked>
+                            添加到RAG知识库
+                        </label>
+                    </div>
+                </div>
+
+                <div id="upload-progress" class="upload-progress hidden">
+                    <h4>上传进度</h4>
+                    <div class="progress-list" id="progress-list"></div>
+                </div>
+            </div>
+
+            <!-- 路径导航 -->
+            <div class="path-navigation">
+                <div class="path-breadcrumb" id="path-breadcrumb">
+                    <button class="path-item root" data-path="/">根目录</button>
+                </div>
+                <button id="back-btn" class="btn-outline" disabled>
+                    <span class="icon">⬅️</span>返回
+                </button>
+            </div>
+
+            <!-- 搜索和筛选 -->
+            <div class="search-filter-bar">
+                <div class="search-box">
+                    <input type="text" id="file-search" placeholder="搜索文件..." class="search-input">
+                    <button id="file-search-btn" class="search-btn">搜索</button>
+                </div>
+
+                <div class="filter-options">
+                    <select id="file-type-filter" class="filter-select">
+                        <option value="all">所有类型</option>
+                        <option value="document">文档</option>
+                        <option value="image">图片</option>
+                        <option value="audio">音频</option>
+                        <option value="video">视频</option>
+                        <option value="code">代码</option>
+                        <option value="data">数据文件</option>
+                    </select>
+
+                    <select id="date-filter" class="filter-select">
+                        <option value="all">所有时间</option>
+                        <option value="today">今天</option>
+                        <option value="week">本周</option>
+                        <option value="month">本月</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件列表区域 -->
+        <div class="file-content">
+            <!-- 网格视图 -->
+            <div id="grid-view-container" class="file-grid">
+                <div class="file-grid-header">
+                    <div class="file-count">
+                        共 <span id="file-count">0</span> 个文件
+                    </div>
+                    <div class="selection-info">
+                        <span id="selected-count">0</span> 个选中
+                    </div>
+                </div>
+
+                <div class="files-grid" id="files-grid">
+                    <!-- 文件项将通过JavaScript动态生成 -->
+                    <div class="empty-state">
+                        <div class="empty-icon">📁</div>
+                        <h3>暂无文件</h3>
+                        <p>上传文件或刷新查看内容</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 列表视图 -->
+            <div id="list-view-container" class="file-list hidden">
+                <table class="file-table">
+                    <thead>
+                        <tr>
+                            <th class="select-col">
+                                <input type="checkbox" id="select-all">
+                            </th>
+                            <th class="name-col">名称</th>
+                            <th class="type-col">类型</th>
+                            <th class="size-col">大小</th>
+                            <th class="date-col">修改日期</th>
+                            <th class="status-col">状态</th>
+                            <th class="action-col">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="file-table-body">
+                        <!-- 文件行将通过JavaScript动态生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 文件详情侧边栏 -->
+        <div class="file-sidebar">
+            <div class="sidebar-header">
+                <h3>文件详情</h3>
+                <button id="close-sidebar" class="btn-icon">✕</button>
+            </div>
+
+            <div class="file-details" id="file-details">
+                <div class="details-placeholder">
+                    <p>选择文件查看详细信息</p>
+                </div>
+
+                <div class="details-content hidden">
+                    <div class="file-preview" id="file-preview">
+                        <!-- 文件预览区域 -->
+                    </div>
+
+                    <div class="file-info">
+                        <h4 id="detail-filename"></h4>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">文件类型:</span>
+                                <span id="detail-filetype" class="info-value"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">文件大小:</span>
+                                <span id="detail-filesize" class="info-value"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">修改时间:</span>
+                                <span id="detail-modtime" class="info-value"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">创建时间:</span>
+                                <span id="detail-createtime" class="info-value"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">RAG状态:</span>
+                                <span id="detail-ragstatus" class="info-value status-badge"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="file-actions">
+                        <button class="btn-primary" id="preview-file">预览</button>
+                        <button class="btn-secondary" id="download-file">下载</button>
+                        <button class="btn-outline" id="process-file">重新处理</button>
+                        <button class="btn-danger" id="delete-file">删除</button>
+                    </div>
+
+                    <div class="file-metadata">
+                        <h5>元数据</h5>
+                        <div id="file-metadata" class="metadata-content"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件上传模态框 -->
+        <div id="upload-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>上传文件</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <!-- 上传表单内容 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 新建文件夹模态框 -->
+        <div id="create-folder-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>新建文件夹</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="create-folder-form">
+                        <div class="form-group">
+                            <label for="folder-name">文件夹名称</label>
+                            <input type="text" id="folder-name" placeholder="输入文件夹名称" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-outline" id="cancel-create-folder">取消</button>
+                    <button class="btn-primary" id="confirm-create-folder">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/file-uploader.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/real-time-search.js') }}"></script>
+</body>
+</html>

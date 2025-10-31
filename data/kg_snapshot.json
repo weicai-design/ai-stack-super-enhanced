@@ -1,0 +1,52 @@
+{
+  "entities": [
+    {
+      "id": "test@example.com",
+      "type": "email",
+      "count": 1
+    },
+    {
+      "id": "example.com",
+      "type": "domain",
+      "count": 2
+    },
+    {
+      "id": "https://example.com",
+      "type": "url",
+      "count": 1
+    }
+  ],
+  "edges": [
+    {
+      "src": "a.txt",
+      "dst": "test@example.com",
+      "type": "mentions"
+    },
+    {
+      "src": "test@example.com",
+      "dst": "example.com",
+      "type": "belongs_to"
+    },
+    {
+      "src": "a.txt",
+      "dst": "example.com",
+      "type": "mentions_domain"
+    },
+    {
+      "src": "a.txt",
+      "dst": "https://example.com",
+      "type": "mentions"
+    },
+    {
+      "src": "https://example.com",
+      "dst": "example.com",
+      "type": "belongs_to"
+    }
+  ],
+  "docs": {
+    "a.txt": {
+      "id": "a.txt",
+      "path": "/tmp/a.txt"
+    }
+  }
+}

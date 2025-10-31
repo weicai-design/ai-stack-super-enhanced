@@ -1,0 +1,7 @@
+2025-10-10 08:11:36,060 - INFO - 开始全面健康检查...
+2025-10-10 08:11:37,067 - INFO - system_resources: healthy - 系统资源正常
+2025-10-10 08:11:41,549 - INFO - docker_services: critical - 没有运行的 AI-STACK 容器
+2025-10-10 08:11:41,595 - INFO - service_endpoints: critical - 服务端点异常: openwebui
+2025-10-10 08:11:48,385 - INFO - file_system: healthy - 文件系统状态正常
+2025-10-10 08:11:48,403 - INFO - temperature: healthy - CPU热管理级别: 0
+2025-10-10 08:11:48,404 - INFO - 健康检查报告已保存: /Users/ywc/ai-stack-super-enhanced/🚀 Core System & Entry Points/logs/health_reports/health_report_20251010_081148.json

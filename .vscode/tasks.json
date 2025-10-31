@@ -1,0 +1,26 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Install deps",
+            "type": "shell",
+            "command": "${workspaceFolder}/.venv/bin/pip install -r ${workspaceFolder}/requirements.txt",
+            "problemMatcher": []
+        },
+        {
+            "label": "Kill port (.env API_PORT)",
+            "type": "shell",
+            "command": "bash -lc 'set -a; [ -f ${workspaceFolder}/.env ] && source ${workspaceFolder}/.env; set +a; p=$(lsof -nP -iTCP:${API_PORT:-8001} -sTCP:LISTEN -t); [ -n \"$p\" ] && kill $p || true'",
+            "problemMatcher": []
+        },
+        {
+            "label": "API: Run (.env API_PORT)",
+            "type": "shell",
+            "command": "bash -lc 'set -a; [ -f ${workspaceFolder}/.env ] && source ${workspaceFolder}/.env; set +a; ${workspaceFolder}/.venv/bin/uvicorn app:app --reload --port ${API_PORT:-8001}'",
+            "options": {
+                "cwd": "${workspaceFolder}/📚 Enhanced RAG & Knowledge Graph/api"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

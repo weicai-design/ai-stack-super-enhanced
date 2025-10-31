@@ -1,0 +1,12 @@
+{
+    "backup_id": "D7236BC5-945F-4041-990F-8A3FB6C3C225",
+    "timestamp": "2025-10-10T00:15:09Z",
+    "type": "user_data",
+    "version": "1.0.0",
+    "data_dirs": [
+        "/Volumes/Huawei-1/ai-stack-data",
+        "cache",
+        "logs"
+    ],
+    "total_size": "16K"
+}

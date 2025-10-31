@@ -1,0 +1,13 @@
+{
+    "backup_id": "4ED31E23-B2C5-4C00-BF6A-DE0C83FABD64",
+    "timestamp": "2025-10-10T00:15:09Z",
+    "type": "system_state",
+    "version": "1.0.0",
+    "components": [
+        "container_state",
+        "volume_info",
+        "network_config",
+        "system_config",
+        "resource_stats"
+    ]
+}

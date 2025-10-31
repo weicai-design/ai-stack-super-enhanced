@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # Ollama 服务 - 必须首先启动
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-stack-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        limits:
+          memory: ${OLLAMA_MEMORY:-8G}
+          cpus: '${OLLAMA_CPUS:-4.0}'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # OpenWebUI 服务 - 依赖 Ollama
+  openwebui:
+    image: openwebui/openwebui:latest
+    container_name: ai-stack-openwebui
+    ports:
+      - "3000:3000"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_NAME="AI-STACK Super Enhanced"
+      - ENABLE_SIGNUP=false
+    depends_on:
+      ollama:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: ${OPENWEBUI_MEMORY:-4G}
+          cpus: '${OPENWEBUI_CPUS:-2.0}'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PRIMARY_STORAGE:-./data}/ollama
+
+networks:
+  default:
+    name: ai-stack-network
+    driver: bridge

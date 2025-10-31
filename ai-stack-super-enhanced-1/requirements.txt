@@ -1,0 +1,27 @@
+/ai-stack-super-enhanced
+│
+├── /data                   # 存储数据和索引
+│   ├── index.json
+│   └── kg_snapshot.json
+│
+├── /models                 # 存储模型
+│   └── ...
+│
+├── /pipelines              # 存储数据处理和检索管道
+│   ├── hybrid_search.py
+│   └── smart_ingestion_pipeline.py
+│
+├── /preprocessors          # 存储预处理器
+│   ├── kg_simple.py
+│   └── ...
+│
+├── /core                   # 核心功能模块
+│   ├── semantic_grouping.py
+│   └── ...
+│
+├── /api                    # API 相关代码
+│   ├── app.py              # FastAPI 应用
+│   └── ...
+│
+├── requirements.txt        # 项目依赖
+└── README.md               # 项目说明文档

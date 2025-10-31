@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  api:
+    build:
+      context: .
+      args:
+        PY_BASE: python:3.11-slim
+    environment:
+      - RAG_API_KEY=secret123
+      - VECTOR_BACKEND=faiss
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    command: >
+      uvicorn "api.app:app" --app-dir "📚 Enhanced RAG & Knowledge Graph"
+      --host 0.0.0.0 --port 8000
