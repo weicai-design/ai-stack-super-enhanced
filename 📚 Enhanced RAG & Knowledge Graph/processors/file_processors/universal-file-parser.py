@@ -12,7 +12,6 @@ import hashlib
 import importlib
 import inspect
 import logging
-import mimetypes
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -501,26 +500,15 @@ def create_universal_parser() -> "UniversalFileParser":
     if _UNIVERSAL_PARSER_SINGLETON is None:
         with _UNIVERSAL_PARSER_LOCK:
             if _UNIVERSAL_PARSER_SINGLETON is None:
-                parser = UniversalFileParser()  # 依赖你文件里已有的类定义
-                init = getattr(parser, "initialize", None)
-                if callable(init):
-                    try:
-                        if _is_coro(init):
-                            try:
-                                loop = asyncio.get_event_loop()
-                                if loop.is_running():
-                                    loop.run_until_complete(init())
-                                else:
-                                    asyncio.run(init())
-                            except RuntimeError:
-                                asyncio.run(init())
-                        else:
-                            init()
-                    except Exception as e:
-                        logger.exception(
-                            f"Failed to initialize UniversalFileParser: {e}"
+                parser = UniversalFileParser()
+                try:
+                    ok = parser.initialize()
+                    if not ok:
+                        logger.warning(
+                            "UniversalFileParser.initialize() returned False"
                         )
-                        raise
+                except Exception as e:
+                    logger.exception("UniversalFileParser initialization failed: %s", e)
                 _UNIVERSAL_PARSER_SINGLETON = parser
     return _UNIVERSAL_PARSER_SINGLETON
 

@@ -4,6 +4,7 @@ import json
 import os
 import re
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -38,7 +39,7 @@ API_KEY = os.getenv("RAG_API_KEY", "").strip()
 
 def require_api_key(x_api_key: Optional[str] = Header(default=None)):
     if API_KEY and x_api_key != API_KEY:
-        raise HTTPException(401, "unauthorized")
+        raise HTTPException(status_code=401, detail="unauthorized")
     return True
 
 
@@ -288,17 +289,30 @@ def _index_matrix() -> np.ndarray:
 
 @app.get("/readyz")
 def readyz() -> Dict[str, Any]:
+    # 模型可用性
+    model_ok = bool(_model)
+    dim_ok = isinstance(_DIM, int) and _DIM > 0
+
+    # 索引可用性
+    try:
+        n_docs = _index_size()
+        mat_ok = True
+        if n_docs > 0:
+            _ = _index_matrix()
+    except Exception:
+        mat_ok = False
+        n_docs = -1
+
+    # KG 快照文件存在性（可选）
+    kg_file_exists = KG_FILE.exists()
+
     return {
-        "ready": True,
-        "st_model": True,
-        "st_status": {"available": True, "error": None, "env_path": str(MODEL_DIR)},
-        "deps": {"sentence_transformers": True},
-        "cwd": str(Path.cwd()),
-        "vector_index": {
-            "size": _index_size(),
-            "dimension": _DIM,
-            "backend": "InMemory",
-        },
+        "model_ok": model_ok,
+        "dim_ok": dim_ok,
+        "index_docs": max(0, n_docs),
+        "index_matrix_ok": mat_ok,
+        "kg_file_exists": kg_file_exists,
+        "ts": time.time(),
     }
 
 
