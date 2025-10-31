@@ -13,3 +13,10 @@ offline_bundle/
 offline_bundle_no_model.tar.gz
 .git.corrupt_*/
 .git.corrupt_*/
+
+# large artifacts
+*.tar.gz
+*.whl
+logs/
+cache/
+backups/
