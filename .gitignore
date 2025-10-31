@@ -14,9 +14,14 @@ offline_bundle_no_model.tar.gz
 .git.corrupt_*/
 .git.corrupt_*/
 
-# large artifacts
-*.tar.gz
-*.whl
+# system and cache
+.DS_Store
+__pycache__/
+*.pyc
 logs/
 cache/
 backups/
+offline_bundle/
+offline_bundle_no_model.tar.gz
+.git.bak_*/
+.git.corrupt_*/
