@@ -60,16 +60,27 @@ def test_ingest_text_and_search():
     assert items[0]["score"] > 0
 
 
-def test_expert_predict_auth():
+def test_expert_predict_auth_optional():
+    # 未设置 API Key 时允许匿名（或返回 401，取决于环境变量）
     with TestClient(app) as c:
-        import os
-
-        os.environ["RAG_API_KEY"] = "devkey"
         r = c.post(
             "/experts/finance_expert/predict",
             json={"metrics": {"debt_ratio": 0.7, "cash_flow": 0.4}},
         )
         assert r.status_code in (200, 401)
+
+
+def test_expert_predict_with_key():
+    os.environ["RAG_API_KEY"] = "devkey"
+    with TestClient(app) as c:
+        r = c.post(
+            "/experts/finance_expert/predict",
+            headers={"x-api-key": "devkey"},
+            json={"metrics": {"debt_ratio": 0.7, "cash_flow": 0.4}},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert "risk" in body
 
 
 def test_persistence_reload():
