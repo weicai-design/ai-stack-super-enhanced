@@ -80,7 +80,7 @@ def test_expert_predict_with_key():
         )
         assert r.status_code == 200
         body = r.json()
-        assert "risk" in body
+        assert "risk" in body and "score" in body
 
 
 def test_persistence_reload():
