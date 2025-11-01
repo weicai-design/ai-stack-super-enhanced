@@ -1,5 +1,6 @@
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException
@@ -98,9 +99,61 @@ def kg_load():
     return {"ok": True, "snapshot": _KG_SNAPSHOT}
 
 
-# 汇总导出
+# ====== 新增：/rag 最小实现（仅满足测试 ingest）======
+_RAG_INDEX: List[Dict[str, Any]] = []
+
+
+def _chunk_text(text: str, max_len: int = 400) -> List[str]:
+    parts: List[str] = []
+    buf = ""
+    for seg in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        for sent in seg.split("."):
+            sent = sent.strip()
+            if not sent:
+                continue
+            if len(buf) + len(sent) + 1 > max_len:
+                parts.append(buf.strip())
+                buf = sent
+            else:
+                buf = (buf + " " + sent).strip() if buf else sent
+    if buf:
+        parts.append(buf.strip())
+    return parts or ([text[:max_len]] if text else [])
+
+
+rag_router = APIRouter(prefix="/rag", tags=["rag"])
+
+
+@rag_router.post("/ingest")
+def rag_ingest(payload: Dict[str, Any] = Body(...)):
+    path = payload.get("path")
+    save_index = bool(payload.get("save_index", True))
+    if not path:
+        raise HTTPException(status_code=400, detail="path required")
+    p = Path(path)
+    if not p.exists() or not p.is_file():
+        raise HTTPException(status_code=400, detail=f"file not found: {path}")
+    try:
+        text = p.read_text(encoding="utf-8", errors="ignore")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"read failed: {e}")
+    chunks = _chunk_text(text)
+    doc = {"path": str(p), "chunks": chunks, "size": len(text)}
+    if save_index:
+        _RAG_INDEX.append(doc)
+    return {"success": True, "chunks": len(chunks), "indexed": save_index}
+
+
+@rag_router.post("/clear")
+def rag_clear():
+    _RAG_INDEX.clear()
+    return {"ok": True, "count": 0}
+
+
+# ====== 汇总导出 ======
 router = APIRouter()
 router.include_router(readyz_router)
 router.include_router(experts_router)
 router.include_router(groups_router)
 router.include_router(kg_router)
+router.include_router(rag_router)
