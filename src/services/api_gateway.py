@@ -13,9 +13,8 @@ def require_api_key(x_api_key: Optional[str] = Header(default=None)):
     return True
 
 
-# ====== 已有：专家与就绪 ======
+# experts + readyz
 experts_router = APIRouter(prefix="/experts", tags=["experts"])
-
 try:
     from src.core.module_registry import get_expert
     from src.experts.finance_expert import FinanceExpert  # noqa: F401
@@ -42,9 +41,8 @@ def readyz():
     return {"ok": True, "ts": time.time()}
 
 
-# ====== 新增：/groups 最小实现 ======
+# groups（内存回环）
 _groups_state: List[Dict[str, Any]] = []
-
 groups_router = APIRouter(prefix="/groups", tags=["groups"])
 
 
@@ -55,7 +53,6 @@ def list_groups():
 
 @groups_router.post("")
 def create_group(payload: Dict[str, Any] = Body(...)):
-    # 允许任意结构，至少包含 name
     item = {"name": payload.get("name"), "data": payload}
     _groups_state.append(item)
     return {"ok": True, "group": item, "count": len(_groups_state)}
@@ -67,9 +64,8 @@ def clear_groups():
     return {"ok": True, "count": 0}
 
 
-# ====== 新增：/kg 最小实现（save/clear/load 回环）======
+# kg（save/clear/load 回环）
 _KG_SNAPSHOT: Dict[str, Any] = {"nodes": [], "edges": []}
-
 kg_router = APIRouter(prefix="/kg", tags=["kg"])
 
 
@@ -102,7 +98,7 @@ def kg_load():
     return {"ok": True, "snapshot": _KG_SNAPSHOT}
 
 
-# ====== 汇总导出 ======
+# 汇总导出
 router = APIRouter()
 router.include_router(readyz_router)
 router.include_router(experts_router)
