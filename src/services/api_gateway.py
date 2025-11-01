@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 
 API_KEY = os.getenv("RAG_API_KEY", "").strip()
 
@@ -85,6 +85,15 @@ def kg_save(payload: Dict[str, Any] = Body(...)):
     }
 
 
+@kg_router.get("/snapshot")
+def kg_snapshot():
+    return {
+        "ok": True,
+        "nodes": _KG_SNAPSHOT.get("nodes", []),
+        "edges": _KG_SNAPSHOT.get("edges", []),
+    }
+
+
 @kg_router.post("/clear")
 @kg_router.delete("/clear")
 def kg_clear():
@@ -99,7 +108,7 @@ def kg_load():
     return {"ok": True, "snapshot": _KG_SNAPSHOT}
 
 
-# ====== 新增：/rag 最小实现（仅满足测试 ingest）======
+# ====== /rag 最小实现（含 ingest 与 groups）======
 _RAG_INDEX: List[Dict[str, Any]] = []
 
 
@@ -142,6 +151,25 @@ def rag_ingest(payload: Dict[str, Any] = Body(...)):
     if save_index:
         _RAG_INDEX.append(doc)
     return {"success": True, "chunks": len(chunks), "indexed": save_index}
+
+
+@rag_router.get("/groups")
+def rag_groups(
+    k: int = Query(3, ge=1, le=50), max_items: int = Query(100, ge=1, le=10000)
+):
+    # 简化：将已索引的 chunk 扁平化，按 round-robin 分配到 k 组
+    items: List[Dict[str, Any]] = []
+    for doc in _RAG_INDEX:
+        for ch in doc.get("chunks", []):
+            items.append({"text": ch, "path": doc.get("path")})
+            if len(items) >= max_items:
+                break
+        if len(items) >= max_items:
+            break
+    groups = [{"id": i, "items": []} for i in range(k)]
+    for idx, it in enumerate(items):
+        groups[idx % k]["items"].append(it)
+    return {"ok": True, "k": k, "total": len(items), "groups": groups}
 
 
 @rag_router.post("/clear")
