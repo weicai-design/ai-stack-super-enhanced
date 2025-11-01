@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import time
@@ -196,15 +197,34 @@ kg_router = APIRouter(prefix="/kg", tags=["kg"])
 
 
 @kg_router.post("/save")
-def kg_save(payload: Dict[str, Any] = Body(...)):
+def kg_save(
+    path: Optional[str] = Query(default=None),
+    payload: Optional[Dict[str, Any]] = Body(default=None),
+    _: bool = Depends(require_api_key),
+):
     global _KG_SNAPSHOT
-    _KG_SNAPSHOT = {
-        "nodes": payload.get("nodes", []),
-        "edges": payload.get("edges", []),
-    }
-    # 从 nodes 重建 entities（尽力而为）
+    data = payload or _KG_SNAPSHOT
+    # 规范化快照结构
+    snap = {"nodes": data.get("nodes", []), "edges": data.get("edges", [])}
+
+    # 若提供路径，则写入文件
+    if path:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("w", encoding="utf-8") as f:
+            json.dump(snap, f, ensure_ascii=False, indent=2)
+        return {
+            "ok": True,
+            "saved": True,
+            "path": str(p),
+            "nodes": len(snap["nodes"]),
+            "edges": len(snap["edges"]),
+        }
+
+    # 否则更新内存快照
+    _KG_SNAPSHOT = snap
     _KG_ENTITIES.clear()
-    for n in _KG_SNAPSHOT["nodes"]:
+    for n in snap["nodes"]:
         t = n.get("type") or (
             n.get("id", "").split(":", 1)[0] if isinstance(n.get("id"), str) else "node"
         )
@@ -212,8 +232,8 @@ def kg_save(payload: Dict[str, Any] = Body(...)):
     return {
         "ok": True,
         "saved": True,
-        "nodes": len(_KG_SNAPSHOT["nodes"]),
-        "edges": len(_KG_SNAPSHOT["edges"]),
+        "nodes": len(snap["nodes"]),
+        "edges": len(snap["edges"]),
     }
 
 
@@ -238,7 +258,32 @@ def kg_clear():
 
 @kg_router.get("/load")
 @kg_router.post("/load")
-def kg_load():
+def kg_load(path: Optional[str] = Query(default=None)):
+    global _KG_SNAPSHOT
+    if path:
+        p = Path(path)
+        if not p.exists():
+            raise HTTPException(status_code=400, detail=f"kg file not found: {path}")
+        try:
+            snap = json.loads(p.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"kg read failed: {e}")
+        _KG_SNAPSHOT = {"nodes": snap.get("nodes", []), "edges": snap.get("edges", [])}
+        _KG_ENTITIES.clear()
+        for n in _KG_SNAPSHOT["nodes"]:
+            t = n.get("type") or (
+                n.get("id", "").split(":", 1)[0]
+                if isinstance(n.get("id"), str)
+                else "node"
+            )
+            _KG_ENTITIES.append({"type": t, "value": n.get("label") or n.get("id")})
+        return {
+            "ok": True,
+            "loaded": True,
+            "nodes": len(_KG_SNAPSHOT["nodes"]),
+            "edges": len(_KG_SNAPSHOT["edges"]),
+            "path": str(p),
+        }
     return {"ok": True, "snapshot": _KG_SNAPSHOT}
 
 
