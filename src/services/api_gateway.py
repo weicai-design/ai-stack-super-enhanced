@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -65,51 +66,24 @@ def clear_groups():
     return {"ok": True, "count": 0}
 
 
-# kg（save/clear/load 回环）
-_KG_SNAPSHOT: Dict[str, Any] = {"nodes": [], "edges": []}
-kg_router = APIRouter(prefix="/kg", tags=["kg"])
-
-
-@kg_router.post("/save")
-def kg_save(payload: Dict[str, Any] = Body(...)):
-    global _KG_SNAPSHOT
-    _KG_SNAPSHOT = {
-        "nodes": payload.get("nodes", []),
-        "edges": payload.get("edges", []),
-    }
-    return {
-        "ok": True,
-        "saved": True,
-        "nodes": len(_KG_SNAPSHOT["nodes"]),
-        "edges": len(_KG_SNAPSHOT["edges"]),
-    }
-
-
-@kg_router.get("/snapshot")
-def kg_snapshot():
-    return {
-        "ok": True,
-        "nodes": _KG_SNAPSHOT.get("nodes", []),
-        "edges": _KG_SNAPSHOT.get("edges", []),
-    }
-
-
-@kg_router.post("/clear")
-@kg_router.delete("/clear")
-def kg_clear():
-    global _KG_SNAPSHOT
-    _KG_SNAPSHOT = {"nodes": [], "edges": []}
-    return {"ok": True, "cleared": True}
-
-
-@kg_router.get("/load")
-@kg_router.post("/load")
-def kg_load():
-    return {"ok": True, "snapshot": _KG_SNAPSHOT}
-
-
 # ====== /rag 最小实现（含 ingest 与 groups）======
 _RAG_INDEX: List[Dict[str, Any]] = []
+
+# 简单 KG 实体缓存
+_KG_SNAPSHOT: Dict[str, Any] = {"nodes": [], "edges": []}
+_KG_ENTITIES: List[Dict[str, Any]] = []
+
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_URL_RE = re.compile(r"https?://[^\s)]+", re.IGNORECASE)
+
+
+def _extract_entities(text: str) -> List[Dict[str, Any]]:
+    ents: List[Dict[str, Any]] = []
+    for m in _EMAIL_RE.findall(text):
+        ents.append({"type": "email", "value": m})
+    for m in _URL_RE.findall(text):
+        ents.append({"type": "url", "value": m})
+    return ents
 
 
 def _chunk_text(text: str, max_len: int = 400) -> List[str]:
@@ -150,6 +124,41 @@ def rag_ingest(payload: Dict[str, Any] = Body(...)):
     doc = {"path": str(p), "chunks": chunks, "size": len(text)}
     if save_index:
         _RAG_INDEX.append(doc)
+    # 简单实体抽取并写入 KG 快照
+    ents = _extract_entities(text)
+    if ents:
+        # 记录文档实体
+        doc_ent = {"type": "document", "value": str(p)}
+        _KG_ENTITIES.append(doc_ent)
+        for e in ents:
+            _KG_ENTITIES.append(e)
+        # 同步 nodes（去重）
+        seen = set()
+        nodes = []
+        for e in _KG_ENTITIES:
+            key = (e.get("type"), e.get("value"))
+            if key in seen:
+                continue
+            seen.add(key)
+            nodes.append(
+                {
+                    "id": f"{e['type']}:{e['value']}",
+                    "label": e["value"],
+                    "type": e["type"],
+                }
+            )
+        _KG_SNAPSHOT["nodes"] = nodes
+        # 简单边：document -> entity
+        edges = []
+        for e in ents:
+            edges.append(
+                {
+                    "source": f"document:{p}",
+                    "target": f"{e['type']}:{e['value']}",
+                    "type": "contains",
+                }
+            )
+        _KG_SNAPSHOT["edges"] = edges
     return {"success": True, "chunks": len(chunks), "indexed": save_index}
 
 
@@ -175,7 +184,62 @@ def rag_groups(
 @rag_router.post("/clear")
 def rag_clear():
     _RAG_INDEX.clear()
+    # 同步清空 KG
+    _KG_SNAPSHOT["nodes"].clear()
+    _KG_SNAPSHOT["edges"].clear()
+    _KG_ENTITIES.clear()
     return {"ok": True, "count": 0}
+
+
+# ====== /kg（含 snapshot/save/clear/load）======
+kg_router = APIRouter(prefix="/kg", tags=["kg"])
+
+
+@kg_router.post("/save")
+def kg_save(payload: Dict[str, Any] = Body(...)):
+    global _KG_SNAPSHOT
+    _KG_SNAPSHOT = {
+        "nodes": payload.get("nodes", []),
+        "edges": payload.get("edges", []),
+    }
+    # 从 nodes 重建 entities（尽力而为）
+    _KG_ENTITIES.clear()
+    for n in _KG_SNAPSHOT["nodes"]:
+        t = n.get("type") or (
+            n.get("id", "").split(":", 1)[0] if isinstance(n.get("id"), str) else "node"
+        )
+        _KG_ENTITIES.append({"type": t, "value": n.get("label") or n.get("id")})
+    return {
+        "ok": True,
+        "saved": True,
+        "nodes": len(_KG_SNAPSHOT["nodes"]),
+        "edges": len(_KG_SNAPSHOT["edges"]),
+    }
+
+
+@kg_router.get("/snapshot")
+def kg_snapshot():
+    return {
+        "ok": True,
+        "entities": list(_KG_ENTITIES),
+        "nodes": _KG_SNAPSHOT.get("nodes", []),
+        "edges": _KG_SNAPSHOT.get("edges", []),
+    }
+
+
+@kg_router.post("/clear")
+@kg_router.delete("/clear")
+def kg_clear():
+    _KG_SNAPSHOT["nodes"].clear()
+    _KG_SNAPSHOT["edges"].clear()
+    _KG_ENTITIES.clear()
+    return {"ok": True, "cleared": True}
+
+
+@kg_router.get("/load")
+@kg_router.post("/load")
+def kg_load():
+    return {"ok": True, "snapshot": _KG_SNAPSHOT}
 
 
 # ====== 汇总导出 ======
