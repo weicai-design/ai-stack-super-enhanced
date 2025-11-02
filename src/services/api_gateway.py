@@ -285,7 +285,40 @@ def kg_load(path: Optional[str] = Query(default=None)):
             "path": str(p),
         }
     return {"ok": True, "snapshot": _KG_SNAPSHOT}
+# ...existing code...
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 
+# ...existing code...
+
+# ====== 新增：/index 最小实现（清空索引与可选清空 KG）======
+index_router = APIRouter(prefix="/index", tags=["index"])
+
+
+@index_router.delete("/clear")
+def index_clear(
+    remove_file: bool = Query(False),  # 兼容测试参数，当前不处理文件删除
+    clear_kg: bool = Query(False),
+    _: bool = Depends(require_api_key),
+):
+    _RAG_INDEX.clear()
+    if clear_kg:
+        _KG_SNAPSHOT["nodes"].clear()
+        _KG_SNAPSHOT["edges"].clear()
+        _KG_ENTITIES.clear()
+    return {"ok": True, "indexed": len(_RAG_INDEX), "kg_cleared": bool(clear_kg)}
+
+
+# ...existing code...
+
+# ====== 汇总导出 ======
+router = APIRouter()
+router.include_router(readyz_router)
+router.include_router(experts_router)
+router.include_router(groups_router)
+router.include_router(kg_router)
+router.include_router(rag_router)
+router.include_router(index_router)
+# ...existing code...
 
 # ====== 汇总导出 ======
 router = APIRouter()
