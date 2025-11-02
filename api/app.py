@@ -11,3 +11,6 @@ except Exception as e:
     @app.get("/readyz")
     def readyz():
         return {"ok": True, "reason": f"router load failed: {e}"}
+
+
+from src.main import app  # 复用 src/main.py 的 FastAPI 实例
