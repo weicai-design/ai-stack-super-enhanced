@@ -28,6 +28,7 @@ class FileType(Enum):
     MINDMAP = "mindmap"
     DATABASE = "database"
     TEXT = "text"
+    ARCHIVE = "archive"  # 压缩文件
     UNKNOWN = "unknown"
 
 

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能任务代理系统 - AI Stack</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        #app {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .card-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .task-item {
+            padding: 16px;
+            border: 1px solid #e8e8e8;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+
+        .task-item:hover {
+            border-color: #667eea;
+            background: #f5f7ff;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .task-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .task-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-running {
+            background: #52c41a;
+            color: white;
+        }
+
+        .status-pending {
+            background: #faad14;
+            color: white;
+        }
+
+        .status-completed {
+            background: #1890ff;
+            color: white;
+        }
+
+        .status-failed {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .task-meta {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+
+        .agent-card {
+            padding: 16px;
+            border: 2px solid #f0f0f0;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .agent-card.active {
+            border-color: #52c41a;
+            background: #f6ffed;
+        }
+
+        .agent-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .agent-status {
+            font-size: 12px;
+            color: #52c41a;
+        }
+
+        .button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .button:hover {
+            transform: scale(1.05);
+        }
+
+        .input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>🤖 智能任务代理系统</h1>
+            <p>自动化执行 · 智能调度 · 多代理协作</p>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📋</div>
+                <div class="stat-value">{{ stats.totalTasks }}</div>
+                <div class="stat-label">总任务数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⚡</div>
+                <div class="stat-value">{{ stats.runningTasks }}</div>
+                <div class="stat-label">执行中</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-value">{{ stats.completedTasks }}</div>
+                <div class="stat-label">已完成</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-value">{{ stats.successRate }}%</div>
+                <div class="stat-label">成功率</div>
+            </div>
+        </div>
+
+        <!-- 主要内容 -->
+        <div class="main-content">
+            <!-- 任务列表 -->
+            <div class="card">
+                <div class="card-header">
+                    <span>📋 任务列表</span>
+                    <button class="button" @click="showCreateDialog">+ 新建任务</button>
+                </div>
+                <div v-for="task in tasks" :key="task.id" class="task-item">
+                    <div class="task-header">
+                        <div class="task-title">{{ task.name }}</div>
+                        <div class="task-status" :class="'status-' + task.status">
+                            {{ getStatusText(task.status) }}
+                        </div>
+                    </div>
+                    <div class="task-meta">
+                        代理: {{ task.agent }} | 优先级: {{ task.priority }} | {{ task.time }}
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" :style="{ width: task.progress + '%' }"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 代理状态 -->
+            <div class="card">
+                <div class="card-header">🤖 代理状态</div>
+                <div v-for="agent in agents" :key="agent.id" class="agent-card" :class="{ active: agent.active }">
+                    <div class="agent-name">{{ agent.name }}</div>
+                    <div style="margin: 8px 0;">
+                        <div style="font-size: 20px; font-weight: bold; color: #667eea;">
+                            {{ agent.tasksCompleted }}
+                        </div>
+                        <div style="font-size: 12px; color: #999;">完成任务</div>
+                    </div>
+                    <div class="agent-status">{{ agent.active ? '运行中' : '空闲' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 创建任务 -->
+        <div class="card" v-if="showDialog">
+            <div class="card-header">✨ 创建新任务</div>
+            <input v-model="newTask.name" class="input" placeholder="任务名称" />
+            <select v-model="newTask.agent" class="select">
+                <option value="">选择代理</option>
+                <option value="数据采集代理">数据采集代理</option>
+                <option value="分析处理代理">分析处理代理</option>
+                <option value="报告生成代理">报告生成代理</option>
+            </select>
+            <select v-model="newTask.priority" class="select">
+                <option value="">选择优先级</option>
+                <option value="高">高</option>
+                <option value="中">中</option>
+                <option value="低">低</option>
+            </select>
+            <div style="display: flex; gap: 12px;">
+                <button class="button" @click="createTask" style="flex: 1;">创建</button>
+                <button class="button" @click="showDialog = false" style="flex: 1; background: #ddd; color: #333;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    stats: {
+                        totalTasks: 45,
+                        runningTasks: 8,
+                        completedTasks: 35,
+                        successRate: 94.5
+                    },
+                    tasks: [
+                        {
+                            id: 1,
+                            name: '每日数据采集与分析',
+                            agent: '数据采集代理',
+                            status: 'running',
+                            priority: '高',
+                            progress: 75,
+                            time: '进行中'
+                        },
+                        {
+                            id: 2,
+                            name: '市场趋势报告生成',
+                            agent: '报告生成代理',
+                            status: 'running',
+                            priority: '高',
+                            progress: 45,
+                            time: '进行中'
+                        },
+                        {
+                            id: 3,
+                            name: '社交媒体内容发布',
+                            agent: '内容发布代理',
+                            status: 'pending',
+                            priority: '中',
+                            progress: 0,
+                            time: '等待中'
+                        },
+                        {
+                            id: 4,
+                            name: '竞品监控与对比',
+                            agent: '分析处理代理',
+                            status: 'completed',
+                            priority: '中',
+                            progress: 100,
+                            time: '2小时前完成'
+                        },
+                        {
+                            id: 5,
+                            name: '客户数据清洗',
+                            agent: '数据处理代理',
+                            status: 'completed',
+                            priority: '低',
+                            progress: 100,
+                            time: '5小时前完成'
+                        }
+                    ],
+                    agents: [
+                        { id: 1, name: '数据采集代理', tasksCompleted: 128, active: true },
+                        { id: 2, name: '分析处理代理', tasksCompleted: 95, active: true },
+                        { id: 3, name: '报告生成代理', tasksCompleted: 76, active: true },
+                        { id: 4, name: '内容发布代理', tasksCompleted: 52, active: false }
+                    ],
+                    showDialog: false,
+                    newTask: {
+                        name: '',
+                        agent: '',
+                        priority: ''
+                    }
+                }
+            },
+            methods: {
+                getStatusText(status) {
+                    const texts = {
+                        'running': '执行中',
+                        'pending': '等待中',
+                        'completed': '已完成',
+                        'failed': '失败'
+                    };
+                    return texts[status] || status;
+                },
+                showCreateDialog() {
+                    this.showDialog = true;
+                },
+                createTask() {
+                    if (!this.newTask.name || !this.newTask.agent || !this.newTask.priority) {
+                        alert('请填写完整信息');
+                        return;
+                    }
+                    
+                    this.tasks.unshift({
+                        id: Date.now(),
+                        name: this.newTask.name,
+                        agent: this.newTask.agent,
+                        status: 'pending',
+                        priority: this.newTask.priority,
+                        progress: 0,
+                        time: '刚刚创建'
+                    });
+                    
+                    this.showDialog = false;
+                    this.newTask = { name: '', agent: '', priority: '' };
+                    this.stats.totalTasks++;
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

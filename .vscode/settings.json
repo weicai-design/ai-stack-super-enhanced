@@ -16,5 +16,12 @@
         "**/.venv": true,
         "**/__pycache__": true,
         "**/.pytest_cache": true
-    }
+    },
+    // Cursor AI 聊天语言设置 - 设置为中文
+    "cursor.chatLanguage": "zh-CN",
+    "cursor.aiLanguage": "zh-CN",
+    // 代码文档中文名称设置
+    "cursor.codeDocumentation.language": "zh-CN",
+    // VS Code 界面语言（如果有中文语言包）
+    "locale": "zh-CN"
 }

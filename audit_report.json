@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-10-27T20:26:52",
+  "timestamp": "2025-11-02T17:05:59",
   "root": "/Users/ywc/ai-stack-super-enhanced",
   "top_dirs": {
     "🚀 Core System & Entry Points": true,
@@ -43,14 +43,14 @@
         "models/all-MiniLM-L6-v2": true,
         "models/all-MiniLM-L6-v2/modules.json": true,
         "models/all-MiniLM-L6-v2/1_Pooling": true,
-        "models/all-MiniLM-L6-v2/0_Transformer": false
+        "models/all-MiniLM-L6-v2/0_Transformer": true
       }
     },
     "scripts": {
       "exists": true,
       "items": {
-        "scripts/dev.sh": false,
-        "scripts/smoke.sh": false,
+        "scripts/dev.sh": true,
+        "scripts/smoke.sh": true,
         "scripts/scaffold_minimal.py": true,
         "scripts/audit_repo.py": true
       }
@@ -64,8 +64,6 @@
   },
   "notes": [],
   "summary_gaps": [
-    "缺少脚本: scripts/dev.sh",
-    "缺少脚本: scripts/smoke.sh",
     "uvicorn 未监听 8011 端口"
   ],
   "ok": false

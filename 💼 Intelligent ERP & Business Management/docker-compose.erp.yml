@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: erp-postgres
+    environment:
+      POSTGRES_DB: erp_db
+      POSTGRES_USER: erp_user
+      POSTGRES_PASSWORD: erp_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - erp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ERP后端API
+  erp-api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: erp-api
+    environment:
+      - DATABASE_URL=postgresql://erp_user:erp_password@postgres:5432/erp_db
+      - API_HOST=0.0.0.0
+      - API_PORT=8013
+    ports:
+      - "8013:8013"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    command: >
+      uvicorn api.main:app
+      --host 0.0.0.0
+      --port 8013
+      --reload
+    restart: unless-stopped
+
+  # ERP前端
+  erp-web:
+    build:
+      context: ./web/frontend
+      dockerfile: Dockerfile
+    container_name: erp-web
+    ports:
+      - "8012:8012"
+    depends_on:
+      - erp-api
+    restart: unless-stopped
+
+volumes:
+  erp_postgres_data:
+    name: erp_postgres_data
+

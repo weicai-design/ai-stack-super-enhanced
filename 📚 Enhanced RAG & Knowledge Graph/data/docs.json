@@ -3,5 +3,20 @@
     "id": "f88e83cb-c090-4e22-bfd7-8df53b6a3144",
     "text": "hello email test@example.com",
     "path": null
+  },
+  {
+    "id": "6fb45205-499d-4085-92cc-c068953dbe01",
+    "text": "AI Stack Super Enhanced 测试文档\n\n这是一个用于验证RAG系统功能的测试文档。\n\n联系信息:\n- 邮箱: test@example.com\n- 网址: https://ai-stack.example.com\n- 项目: AI Stack Super Enhanced\n\n这是一个增强的RAG（检索增强生成）系统，支持多种文档格式处理和知识图谱构建。\n",
+    "path": "/tmp/ai-stack-test-1762084919.txt"
+  },
+  {
+    "id": "4a964b95-d586-42d6-8448-e5fb867a2401",
+    "text": "AI Stack Super Enhanced 测试文档\n\n这是一个用于验证RAG系统功能的测试文档。\n\n联系信息:\n- 邮箱: test@example.com\n- 网址: https://ai-stack.example.com\n- 项目: AI Stack Super Enhanced\n\n这是一个增强的RAG（检索增强生成）系统，支持多种文档格式处理和知识图谱构建。\n",
+    "path": "/tmp/ai-stack-test-1762084939.txt"
+  },
+  {
+    "id": "chat_test_user_test_session_833b6693",
+    "text": "[用户: test_user] [会话: test_session] 这是一个测试消息：OpenWebUI集成测试",
+    "path": null
   }
 ]

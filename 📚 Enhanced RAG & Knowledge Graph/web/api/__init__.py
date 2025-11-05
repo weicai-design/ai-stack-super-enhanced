@@ -67,9 +67,9 @@ def _load_router_from(filename: str, module_name: str):
 
 # load routers
 try:
-    file_router = _load_router_from("file-api.py", "file_api")
-    kg_router = _load_router_from("kg-api.py", "kg_api")
-    rag_router = _load_router_from("rag-api.py", "rag_api")
+    file_router = _load_router_from("file_api.py", "file_api")
+    kg_router = _load_router_from("kg_api.py", "kg_api")
+    rag_router = _load_router_from("rag_api.py", "rag_api")
 except Exception:
     # fallback: use a small shim that's more robust in different import contexts
     try:

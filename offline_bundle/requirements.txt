@@ -1,0 +1,9 @@
+sentence-transformers
+transformers
+huggingface-hub
+numpy
+faiss-cpu
+torch
+fastapi
+uvicorn[standard]
+requests

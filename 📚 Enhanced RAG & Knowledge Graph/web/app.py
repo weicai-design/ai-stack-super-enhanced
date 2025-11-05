@@ -208,7 +208,7 @@ class RAGWebApp:
                     import importlib.util
 
                     api_path = os.path.join(
-                        os.path.dirname(__file__), "api", "rag-api.py"
+                        os.path.dirname(__file__), "api", "rag_api.py"
                     )
                     if os.path.exists(api_path):
                         spec = importlib.util.spec_from_file_location(
@@ -221,10 +221,10 @@ class RAGWebApp:
                         if hasattr(module, "router"):
                             self.app.include_router(module.router)
                             logger.info(
-                                "Included router from rag-api.py via direct load"
+                                "Included router from rag_api.py via direct load"
                             )
                 except Exception as e:
-                    logger.warning(f"Fallback direct load of rag-api.py failed: {e}")
+                    logger.warning(f"Fallback direct load of rag_api.py failed: {e}")
         except Exception as e:
             logger.warning(f"Could not load external API routers: {e}")
 

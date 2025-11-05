@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票交易系统 - AI Stack</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        #app {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            margin-right: 16px;
+        }
+
+        .stat-title {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .stat-change {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .stat-change.up {
+            color: #52c41a;
+        }
+
+        .stat-change.down {
+            color: #ff4d4f;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .card-header {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        #stockChart {
+            height: 400px;
+        }
+
+        .stock-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .stock-item {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .stock-item:hover {
+            background: #f5f5f5;
+        }
+
+        .stock-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .stock-price {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .stock-change {
+            font-size: 14px;
+        }
+
+        .strategies-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .strategy-card {
+            padding: 16px;
+            border: 2px solid #f0f0f0;
+            border-radius: 12px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .strategy-card:hover {
+            border-color: #667eea;
+            background: #f5f7ff;
+        }
+
+        .strategy-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .strategy-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .strategy-status.active {
+            background: #52c41a;
+            color: white;
+        }
+
+        .strategy-status.inactive {
+            background: #d9d9d9;
+            color: #666;
+        }
+
+        .button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: #667eea;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .button:hover {
+            background: #764ba2;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>📈 AI股票交易系统</h1>
+            <p>智能投资分析 · 实时行情监控 · 策略自动执行</p>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        📊
+                    </div>
+                    <div>
+                        <div class="stat-title">监控股票</div>
+                    </div>
+                </div>
+                <div class="stat-value">{{ stats.watchlistCount }}</div>
+                <div class="stat-change">自选股票</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        💰
+                    </div>
+                    <div>
+                        <div class="stat-title">总资产</div>
+                    </div>
+                </div>
+                <div class="stat-value">¥{{ stats.totalAssets.toLocaleString() }}</div>
+                <div class="stat-change" :class="stats.assetChange >= 0 ? 'up' : 'down'">
+                    {{ stats.assetChange >= 0 ? '↑' : '↓' }} {{ Math.abs(stats.assetChange).toFixed(2) }}%
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        📈
+                    </div>
+                    <div>
+                        <div class="stat-title">今日收益</div>
+                    </div>
+                </div>
+                <div class="stat-value">¥{{ stats.todayProfit.toLocaleString() }}</div>
+                <div class="stat-change" :class="stats.todayProfit >= 0 ? 'up' : 'down'">
+                    {{ stats.todayProfit >= 0 ? '盈利' : '亏损' }}
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                        🎯
+                    </div>
+                    <div>
+                        <div class="stat-title">策略胜率</div>
+                    </div>
+                </div>
+                <div class="stat-value">{{ stats.winRate }}%</div>
+                <div class="stat-change up">优秀</div>
+            </div>
+        </div>
+
+        <!-- 主要内容 -->
+        <div class="main-content">
+            <!-- K线图 -->
+            <div class="card">
+                <div class="card-header">实时K线图 - {{ selectedStock }}</div>
+                <div id="stockChart"></div>
+            </div>
+
+            <!-- 自选股票列表 -->
+            <div class="card">
+                <div class="card-header">自选股票</div>
+                <div class="stock-list">
+                    <div v-for="stock in watchlist" :key="stock.symbol" 
+                         class="stock-item" @click="selectStock(stock)">
+                        <div class="stock-name">{{ stock.name }} ({{ stock.symbol }})</div>
+                        <div class="stock-price" :style="{ color: stock.change >= 0 ? '#52c41a' : '#ff4d4f' }">
+                            ¥{{ stock.price.toFixed(2) }}
+                        </div>
+                        <div class="stock-change" :class="stock.change >= 0 ? 'up' : 'down'">
+                            {{ stock.change >= 0 ? '↑' : '↓' }} {{ Math.abs(stock.changePercent).toFixed(2) }}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 投资策略 -->
+        <div class="card">
+            <div class="card-header">AI投资策略</div>
+            <div class="strategies-grid">
+                <div v-for="strategy in strategies" :key="strategy.name" class="strategy-card">
+                    <div class="strategy-name">{{ strategy.name }}</div>
+                    <div style="margin: 12px 0;">
+                        <div style="font-size: 20px; font-weight: bold; color: #667eea;">
+                            {{ strategy.score }}分
+                        </div>
+                    </div>
+                    <div class="strategy-status" :class="strategy.active ? 'active' : 'inactive'">
+                        {{ strategy.active ? '运行中' : '已停用' }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    stats: {
+                        watchlistCount: 8,
+                        totalAssets: 125000,
+                        assetChange: 3.25,
+                        todayProfit: 3250,
+                        winRate: 68.5
+                    },
+                    selectedStock: 'AAPL',
+                    watchlist: [
+                        { symbol: 'AAPL', name: '苹果', price: 178.50, change: 2.35, changePercent: 1.33 },
+                        { symbol: 'MSFT', name: '微软', price: 368.25, change: 5.20, changePercent: 1.43 },
+                        { symbol: 'GOOGL', name: '谷歌', price: 142.80, change: -1.15, changePercent: -0.80 },
+                        { symbol: 'TSLA', name: '特斯拉', price: 242.50, change: 8.30, changePercent: 3.54 },
+                        { symbol: 'NVDA', name: '英伟达', price: 495.20, change: 12.50, changePercent: 2.59 },
+                        { symbol: 'META', name: 'Meta', price: 328.75, change: -2.80, changePercent: -0.84 },
+                        { symbol: 'AMZN', name: '亚马逊', price: 152.30, change: 1.85, changePercent: 1.23 },
+                        { symbol: 'NFLX', name: '奈飞', price: 445.60, change: -5.40, changePercent: -1.20 }
+                    ],
+                    strategies: [
+                        { name: '趋势跟踪', score: 85, active: true },
+                        { name: '价值投资', score: 72, active: true },
+                        { name: 'AI综合策略', score: 91, active: true }
+                    ]
+                }
+            },
+            mounted() {
+                this.initChart();
+                this.loadData();
+            },
+            methods: {
+                initChart() {
+                    const chart = echarts.init(document.getElementById('stockChart'));
+                    
+                    // 生成模拟K线数据
+                    const dates = [];
+                    const data = [];
+                    let basePrice = 170;
+                    
+                    for (let i = 0; i < 30; i++) {
+                        const date = new Date();
+                        date.setDate(date.getDate() - (29 - i));
+                        dates.push(date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }));
+                        
+                        const open = basePrice + (Math.random() - 0.5) * 5;
+                        const close = open + (Math.random() - 0.5) * 8;
+                        const high = Math.max(open, close) + Math.random() * 3;
+                        const low = Math.min(open, close) - Math.random() * 3;
+                        
+                        data.push([open, close, low, high]);
+                        basePrice = close;
+                    }
+
+                    const option = {
+                        title: {
+                            text: 'AAPL - 30日K线图',
+                            left: 'center'
+                        },
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: {
+                                type: 'cross'
+                            }
+                        },
+                        grid: {
+                            left: '10%',
+                            right: '10%',
+                            bottom: '15%'
+                        },
+                        xAxis: {
+                            type: 'category',
+                            data: dates,
+                            scale: true,
+                            boundaryGap: false,
+                            axisLine: { onZero: false },
+                            splitLine: { show: false },
+                            min: 'dataMin',
+                            max: 'dataMax'
+                        },
+                        yAxis: {
+                            scale: true,
+                            splitArea: {
+                                show: true
+                            }
+                        },
+                        series: [
+                            {
+                                type: 'candlestick',
+                                data: data,
+                                itemStyle: {
+                                    color: '#ef5350',
+                                    color0: '#26a69a',
+                                    borderColor: '#ef5350',
+                                    borderColor0: '#26a69a'
+                                }
+                            }
+                        ]
+                    };
+
+                    chart.setOption(option);
+                    
+                    // 响应式
+                    window.addEventListener('resize', () => chart.resize());
+                },
+                selectStock(stock) {
+                    this.selectedStock = stock.symbol;
+                    console.log('Selected:', stock);
+                },
+                async loadData() {
+                    try {
+                        const response = await axios.get('http://localhost:8014/api/stocks/list');
+                        console.log('Loaded stock data:', response.data);
+                    } catch (error) {
+                        console.log('Using mock data');
+                    }
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
+
+
+

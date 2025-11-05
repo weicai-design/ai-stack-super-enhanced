@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG知识图谱 - 前端管理界面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .header .status {
+            display: inline-block;
+            padding: 5px 15px;
+            background: #4caf50;
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 15px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
+        .upload-zone {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            background: #f9f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-zone:hover {
+            background: #f0f0ff;
+            border-color: #764ba2;
+        }
+
+        .upload-zone.dragover {
+            background: #e6e6ff;
+            border-color: #4caf50;
+        }
+
+        .file-list {
+            margin-top: 20px;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+
+        .file-item:hover {
+            background: #f0f0f0;
+            transform: translateX(5px);
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .search-box input:focus {
+            border-color: #667eea;
+        }
+
+        .search-box button {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .search-box button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .result-item {
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .result-title {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .result-score {
+            color: #667eea;
+            font-size: 12px;
+        }
+
+        .result-content {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .result-meta {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .graph-container {
+            height: 400px;
+            background: #f9f9f9;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+        }
+
+        .openwebui-notice {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .openwebui-notice .icon {
+            font-size: 32px;
+        }
+
+        .openwebui-notice .content h3 {
+            margin-bottom: 5px;
+        }
+
+        .openwebui-notice .content p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .openwebui-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 20px;
+            background: white;
+            color: #4facfe;
+            border-radius: 20px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .openwebui-link:hover {
+            transform: scale(1.05);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>
+                <span>📚</span>
+                RAG知识图谱管理系统
+                <span class="status" id="status">● 就绪</span>
+            </h1>
+            <p>智能知识检索与管理平台 - 通过OpenWebUI统一入口访问</p>
+        </div>
+
+        <!-- OpenWebUI提示 -->
+        <div class="openwebui-notice">
+            <div class="icon">💬</div>
+            <div class="content">
+                <h3>推荐使用OpenWebUI访问</h3>
+                <p>RAG的主要功能已集成到OpenWebUI中，您可以在聊天界面直接使用所有RAG功能</p>
+                <a href="http://localhost:3000" class="openwebui-link" target="_blank">
+                    前往 OpenWebUI →
+                </a>
+            </div>
+        </div>
+
+        <!-- 标签页 -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('upload')">📤 文件上传</button>
+            <button class="tab" onclick="switchTab('search')">🔍 知识检索</button>
+            <button class="tab" onclick="switchTab('graph')">🕸️ 知识图谱</button>
+            <button class="tab" onclick="switchTab('stats')">📊 统计信息</button>
+            <button class="tab" onclick="switchTab('openwebui')">💬 OpenWebUI集成</button>
+        </div>
+
+        <!-- 文件上传标签页 -->
+        <div id="upload" class="tab-content active">
+            <div class="card">
+                <h2>文件上传与处理</h2>
+                <div class="upload-zone" id="uploadZone">
+                    <p style="font-size: 48px; margin-bottom: 10px;">📁</p>
+                    <p style="font-size: 18px; color: #667eea; margin-bottom: 10px;">
+                        拖放文件到这里或点击选择
+                    </p>
+                    <p style="font-size: 14px; color: #999;">
+                        支持60+种格式：PDF、Word、Excel、图片、音频、视频等
+                    </p>
+                    <input type="file" id="fileInput" style="display: none;" multiple>
+                </div>
+                <div class="file-list" id="fileList"></div>
+            </div>
+        </div>
+
+        <!-- 知识检索标签页 -->
+        <div id="search" class="tab-content">
+            <div class="card">
+                <h2>智能知识检索</h2>
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="输入问题或关键词搜索知识库..." />
+                    <button onclick="searchKnowledge()">🔍 搜索</button>
+                </div>
+                <div id="searchResults"></div>
+            </div>
+        </div>
+
+        <!-- 知识图谱标签页 -->
+        <div id="graph" class="tab-content">
+            <div class="card">
+                <h2>知识图谱可视化</h2>
+                <div class="graph-container">
+                    🕸️ 知识图谱可视化（可集成D3.js或ECharts Graph）
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计信息标签页 -->
+        <div id="stats" class="tab-content">
+            <div class="card">
+                <h2>知识库统计</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalDocs">0</div>
+                        <div class="stat-label">文档总数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalChunks">0</div>
+                        <div class="stat-label">知识块数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalQueries">0</div>
+                        <div class="stat-label">检索次数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="storageSize">0 MB</div>
+                        <div class="stat-label">存储大小</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>文件类型分布</h2>
+                <div class="graph-container">
+                    📊 文件类型分布图（可集成ECharts饼图）
+                </div>
+            </div>
+        </div>
+
+        <!-- OpenWebUI集成标签页 -->
+        <div id="openwebui" class="tab-content">
+            <div class="card">
+                <h2>OpenWebUI集成说明</h2>
+                
+                <h3 style="color: #667eea; margin: 20px 0 10px;">✅ 已集成功能</h3>
+                <ul style="line-height: 2; color: #666;">
+                    <li>📝 <strong>聊天内容自动保存</strong> - 所有对话自动进入RAG知识库</li>
+                    <li>🔍 <strong>智能检索增强</strong> - 自动搜索相关知识增强回答</li>
+                    <li>📤 <strong>文件上传处理</strong> - 在聊天中上传的文件自动解析</li>
+                    <li>🌐 <strong>网络信息保存</strong> - 搜索到的网络信息自动入库</li>
+                    <li>🤖 <strong>智能体协同</strong> - 各智能体共享RAG知识</li>
+                </ul>
+
+                <h3 style="color: #667eea; margin: 20px 0 10px;">💡 在OpenWebUI中使用RAG</h3>
+                <div style="background: #f9f9ff; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <p style="margin-bottom: 15px; color: #333;"><strong>1. 上传文件到知识库：</strong></p>
+                    <p style="color: #666; margin-left: 20px;">在OpenWebUI聊天框中点击📎，选择文件上传，系统会自动处理并保存到RAG</p>
+                    
+                    <p style="margin: 15px 0; color: #333;"><strong>2. 搜索知识库：</strong></p>
+                    <p style="color: #666; margin-left: 20px;">直接在聊天中提问，系统会自动搜索RAG知识库并增强回答</p>
+                    
+                    <p style="margin: 15px 0; color: #333;"><strong>3. 查看知识：</strong></p>
+                    <p style="color: #666; margin-left: 20px;">在OpenWebUI中输入"/rag search 关键词"可以直接搜索知识库</p>
+                </div>
+
+                <h3 style="color: #667eea; margin: 20px 0 10px;">🔧 API端点</h3>
+                <div style="background: #f0f0f0; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px;">
+                    <div style="margin-bottom: 10px;">POST   /rag/upload - 上传文件</div>
+                    <div style="margin-bottom: 10px;">POST   /rag/ingest - 摄入文本</div>
+                    <div style="margin-bottom: 10px;">GET    /rag/search - 检索知识</div>
+                    <div style="margin-bottom: 10px;">GET    /rag/documents - 文档列表</div>
+                    <div style="margin-bottom: 10px;">DELETE /rag/documents/{id} - 删除文档</div>
+                    <div style="margin-bottom: 10px;">GET    /knowledge-graph/query - 图谱查询</div>
+                </div>
+
+                <a href="http://localhost:3000" target="_blank" class="btn btn-primary" style="display: inline-block; margin-top: 20px; text-decoration: none; color: white;">
+                    前往 OpenWebUI 使用完整功能 →
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const RAG_API = 'http://localhost:8011';
+
+        // 标签页切换
+        function switchTab(tabName) {
+            // 隐藏所有标签内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // 显示选中的标签
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // 文件上传
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadZone.onclick = () => fileInput.click();
+
+        uploadZone.ondragover = (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        };
+
+        uploadZone.ondragleave = () => {
+            uploadZone.classList.remove('dragover');
+        };
+
+        uploadZone.ondrop = (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        };
+
+        fileInput.onchange = (e) => {
+            handleFiles(e.target.files);
+        };
+
+        function handleFiles(files) {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '<h3 style="margin: 20px 0 10px;">上传的文件：</h3>';
+
+            Array.from(files).forEach((file, index) => {
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.innerHTML = `
+                    <div>
+                        <div style="font-weight: bold;">${file.name}</div>
+                        <div style="font-size: 12px; color: #999;">
+                            ${(file.size / 1024).toFixed(2)} KB
+                        </div>
+                    </div>
+                    <div>
+                        <span style="color: #4caf50;">✓ 已上传</span>
+                    </div>
+                `;
+                fileList.appendChild(item);
+
+                // 这里应该调用RAG API上传文件
+                uploadToRAG(file);
+            });
+        }
+
+        async function uploadToRAG(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${RAG_API}/rag/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    console.log('文件上传成功:', file.name);
+                } else {
+                    console.error('文件上传失败:', file.name);
+                }
+            } catch (error) {
+                console.error('上传错误:', error);
+            }
+        }
+
+        // 知识检索
+        async function searchKnowledge() {
+            const query = document.getElementById('searchInput').value;
+            if (!query) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            const resultsContainer = document.getElementById('searchResults');
+            resultsContainer.innerHTML = '<p style="color: #999;">搜索中...</p>';
+
+            try {
+                const response = await fetch(
+                    `${RAG_API}/rag/search?query=${encodeURIComponent(query)}&top_k=5`
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    displayResults(data.results || []);
+                } else {
+                    resultsContainer.innerHTML = '<p style="color: #f44336;">搜索失败</p>';
+                }
+            } catch (error) {
+                resultsContainer.innerHTML = '<p style="color: #f44336;">搜索错误: ' + error.message + '</p>';
+            }
+        }
+
+        function displayResults(results) {
+            const container = document.getElementById('searchResults');
+            
+            if (results.length === 0) {
+                container.innerHTML = '<p style="color: #999;">未找到相关结果</p>';
+                return;
+            }
+
+            container.innerHTML = results.map((result, index) => `
+                <div class="result-item">
+                    <div class="result-header">
+                        <div class="result-title">结果 #${index + 1}</div>
+                        <div class="result-score">相关度: ${(result.score * 100).toFixed(1)}%</div>
+                    </div>
+                    <div class="result-content">${result.content.substring(0, 200)}...</div>
+                    <div class="result-meta">
+                        来源: ${result.metadata?.source || '未知'} | 
+                        时间: ${result.metadata?.timestamp || '未知'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 加载统计信息
+        async function loadStats() {
+            try {
+                const response = await fetch(`${RAG_API}/rag/stats`);
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('totalDocs').textContent = stats.total_documents || 0;
+                    document.getElementById('totalChunks').textContent = stats.total_chunks || 0;
+                    document.getElementById('totalQueries').textContent = stats.total_queries || 0;
+                    document.getElementById('storageSize').textContent = 
+                        ((stats.storage_bytes || 0) / 1024 / 1024).toFixed(2) + ' MB';
+                }
+            } catch (error) {
+                console.error('加载统计失败:', error);
+            }
+        }
+
+        // 检查RAG服务状态
+        async function checkRAGStatus() {
+            try {
+                const response = await fetch(`${RAG_API}/readyz`, { timeout: 2000 });
+                if (response.ok) {
+                    document.getElementById('status').textContent = '● 在线';
+                    document.getElementById('status').style.background = '#4caf50';
+                } else {
+                    document.getElementById('status').textContent = '● 离线';
+                    document.getElementById('status').style.background = '#f44336';
+                }
+            } catch (error) {
+                document.getElementById('status').textContent = '● 离线';
+                document.getElementById('status').style.background = '#f44336';
+            }
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            checkRAGStatus();
+            loadStats();
+            
+            // 每30秒刷新一次状态
+            setInterval(checkRAGStatus, 30000);
+        });
+
+        // 搜索框回车搜索
+        document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchKnowledge();
+            }
+        });
+    </script>
+</body>
+</html>
+
+

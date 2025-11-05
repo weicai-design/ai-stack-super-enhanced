@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内容创作系统 - AI Stack</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        #app {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .stat-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .card-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .content-item {
+            padding: 16px;
+            border: 1px solid #e8e8e8;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+
+        .content-item:hover {
+            border-color: #f093fb;
+            background: #fef0ff;
+        }
+
+        .content-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .content-meta {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .platform-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+
+        .wechat {
+            background: #07c160;
+            color: white;
+        }
+
+        .weibo {
+            background: #ff8200;
+            color: white;
+        }
+
+        .zhihu {
+            background: #0066ff;
+            color: white;
+        }
+
+        .button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .button:hover {
+            transform: scale(1.05);
+        }
+
+        .textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>🎨 AI内容创作系统</h1>
+            <p>智能创作 · 多平台发布 · 爆款分析</p>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📝</div>
+                <div class="stat-value">{{ stats.totalArticles }}</div>
+                <div class="stat-label">累计创作</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🚀</div>
+                <div class="stat-value">{{ stats.published }}</div>
+                <div class="stat-label">已发布</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">👁️</div>
+                <div class="stat-value">{{ stats.totalViews }}</div>
+                <div class="stat-label">总阅读量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">❤️</div>
+                <div class="stat-value">{{ stats.avgLikes }}</div>
+                <div class="stat-label">平均点赞</div>
+            </div>
+        </div>
+
+        <!-- 主要内容 -->
+        <div class="content-grid">
+            <!-- AI创作区 -->
+            <div class="card">
+                <div class="card-header">✨ AI智能创作</div>
+                <input v-model="contentTopic" class="input" placeholder="输入主题，如：AI技术发展趋势" />
+                <select v-model="contentType" class="input">
+                    <option value="">选择内容类型</option>
+                    <option value="article">深度文章</option>
+                    <option value="short">短文案</option>
+                    <option value="title">标题优化</option>
+                </select>
+                <textarea v-model="generatedContent" class="textarea" placeholder="AI生成的内容将显示在这里..."></textarea>
+                <button class="button" @click="generateContent" style="margin-top: 12px; width: 100%;">
+                    🤖 AI生成内容
+                </button>
+            </div>
+
+            <!-- 最近创作 -->
+            <div class="card">
+                <div class="card-header">📚 最近创作</div>
+                <div v-for="item in recentContent" :key="item.id" class="content-item">
+                    <div class="content-title">{{ item.title }}</div>
+                    <div class="content-meta">
+                        <span class="platform-badge" :class="item.platform">{{ getPlatformName(item.platform) }}</span>
+                        阅读: {{ item.views }} | 点赞: {{ item.likes }} | {{ item.time }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 爆款分析 -->
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-header">🔥 爆款内容分析</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                <div v-for="hot in hotContent" :key="hot.id" class="content-item">
+                    <div class="content-title">{{ hot.title }}</div>
+                    <div class="content-meta">
+                        阅读量: {{ hot.views.toLocaleString() }} | 互动率: {{ hot.engagement }}%
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    stats: {
+                        totalArticles: 156,
+                        published: 142,
+                        totalViews: '28.5万',
+                        avgLikes: 328
+                    },
+                    contentTopic: '',
+                    contentType: '',
+                    generatedContent: '',
+                    recentContent: [
+                        { id: 1, title: 'AI大模型应用实践指南', platform: 'wechat', views: 2580, likes: 186, time: '2小时前' },
+                        { id: 2, title: '新能源汽车技术解析', platform: 'zhihu', views: 1850, likes: 142, time: '5小时前' },
+                        { id: 3, title: '5G时代的产业变革', platform: 'weibo', views: 3260, likes: 215, time: '昨天' },
+                        { id: 4, title: '元宇宙投资机会分析', platform: 'wechat', views: 1920, likes: 156, time: '2天前' }
+                    ],
+                    hotContent: [
+                        { id: 1, title: 'ChatGPT使用技巧100条', views: 15000, engagement: 8.5 },
+                        { id: 2, title: '程序员副业赚钱指南', views: 12500, engagement: 7.2 },
+                        { id: 3, title: 'AI绘画完整教程', views: 11800, engagement: 6.8 }
+                    ]
+                }
+            },
+            methods: {
+                getPlatformName(platform) {
+                    const names = {
+                        'wechat': '微信',
+                        'weibo': '微博',
+                        'zhihu': '知乎'
+                    };
+                    return names[platform] || platform;
+                },
+                async generateContent() {
+                    if (!this.contentTopic) {
+                        alert('请输入主题');
+                        return;
+                    }
+                    
+                    this.generatedContent = '正在AI生成中...';
+                    
+                    // 模拟AI生成
+                    setTimeout(() => {
+                        this.generatedContent = `关于"${this.contentTopic}"的AI生成内容：\n\n随着人工智能技术的快速发展，${this.contentTopic}已经成为行业关注的焦点。本文将从多个维度深入分析其发展趋势和应用前景。\n\n一、技术背景\n${this.contentTopic}的核心技术包括...\n\n二、应用场景\n在实际应用中，${this.contentTopic}已经在多个领域展现出巨大潜力...\n\n三、未来展望\n展望未来，${this.contentTopic}将继续推动行业变革...`;
+                    }, 1500);
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
+
+
+

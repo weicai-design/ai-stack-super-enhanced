@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Stack 命令面板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+        }
+
+        .command-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .command-card {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid #0f3460;
+        }
+
+        .command-card:hover {
+            transform: translateY(-5px);
+            border-color: #667eea;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .command-card .icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .command-card .title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .command-card .desc {
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .result-container {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 20px;
+            border: 2px solid #0f3460;
+            display: none;
+        }
+
+        .result-container.show {
+            display: block;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #0f3460;
+        }
+
+        .result-header h2 {
+            color: #667eea;
+            font-size: 20px;
+        }
+
+        .result-content {
+            background: #0f1419;
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+
+        .spinner {
+            border: 4px solid #0f3460;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .btn-clear {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #d32f2f;
+        }
+
+        .custom-command {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 2px solid #0f3460;
+        }
+
+        .custom-command h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 12px 18px;
+            background: #0f1419;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+            color: #eee;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .input-group input:focus {
+            border-color: #667eea;
+        }
+
+        .input-group button {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .input-group button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .openwebui-link {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin-right: 10px;
+        }
+
+        .openwebui-link:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 AI Stack 命令面板</h1>
+            <p>快速调用AI Stack所有功能 - 点击下方按钮或输入自定义命令</p>
+        </div>
+
+        <div style="margin-bottom: 20px; text-align: center;">
+            <a href="http://localhost:3000" class="openwebui-link" target="_blank">
+                💬 打开 OpenWebUI
+            </a>
+            <a href="http://localhost:8012" class="openwebui-link" target="_blank">
+                💼 打开 ERP系统
+            </a>
+        </div>
+
+        <div class="custom-command">
+            <h3>💬 自定义命令</h3>
+            <div class="input-group">
+                <input type="text" id="customCommand" placeholder="输入命令，如：查看本月财务、搜索知识库、查看AAPL股票..." />
+                <button onclick="executeCustomCommand()">执行</button>
+            </div>
+        </div>
+
+        <h2 style="color: #667eea; margin-bottom: 15px;">⚡ 快捷命令</h2>
+
+        <div class="command-grid">
+            <div class="command-card" onclick="executeCommand('查看所有系统状态')">
+                <div class="icon">🌐</div>
+                <div class="title">系统状态</div>
+                <div class="desc">查看所有9个系统的运行状态</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看系统资源')">
+                <div class="icon">⚙️</div>
+                <div class="title">系统资源</div>
+                <div class="desc">查看CPU、内存、磁盘使用情况</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看本月财务')">
+                <div class="icon">💰</div>
+                <div class="title">本月财务</div>
+                <div class="desc">查看ERP本月财务看板数据</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看客户列表')">
+                <div class="icon">👥</div>
+                <div class="title">客户列表</div>
+                <div class="desc">查看ERP客户管理列表</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看知识库统计')">
+                <div class="icon">📚</div>
+                <div class="title">知识库</div>
+                <div class="desc">查看RAG知识库统计信息</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看运行中的任务')">
+                <div class="icon">🤖</div>
+                <div class="title">运行任务</div>
+                <div class="desc">查看任务代理系统中的活跃任务</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看AAPL股票')">
+                <div class="icon">📈</div>
+                <div class="title">股票行情</div>
+                <div class="desc">查看AAPL股票实时行情</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('系统运行情况')">
+                <div class="icon">🧠</div>
+                <div class="title">系统分析</div>
+                <div class="desc">获取系统自我分析报告</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('帮助')">
+                <div class="icon">❓</div>
+                <div class="title">帮助</div>
+                <div class="desc">查看所有可用命令列表</div>
+            </div>
+        </div>
+
+        <div class="result-container" id="resultContainer">
+            <div class="result-header">
+                <h2>📊 执行结果</h2>
+                <button class="btn btn-clear" onclick="clearResult()">清除</button>
+            </div>
+            <div class="result-content" id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8020';
+
+        async function executeCommand(command) {
+            showLoading();
+            
+            try {
+                const response = await fetch(
+                    `${API_URL}/execute?command=${encodeURIComponent(command)}`,
+                    { timeout: 10000 }
+                );
+                
+                const data = await response.json();
+                displayResult(command, data);
+            } catch (error) {
+                displayError(command, error.message);
+            }
+        }
+
+        async function executeCustomCommand() {
+            const command = document.getElementById('customCommand').value.trim();
+            if (!command) {
+                alert('请输入命令');
+                return;
+            }
+            
+            await executeCommand(command);
+        }
+
+        function showLoading() {
+            const container = document.getElementById('resultContainer');
+            const content = document.getElementById('resultContent');
+            
+            container.classList.add('show');
+            content.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>执行中...</div>
+                </div>
+            `;
+        }
+
+        function displayResult(command, data) {
+            const content = document.getElementById('resultContent');
+            
+            let html = `<div style="color: #667eea; margin-bottom: 15px; font-weight: bold;">📝 命令: ${command}</div>`;
+            
+            if (data.error) {
+                html += `<div style="color: #f44336;">❌ 错误: ${data.error}</div>`;
+            } else {
+                html += formatResult(data);
+            }
+            
+            content.innerHTML = html;
+        }
+
+        function formatResult(data) {
+            let html = '';
+            
+            // 标题
+            if (data.title) {
+                html += `<div style="color: #4facfe; font-size: 18px; margin-bottom: 15px;">${data.title}</div>`;
+            }
+            
+            // 系统状态
+            if (data.systems) {
+                html += '<div style="margin-bottom: 10px;">';
+                for (const [name, status] of Object.entries(data.systems)) {
+                    html += `<div style="padding: 8px; margin-bottom: 5px; background: #0f1419; border-radius: 5px;">`;
+                    html += `<strong>${name}</strong>: ${status}`;
+                    html += `</div>`;
+                }
+                html += '</div>';
+                if (data.summary) {
+                    html += `<div style="color: #4caf50; margin-top: 10px;">${data.summary}</div>`;
+                }
+            }
+            
+            // 财务数据
+            if (data.income) {
+                html += `<div style="background: #0f1419; padding: 15px; border-radius: 8px; margin-bottom: 10px;">`;
+                html += `<div style="margin-bottom: 8px;"><strong>💰 总收入:</strong> ${data.income}</div>`;
+                html += `<div style="margin-bottom: 8px;"><strong>💸 总支出:</strong> ${data.expense}</div>`;
+                html += `<div style="margin-bottom: 8px;"><strong>📈 利润:</strong> ${data.profit}</div>`;
+                html += `<div><strong>📊 利润率:</strong> ${data.profit_margin}</div>`;
+                html += `</div>`;
+            }
+            
+            // 客户列表
+            if (data.customers) {
+                html += `<div style="margin-top: 15px;"><strong>共 ${data.count} 个客户:</strong></div>`;
+                data.customers.forEach((c, i) => {
+                    html += `<div style="padding: 10px; margin-top: 8px; background: #0f1419; border-radius: 5px;">`;
+                    html += `${i+1}. <strong>${c.name}</strong> | ${c.category} | ${c.level}`;
+                    html += `</div>`;
+                });
+            }
+            
+            // RAG统计
+            if (data.documents !== undefined) {
+                html += `<div style="background: #0f1419; padding: 15px; border-radius: 8px;">`;
+                html += `<div style="margin-bottom: 8px;"><strong>📄 文档总数:</strong> ${data.documents}</div>`;
+                html += `<div style="margin-bottom: 8px;"><strong>🧩 知识块数:</strong> ${data.chunks}</div>`;
+                html += `<div style="margin-bottom: 8px;"><strong>🔍 检索次数:</strong> ${data.queries}</div>`;
+                html += `<div><strong>💾 存储大小:</strong> ${data.storage_mb}</div>`;
+                html += `</div>`;
+            }
+            
+            // 搜索结果
+            if (data.results) {
+                html += `<div style="margin-top: 15px;"><strong>找到 ${data.count} 条结果:</strong></div>`;
+                data.results.forEach((r, i) => {
+                    html += `<div style="padding: 15px; margin-top: 10px; background: #0f1419; border-radius: 8px; border-left: 3px solid #667eea;">`;
+                    html += `<div style="color: #4facfe; margin-bottom: 8px;"><strong>${i+1}. 相关度 ${r.score}</strong></div>`;
+                    html += `<div style="margin-bottom: 8px;">${r.content}...</div>`;
+                    html += `<div style="color: #888; font-size: 12px;">来源: ${r.source}</div>`;
+                    html += `</div>`;
+                });
+            }
+            
+            // 帮助信息
+            if (data.commands) {
+                for (const [category, cmds] of Object.entries(data.commands)) {
+                    html += `<div style="margin-bottom: 20px;">`;
+                    html += `<div style="color: #4facfe; font-size: 16px; margin-bottom: 10px;"><strong>${category}</strong></div>`;
+                    cmds.forEach(cmd => {
+                        html += `<div style="padding: 8px 12px; margin-bottom: 5px; background: #0f1419; border-radius: 5px; cursor: pointer;" onclick="executeCommand('${cmd}')">`;
+                        html += `• ${cmd}`;
+                        html += `</div>`;
+                    });
+                    html += `</div>`;
+                }
+            }
+            
+            // 默认JSON显示
+            if (!html) {
+                html = `<pre style="color: #4caf50;">${JSON.stringify(data, null, 2)}</pre>`;
+            }
+            
+            return html;
+        }
+
+        function displayError(command, error) {
+            const content = document.getElementById('resultContent');
+            content.innerHTML = `
+                <div style="color: #667eea; margin-bottom: 15px; font-weight: bold;">📝 命令: ${command}</div>
+                <div style="color: #f44336; padding: 15px; background: #2d1414; border-radius: 8px;">
+                    ❌ 错误: ${error}
+                    <div style="margin-top: 10px; font-size: 12px; color: #aaa;">
+                        提示: 请确保命令网关服务正在运行 (端口8020)
+                    </div>
+                </div>
+            `;
+        }
+
+        function clearResult() {
+            document.getElementById('resultContainer').classList.remove('show');
+        }
+
+        // 回车执行
+        document.getElementById('customCommand').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                executeCustomCommand();
+            }
+        });
+    </script>
+</body>
+</html>
+
+

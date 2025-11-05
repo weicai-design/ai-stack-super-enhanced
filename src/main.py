@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 统一API Key；不设置则匿名可用
+# API Key（不设置则匿名可用）
 API_KEY = os.getenv("RAG_API_KEY", "").strip()
 
 
@@ -42,7 +42,7 @@ def readyz():
 experts_router = APIRouter(prefix="/experts", tags=["experts"])
 
 try:
-    # 导入以触发 register() 侧效应
+    # 导入以触发 register() 侧效应（若不存在则忽略）
     from src.core.module_registry import get_expert
     from src.experts.finance_expert import FinanceExpert  # noqa: F401
     from src.experts.trend_expert import TrendExpert  # noqa: F401
@@ -114,8 +114,8 @@ def rag_ingest(payload: Dict[str, Any] = Body(...)):
         raise HTTPException(status_code=400, detail=f"file not found: {path}")
     try:
         text = p.read_text(encoding="utf-8", errors="ignore")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"read failed: {e}")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"read failed: {exc}")
     chunks = _chunk_text(text)
     doc = {"path": str(p), "chunks": chunks, "size": len(text)}
     if save_index:
@@ -145,7 +145,7 @@ def rag_ingest(payload: Dict[str, Any] = Body(...)):
             )
         _KG_SNAPSHOT["nodes"] = nodes
         # 简单边：document -> entity
-        edges = []
+        edges: List[Dict[str, Any]] = []
         for e in ents:
             edges.append(
                 {
@@ -164,7 +164,7 @@ def rag_groups(
     k: int = Query(3, ge=1, le=50),
     max_items: int = Query(100, ge=1, le=10000),
 ):
-    # 简化：将已索引的 chunk 扁平化，按 round-robin 分配到 k 组
+    # 扁平化 chunk，按 round-robin 分组
     items: List[Dict[str, Any]] = []
     for doc in _RAG_INDEX:
         for ch in doc.get("chunks", []):
@@ -260,8 +260,8 @@ def kg_load(path: Optional[str] = Query(default=None)):
             raise HTTPException(status_code=400, detail=f"kg file not found: {path}")
         try:
             snap = json.loads(p.read_text(encoding="utf-8"))
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"kg read failed: {e}")
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"kg read failed: {exc}")
         _KG_SNAPSHOT = {
             "nodes": snap.get("nodes", []),
             "edges": snap.get("edges", []),
@@ -313,6 +313,3 @@ app.include_router(index_router)
 @app.get("/")
 def root():
     return {"ok": True}
-
-
-# 标记 api 为包

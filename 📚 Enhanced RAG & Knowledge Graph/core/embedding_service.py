@@ -54,13 +54,39 @@ class EmbeddingService:
         # 允许下载时，尝试在线加载；失败则回退 stub
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore
+            
+            # 确保使用HuggingFace国内镜像（无VPN环境）
+            try:
+                from utils.huggingface_mirror import ensure_mirror_configured
+                ensure_mirror_configured()
+            except ImportError:
+                # 如果镜像工具不可用，手动设置
+                import os
+                if "HF_ENDPOINT" not in os.environ:
+                    mirror_config = Path(__file__).parent.parent.parent / ".config" / "china_mirrors.env"
+                    if mirror_config.exists():
+                        try:
+                            with open(mirror_config, 'r') as f:
+                                for line in f:
+                                    if line.startswith("export HF_ENDPOINT="):
+                                        os.environ["HF_ENDPOINT"] = line.split("=", 1)[1].strip().strip('"')
+                                        break
+                        except Exception:
+                            pass
+                    if "HF_ENDPOINT" not in os.environ:
+                        os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
             self.model = SentenceTransformer(override_model or model_name, device="cpu")
             self.dim = int(
                 getattr(self.model, "get_sentence_embedding_dimension", lambda: 384)()
             )
             self.backend = "sentence-transformers"
-        except Exception:
+        except Exception as e:
+            # 记录错误，但继续使用stub模式
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"模型下载失败，使用stub模式: {e}")
+            logger.info("提示：运行 'bash scripts/setup_china_mirrors.sh' 配置国内镜像，然后使用 'bash scripts/download_model.sh' 下载模型")
             self.model = None
             self.backend = "stub"
 

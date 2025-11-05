@@ -1,0 +1,62 @@
+# OpenWebUI RAG Integration - Frontend Components Configuration
+# OpenWebUI前端组件配置
+
+# OpenWebUI使用Vue 3组件系统
+# 组件将注册到OpenWebUI的插件系统中
+
+components:
+  # RAG搜索组件
+  - name: RAGSearchPanel
+    type: vue-component
+    description: RAG知识库搜索面板
+    location: chat-sidebar  # 位置：聊天侧边栏
+    icon: search
+    features:
+      - 实时搜索
+      - 结果展示
+      - 知识片段高亮
+      - 相关度排序
+
+  # RAG文件管理组件
+  - name: RAGFileManager
+    type: vue-component
+    description: RAG知识库文件管理器
+    location: settings-page  # 位置：设置页面
+    icon: folder-open
+    features:
+      - 文件上传
+      - 文件列表
+      - 批量处理
+      - 文档删除
+
+  # RAG知识图谱可视化 ✅
+  - name: RAGKnowledgeGraph
+    type: vue-component
+    description: 知识图谱可视化组件
+    location: chat-sidebar  # 位置：聊天侧边栏
+    icon: sitemap
+    status: completed
+    file: RAGKnowledgeGraph.vue
+    features:
+      - 图谱可视化 (D3.js)
+      - 节点交互
+      - 关系展示
+      - 实体查询
+      - 子图展示
+      - 节点详情面板
+
+  # RAG状态指示器 ✅
+  - name: RAGStatusIndicator
+    type: vue-component
+    description: RAG系统状态指示器
+    location: status-bar  # 位置：状态栏
+    icon: database
+    status: completed
+    file: RAGStatusIndicator.vue
+    features:
+      - 索引状态监控
+      - 文档数量显示
+      - 系统健康检查
+      - 实时状态更新
+      - 自动刷新
+

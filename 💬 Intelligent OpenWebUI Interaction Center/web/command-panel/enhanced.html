@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Stack 命令面板 - 增强版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --bg-dark: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-input: #0f1419;
+            --border-color: #0f3460;
+            --text-primary: #eee;
+            --text-secondary: #aaa;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'SF Pro Display', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 32px;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 15px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header .version-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            z-index: 1;
+        }
+
+        .quick-links {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .quick-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .quick-link:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        .custom-command {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 2px solid var(--border-color);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .custom-command h3 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 14px 20px;
+            background: var(--bg-input);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 15px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .input-group input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .input-group button {
+            padding: 14px 35px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .input-group button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        .shortcuts-hint {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        .shortcuts-hint kbd {
+            background: var(--bg-input);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-family: monospace;
+            font-size: 11px;
+        }
+
+        .command-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .command-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 22px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .command-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .command-card:hover::before {
+            left: 100%;
+        }
+
+        .command-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-color);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .command-card .icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+
+        .command-card .title {
+            font-size: 17px;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+
+        .command-card .desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .command-card .shortcut {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: monospace;
+        }
+
+        .result-container {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 20px;
+            border: 2px solid var(--border-color);
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-container.show {
+            display: block;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .result-header h2 {
+            color: var(--primary-color);
+            font-size: 20px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-clear {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #c0392b;
+            transform: scale(1.05);
+        }
+
+        .result-content {
+            background: var(--bg-input);
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--primary-color);
+        }
+
+        .spinner {
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-card);
+            border: 2px solid var(--border-color);
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+            border-color: var(--primary-color);
+        }
+
+        .help-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .help-modal.show {
+            display: flex;
+        }
+
+        .help-content {
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .help-content h2 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+
+        .help-content .shortcut-list {
+            margin: 15px 0;
+        }
+
+        .help-content .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            margin: 8px 0;
+            background: var(--bg-input);
+            border-radius: 6px;
+        }
+
+        .help-content kbd {
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .command-history {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            border: 2px solid var(--border-color);
+        }
+
+        .command-history h3 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        .history-item {
+            padding: 10px 15px;
+            background: var(--bg-input);
+            margin: 8px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-item:hover {
+            background: #1a2332;
+            transform: translateX(5px);
+        }
+
+        .history-item .time {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .command-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .quick-links {
+                flex-direction: column;
+            }
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-input);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--secondary-color);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--success-color);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            z-index: 3000;
+            display: none;
+            animation: slideInRight 0.3s ease-out;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="theme-toggle" onclick="toggleTheme()" title="切换主题 (Alt+T)">🌓</div>
+
+    <div class="container">
+        <div class="header">
+            <div class="version-badge">v2.0.0 完美版</div>
+            <h1>🚀 AI Stack 命令面板 - 增强版</h1>
+            <p>快速调用AI Stack所有功能 · 支持快捷键 · 命令历史 · 智能提示</p>
+        </div>
+
+        <div class="quick-links">
+            <a href="http://localhost:3000" class="quick-link" target="_blank">
+                <span>💬</span> OpenWebUI
+            </a>
+            <a href="http://localhost:8012" class="quick-link" target="_blank">
+                <span>💼</span> ERP系统
+            </a>
+            <a href="http://localhost:8013/docs" class="quick-link" target="_blank">
+                <span>📖</span> API文档
+            </a>
+            <a href="/Users/ywc/ai-stack-super-enhanced/monitoring/enhanced_dashboard.html" class="quick-link">
+                <span>📊</span> 监控面板
+            </a>
+            <button class="quick-link" onclick="showHelp()" style="background: #f39c12; border: none; cursor: pointer;">
+                <span>❓</span> 快捷键帮助 (F1)
+            </button>
+        </div>
+
+        <div class="custom-command">
+            <h3>💬 输入命令（支持快捷键）</h3>
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="customCommand" 
+                    placeholder="输入命令，如：查看本月财务、搜索知识库、查看AAPL股票..." 
+                    autocomplete="off"
+                />
+                <button onclick="executeCustomCommand()">执行 (Enter)</button>
+            </div>
+            <div class="shortcuts-hint">
+                快捷键: <kbd>Enter</kbd> 执行 · <kbd>Ctrl+L</kbd> 清空 · <kbd>↑↓</kbd> 历史 · <kbd>Esc</kbd> 清除结果 · <kbd>F1</kbd> 帮助
+            </div>
+        </div>
+
+        <div class="command-history" id="historySection" style="display: none;">
+            <h3>📜 命令历史</h3>
+            <div id="historyList"></div>
+        </div>
+
+        <h2 style="color: var(--primary-color); margin-bottom: 15px;">⚡ 快捷命令</h2>
+
+        <div class="command-grid">
+            <div class="command-card" onclick="executeCommand('查看所有系统状态')" data-shortcut="1">
+                <span class="shortcut">Alt+1</span>
+                <div class="icon">🌐</div>
+                <div class="title">系统状态</div>
+                <div class="desc">查看所有9个系统的运行状态</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看系统资源')" data-shortcut="2">
+                <span class="shortcut">Alt+2</span>
+                <div class="icon">⚙️</div>
+                <div class="title">系统资源</div>
+                <div class="desc">查看CPU、内存、磁盘使用情况</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看本月财务')" data-shortcut="3">
+                <span class="shortcut">Alt+3</span>
+                <div class="icon">💰</div>
+                <div class="title">本月财务</div>
+                <div class="desc">查看ERP本月财务看板数据</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看客户列表')" data-shortcut="4">
+                <span class="shortcut">Alt+4</span>
+                <div class="icon">👥</div>
+                <div class="title">客户列表</div>
+                <div class="desc">查看ERP客户管理列表</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看物料列表')" data-shortcut="5">
+                <span class="shortcut">Alt+5</span>
+                <div class="icon">📦</div>
+                <div class="title">物料管理</div>
+                <div class="desc">查看物料清单和库存预警</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看生产订单')" data-shortcut="6">
+                <span class="shortcut">Alt+6</span>
+                <div class="icon">🏭</div>
+                <div class="title">生产订单</div>
+                <div class="desc">查看生产计划和进度</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看设备状态')" data-shortcut="7">
+                <span class="shortcut">Alt+7</span>
+                <div class="icon">🔧</div>
+                <div class="title">设备管理</div>
+                <div class="desc">查看设备运行和维护状态</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('查看工艺路线')" data-shortcut="8">
+                <span class="shortcut">Alt+8</span>
+                <div class="icon">🛠️</div>
+                <div class="title">工艺管理</div>
+                <div class="desc">查看工艺路线和参数</div>
+            </div>
+
+            <div class="command-card" onclick="executeCommand('帮助')" data-shortcut="9">
+                <span class="shortcut">F1</span>
+                <div class="icon">❓</div>
+                <div class="title">帮助</div>
+                <div class="desc">查看所有可用命令列表</div>
+            </div>
+        </div>
+
+        <div class="result-container" id="resultContainer">
+            <div class="result-header">
+                <h2>📊 执行结果</h2>
+                <button class="btn btn-clear" onclick="clearResult()">清除 (Esc)</button>
+            </div>
+            <div class="result-content" id="resultContent"></div>
+        </div>
+    </div>
+
+    <div class="help-modal" id="helpModal" onclick="hideHelp()">
+        <div class="help-content" onclick="event.stopPropagation()">
+            <h2>⌨️ 快捷键帮助</h2>
+            <div class="shortcut-list">
+                <div class="shortcut-item">
+                    <span>执行命令</span>
+                    <kbd>Enter</kbd>
+                </div>
+                <div class="shortcut-item">
+                    <span>清空输入框</span>
+                    <kbd>Ctrl+L</kbd>
+                </div>
+                <div class="shortcut-item">
+                    <span>上一条历史</span>
+                    <kbd>↑</kbd>
+                </div>
+                <div class="shortcut-item">
+                    <span>下一条历史</span>
+                    <kbd>↓</kbd>
+                </div>
+                <div class="shortcut-item">
+                    <span>清除结果</span>
+                    <kbd>Esc</kbd>
+                </div>
+                <div class="shortcut-item">
+                    <span>切换主题</span>
+                    <kbd>Alt+T</kbd>
+                </div>
+                <div class="shortcut-item">
+                    <span>显示帮助</span>
+                    <kbd>F1</kbd>
+                </div>
+                <div class="shortcut-item">
+                    <span>系统状态</span>
+                    <kbd>Alt+1</kbd>
+                </div>
+                <div class="shortcut-item">
+                    <span>系统资源</span>
+                    <kbd>Alt+2</kbd>
+                </div>
+                <div class="shortcut-item">
+                    <span>本月财务</span>
+                    <kbd>Alt+3</kbd>
+                </div>
+            </div>
+            <button class="btn btn-clear" style="margin-top: 20px; width: 100%;" onclick="hideHelp()">关闭</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const API_URL = 'http://localhost:8020';
+        let commandHistory = JSON.parse(localStorage.getItem('commandHistory') || '[]');
+        let historyIndex = -1;
+
+        // 命令执行
+        async function executeCommand(command) {
+            showLoading();
+            addToHistory(command);
+            
+            try {
+                const response = await fetch(
+                    `${API_URL}/execute?command=${encodeURIComponent(command)}`,
+                    { timeout: 10000 }
+                );
+                
+                const data = await response.json();
+                displayResult(command, data);
+                showToast('✅ 命令执行成功');
+            } catch (error) {
+                displayError(command, error.message);
+                showToast('❌ 命令执行失败', 'error');
+            }
+        }
+
+        async function executeCustomCommand() {
+            const command = document.getElementById('customCommand').value.trim();
+            if (!command) {
+                showToast('⚠️ 请输入命令', 'warning');
+                return;
+            }
+            
+            await executeCommand(command);
+            document.getElementById('customCommand').value = '';
+            historyIndex = -1;
+        }
+
+        // 命令历史
+        function addToHistory(command) {
+            if (commandHistory[0] !== command) {
+                commandHistory.unshift(command);
+                if (commandHistory.length > 20) commandHistory.pop();
+                localStorage.setItem('commandHistory', JSON.stringify(commandHistory));
+                updateHistoryDisplay();
+            }
+        }
+
+        function updateHistoryDisplay() {
+            const historySection = document.getElementById('historySection');
+            const historyList = document.getElementById('historyList');
+            
+            if (commandHistory.length > 0) {
+                historySection.style.display = 'block';
+                historyList.innerHTML = commandHistory.slice(0, 5).map((cmd, i) => `
+                    <div class="history-item" onclick="executeCommand('${cmd}')">
+                        <span>${cmd}</span>
+                        <span class="time">${i === 0 ? '刚刚' : ''}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // 显示/隐藏功能
+        function showLoading() {
+            const container = document.getElementById('resultContainer');
+            const content = document.getElementById('resultContent');
+            
+            container.classList.add('show');
+            content.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>执行中...</div>
+                </div>
+            `;
+        }
+
+        function displayResult(command, data) {
+            const content = document.getElementById('resultContent');
+            content.innerHTML = `
+                <div style="color: var(--primary-color); margin-bottom: 15px; font-weight: bold;">
+                    📝 命令: ${command}
+                </div>
+                <pre style="color: var(--success-color); white-space: pre-wrap;">${JSON.stringify(data, null, 2)}</pre>
+            `;
+        }
+
+        function displayError(command, error) {
+            const content = document.getElementById('resultContent');
+            content.innerHTML = `
+                <div style="color: var(--primary-color); margin-bottom: 15px; font-weight: bold;">
+                    📝 命令: ${command}
+                </div>
+                <div style="color: var(--danger-color); padding: 15px; background: rgba(231, 76, 60, 0.1); border-radius: 8px;">
+                    ❌ 错误: ${error}
+                </div>
+            `;
+        }
+
+        function clearResult() {
+            document.getElementById('resultContainer').classList.remove('show');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.background = type === 'error' ? 'var(--danger-color)' : 
+                                    type === 'warning' ? 'var(--warning-color)' : 
+                                    'var(--success-color)';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function showHelp() {
+            document.getElementById('helpModal').classList.add('show');
+        }
+
+        function hideHelp() {
+            document.getElementById('helpModal').classList.remove('show');
+        }
+
+        function toggleTheme() {
+            // 主题切换逻辑（可扩展）
+            showToast('🌓 主题切换功能开发中');
+        }
+
+        // 快捷键支持
+        document.addEventListener('keydown', (e) => {
+            const input = document.getElementById('customCommand');
+            
+            // F1 - 帮助
+            if (e.key === 'F1') {
+                e.preventDefault();
+                showHelp();
+            }
+            
+            // Esc - 清除结果或关闭帮助
+            if (e.key === 'Escape') {
+                if (document.getElementById('helpModal').classList.contains('show')) {
+                    hideHelp();
+                } else {
+                    clearResult();
+                }
+            }
+            
+            // Ctrl+L - 清空输入
+            if (e.ctrlKey && e.key === 'l') {
+                e.preventDefault();
+                input.value = '';
+                input.focus();
+            }
+            
+            // Alt+T - 切换主题
+            if (e.altKey && e.key === 't') {
+                e.preventDefault();
+                toggleTheme();
+            }
+            
+            // Alt+1-9 - 快捷命令
+            if (e.altKey && e.key >= '1' && e.key <= '9') {
+                e.preventDefault();
+                const cards = document.querySelectorAll('.command-card');
+                const index = parseInt(e.key) - 1;
+                if (cards[index]) {
+                    cards[index].click();
+                }
+            }
+            
+            // 上下箭头 - 历史命令
+            if (document.activeElement === input) {
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (historyIndex < commandHistory.length - 1) {
+                        historyIndex++;
+                        input.value = commandHistory[historyIndex];
+                    }
+                }
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (historyIndex > 0) {
+                        historyIndex--;
+                        input.value = commandHistory[historyIndex];
+                    } else if (historyIndex === 0) {
+                        historyIndex = -1;
+                        input.value = '';
+                    }
+                }
+            }
+        });
+
+        // Enter执行
+        document.getElementById('customCommand').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                executeCustomCommand();
+            }
+        });
+
+        // 页面加载时显示历史
+        window.addEventListener('load', () => {
+            updateHistoryDisplay();
+            showToast('✨ 欢迎使用AI Stack命令面板增强版');
+        });
+    </script>
+</body>
+</html>
+
