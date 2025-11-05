@@ -35,6 +35,16 @@ from smart_reminder import SmartReminder, smart_reminder
 from openwebui_voice import openwebui_voice
 from backend_voice import backend_voice
 
+# 导入自主代码修复系统
+import sys
+sys.path.append('../🧠 Self Learning System')
+try:
+    from core.auto_code_fixer import auto_fixer
+    AUTO_FIXER_AVAILABLE = True
+except:
+    AUTO_FIXER_AVAILABLE = False
+    print("⚠️ 自主代码修复系统未加载")
+
 app = FastAPI(title="AI Stack Chat Center")
 
 # CORS配置
