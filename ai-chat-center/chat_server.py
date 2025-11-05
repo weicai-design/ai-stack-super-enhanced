@@ -1468,6 +1468,99 @@ async def get_reminder_stats(user_id: str):
         return {"success": False, "error": str(e)}
 
 
+# ==================== 自主代码修复API ====================
+
+@app.post("/api/auto-fix/diagnose")
+async def diagnose_problem(error_info: Dict[str, Any]):
+    """诊断问题"""
+    if not AUTO_FIXER_AVAILABLE:
+        return {"success": False, "error": "自主代码修复系统未启用"}
+    
+    try:
+        result = await auto_fixer.diagnose_problem(error_info)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/auto-fix/generate")
+async def generate_fix_code(diagnosis: Dict[str, Any]):
+    """生成修复代码"""
+    if not AUTO_FIXER_AVAILABLE:
+        return {"success": False, "error": "自主代码修复系统未启用"}
+    
+    try:
+        result = await auto_fixer.generate_fix_code(diagnosis)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/auto-fix/request-approval")
+async def request_fix_approval(fix_proposal: Dict[str, Any], user_id: str = "default_user"):
+    """请求用户批准修复"""
+    if not AUTO_FIXER_AVAILABLE:
+        return {"success": False, "error": "自主代码修复系统未启用"}
+    
+    try:
+        result = await auto_fixer.request_user_approval(fix_proposal, user_id)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/auto-fix/execute")
+async def execute_fix(fix_proposal: Dict[str, Any], user_approval: bool):
+    """执行修复（需要用户批准）"""
+    if not AUTO_FIXER_AVAILABLE:
+        return {"success": False, "error": "自主代码修复系统未启用"}
+    
+    try:
+        result = await auto_fixer.execute_fix(fix_proposal, user_approval)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/auto-fix/workflow")
+async def auto_fix_workflow(error_info: Dict[str, Any], user_id: str = "default_user"):
+    """完整的自动修复工作流"""
+    if not AUTO_FIXER_AVAILABLE:
+        return {"success": False, "error": "自主代码修复系统未启用"}
+    
+    try:
+        result = await auto_fixer.auto_fix_workflow(error_info, user_id)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/auto-fix/history")
+async def get_fix_history(limit: int = 10):
+    """获取修复历史"""
+    if not AUTO_FIXER_AVAILABLE:
+        return {"success": False, "error": "自主代码修复系统未启用"}
+    
+    try:
+        history = auto_fixer.get_fix_history(limit)
+        return {"success": True, "history": history}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/auto-fix/stats")
+async def get_fix_stats():
+    """获取修复统计"""
+    if not AUTO_FIXER_AVAILABLE:
+        return {"success": False, "error": "自主代码修复系统未启用"}
+    
+    try:
+        stats = auto_fixer.get_fix_statistics()
+        return {"success": True, "stats": stats}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.get("/api/models")
 async def get_available_models():
     """
