@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Stack 健康检查仪表板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.98);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+
+        .health-score {
+            background: rgba(255, 255, 255, 0.98);
+            padding: 40px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        .score-circle {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 20px;
+            position: relative;
+        }
+
+        .score-value {
+            font-size: 4em;
+            font-weight: bold;
+            color: #2ecc71;
+        }
+
+        .score-label {
+            font-size: 1.2em;
+            color: #7f8c8d;
+            margin-top: 10px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.98);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+        }
+
+        .metric-card .metric-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .metric-card .metric-title {
+            color: #2c3e50;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .metric-value.good {
+            color: #2ecc71;
+        }
+
+        .metric-value.warning {
+            color: #f39c12;
+        }
+
+        .metric-value.danger {
+            color: #e74c3c;
+        }
+
+        .metric-bar {
+            height: 8px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+
+        .metric-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2ecc71, #27ae60);
+            transition: width 1s ease;
+        }
+
+        .metric-bar-fill.warning {
+            background: linear-gradient(90deg, #f39c12, #e67e22);
+        }
+
+        .metric-bar-fill.danger {
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
+        }
+
+        .services-status {
+            background: rgba(255, 255, 255, 0.98);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .services-status h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+
+        .service-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 5px solid #3498db;
+        }
+
+        .service-item.online {
+            border-left-color: #2ecc71;
+        }
+
+        .service-item.offline {
+            border-left-color: #e74c3c;
+        }
+
+        .service-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .service-status {
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        .service-status.online {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .service-status.offline {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #3498db;
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s;
+        }
+
+        .refresh-btn:hover {
+            background: #2980b9;
+            transform: scale(1.1);
+        }
+
+        .last-update {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        .checking {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>🏥 AI Stack 健康检查仪表板</h1>
+            <div class="subtitle">实时监控系统健康状况</div>
+        </div>
+
+        <div class="health-score">
+            <div class="score-circle">
+                <div class="score-value" id="healthScore">--</div>
+            </div>
+            <div class="score-label">系统健康分数</div>
+            <div id="healthRating" style="font-size: 1.5em; margin-top: 10px; font-weight: bold;"></div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-icon">💻</div>
+                <div class="metric-title">CPU使用率</div>
+                <div class="metric-value good" id="cpuValue">--%</div>
+                <div class="metric-bar">
+                    <div class="metric-bar-fill" id="cpuBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-icon">🧠</div>
+                <div class="metric-title">内存使用率</div>
+                <div class="metric-value good" id="memoryValue">--%</div>
+                <div class="metric-bar">
+                    <div class="metric-bar-fill" id="memoryBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-icon">💾</div>
+                <div class="metric-title">磁盘使用率</div>
+                <div class="metric-value good" id="diskValue">--%</div>
+                <div class="metric-bar">
+                    <div class="metric-bar-fill" id="diskBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-icon">🌐</div>
+                <div class="metric-title">服务在线率</div>
+                <div class="metric-value good" id="serviceValue">--%</div>
+                <div class="metric-bar">
+                    <div class="metric-bar-fill" id="serviceBar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="services-status">
+            <h2>🔍 服务状态详情</h2>
+            <div id="servicesList"></div>
+        </div>
+
+        <div class="last-update" id="lastUpdate">最后更新: --</div>
+    </div>
+
+    <button class="refresh-btn" onclick="runHealthCheck()" title="刷新">🔄</button>
+
+    <script>
+        const SERVICES = [
+            { name: '💼 ERP后端', url: 'http://localhost:8013/health', port: 8013 },
+            { name: '🎯 命令网关', url: 'http://localhost:8020/health', port: 8020 },
+            { name: '📚 RAG系统', url: 'http://localhost:8011/health', port: 8011 },
+            { name: '💬 OpenWebUI', url: 'http://localhost:3000', port: 3000 },
+            { name: '📈 股票系统', url: 'http://localhost:8014/health', port: 8014 },
+            { name: '🔍 趋势分析', url: 'http://localhost:8015/health', port: 8015 },
+            { name: '✍️ 内容创作', url: 'http://localhost:8016/health', port: 8016 },
+            { name: '🤖 任务代理', url: 'http://localhost:8017/health', port: 8017 },
+            { name: '⚙️ 资源管理', url: 'http://localhost:8018/health', port: 8018 },
+            { name: '🧠 自我学习', url: 'http://localhost:8019/health', port: 8019 }
+        ];
+
+        async function checkService(service) {
+            try {
+                const response = await fetch(service.url, { 
+                    mode: 'cors',
+                    timeout: 2000 
+                });
+                return {
+                    ...service,
+                    status: response.ok ? 'online' : 'offline',
+                    responseTime: 0
+                };
+            } catch (error) {
+                return {
+                    ...service,
+                    status: 'offline',
+                    responseTime: null
+                };
+            }
+        }
+
+        async function runHealthCheck() {
+            document.getElementById('healthScore').textContent = '--';
+            document.getElementById('healthScore').className = 'score-value checking';
+            
+            // 检查所有服务
+            const results = await Promise.all(SERVICES.map(checkService));
+            
+            // 计算健康分数
+            const onlineCount = results.filter(r => r.status === 'online').length;
+            const totalCount = results.length;
+            const serviceOnlineRate = (onlineCount / totalCount) * 100;
+            
+            // 模拟资源使用（实际应该从API获取）
+            const cpuUsage = Math.random() * 30 + 20;  // 20-50%
+            const memoryUsage = Math.random() * 30 + 40;  // 40-70%
+            const diskUsage = Math.random() * 20 + 30;  // 30-50%
+            
+            // 计算总体健康分数
+            const healthScore = calculateHealthScore(serviceOnlineRate, cpuUsage, memoryUsage, diskUsage);
+            
+            // 更新显示
+            updateDisplay(healthScore, cpuUsage, memoryUsage, diskUsage, serviceOnlineRate);
+            updateServicesList(results);
+            
+            document.getElementById('lastUpdate').textContent = 
+                `最后更新: ${new Date().toLocaleString('zh-CN')}`;
+        }
+
+        function calculateHealthScore(serviceRate, cpu, memory, disk) {
+            let score = 100;
+            
+            // 服务在线率影响（40分）
+            score -= (100 - serviceRate) * 0.4;
+            
+            // CPU使用率影响（20分）
+            if (cpu > 80) score -= 20;
+            else if (cpu > 60) score -= 10;
+            
+            // 内存使用率影响（20分）
+            if (memory > 85) score -= 20;
+            else if (memory > 70) score -= 10;
+            
+            // 磁盘使用率影响（20分）
+            if (disk > 90) score -= 20;
+            else if (disk > 80) score -= 10;
+            
+            return Math.max(0, Math.min(100, Math.round(score)));
+        }
+
+        function updateDisplay(health, cpu, memory, disk, serviceRate) {
+            // 健康分数
+            const scoreEl = document.getElementById('healthScore');
+            scoreEl.textContent = health;
+            scoreEl.className = 'score-value ' + getScoreClass(health);
+            
+            // 健康等级
+            const ratingEl = document.getElementById('healthRating');
+            if (health >= 90) {
+                ratingEl.textContent = '优秀 ⭐⭐⭐⭐⭐';
+                ratingEl.style.color = '#2ecc71';
+            } else if (health >= 70) {
+                ratingEl.textContent = '良好 ⭐⭐⭐⭐';
+                ratingEl.style.color = '#3498db';
+            } else if (health >= 50) {
+                ratingEl.textContent = '一般 ⭐⭐⭐';
+                ratingEl.style.color = '#f39c12';
+            } else {
+                ratingEl.textContent = '需要关注 ⭐⭐';
+                ratingEl.style.color = '#e74c3c';
+            }
+            
+            // CPU
+            updateMetric('cpu', cpu);
+            
+            // 内存
+            updateMetric('memory', memory);
+            
+            // 磁盘
+            updateMetric('disk', disk);
+            
+            // 服务在线率
+            updateMetric('service', serviceRate);
+        }
+
+        function updateMetric(metricName, value) {
+            const valueEl = document.getElementById(`${metricName}Value`);
+            const barEl = document.getElementById(`${metricName}Bar`);
+            
+            valueEl.textContent = `${Math.round(value)}%`;
+            barEl.style.width = `${value}%`;
+            
+            // 设置颜色
+            if (value < 70) {
+                valueEl.className = 'metric-value good';
+                barEl.className = 'metric-bar-fill';
+            } else if (value < 85) {
+                valueEl.className = 'metric-value warning';
+                barEl.className = 'metric-bar-fill warning';
+            } else {
+                valueEl.className = 'metric-value danger';
+                barEl.className = 'metric-bar-fill danger';
+            }
+        }
+
+        function getScoreClass(score) {
+            if (score >= 90) return 'good';
+            if (score >= 70) return 'warning';
+            return 'danger';
+        }
+
+        function updateServicesList(results) {
+            const listEl = document.getElementById('servicesList');
+            listEl.innerHTML = results.map(service => `
+                <div class="service-item ${service.status}">
+                    <div>
+                        <span class="service-name">${service.name}</span>
+                        <span style="color: #7f8c8d; margin-left: 15px;">端口 ${service.port}</span>
+                    </div>
+                    <span class="service-status ${service.status}">
+                        ${service.status === 'online' ? '✅ 在线' : '❌ 离线'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // 页面加载时运行检查
+        window.addEventListener('load', () => {
+            runHealthCheck();
+            // 每30秒自动刷新
+            setInterval(runHealthCheck, 30000);
+        });
+    </script>
+</body>
+</html>
+

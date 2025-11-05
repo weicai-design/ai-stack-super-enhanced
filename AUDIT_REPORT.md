@@ -1,5 +1,5 @@
 # 仓库审计报告（自动生成）
-- 时间: 2025-10-27T20:26:52
+- 时间: 2025-11-02T17:05:59
 - 根目录: /Users/ywc/ai-stack-super-enhanced
 
 ## 顶层模块覆盖
@@ -34,10 +34,10 @@
   - models/all-MiniLM-L6-v2: ✓
   - models/all-MiniLM-L6-v2/modules.json: ✓
   - models/all-MiniLM-L6-v2/1_Pooling: ✓
-  - models/all-MiniLM-L6-v2/0_Transformer: ✗
+  - models/all-MiniLM-L6-v2/0_Transformer: ✓
 - scripts: ✓
-  - scripts/dev.sh: ✗
-  - scripts/smoke.sh: ✗
+  - scripts/dev.sh: ✓
+  - scripts/smoke.sh: ✓
   - scripts/scaffold_minimal.py: ✓
   - scripts/audit_repo.py: ✓
 
@@ -48,6 +48,4 @@
   - /kg/stats: {}
 
 ## 差距与优先级
-- [ ] 缺少脚本: scripts/dev.sh
-- [ ] 缺少脚本: scripts/smoke.sh
 - [ ] uvicorn 未监听 8011 端口

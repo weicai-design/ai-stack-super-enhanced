@@ -1,0 +1,206 @@
+version: '3.8'
+
+services:
+  # RAG 服务
+  rag-service:
+    build:
+      context: ./📚 Enhanced RAG & Knowledge Graph
+      dockerfile: Dockerfile
+    ports:
+      - "8011:8011"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./📚 Enhanced RAG & Knowledge Graph:/app
+      - ./models:/app/models
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # ERP 后端
+  erp-backend:
+    build:
+      context: ./💼 Intelligent ERP & Business Management
+      dockerfile: api/Dockerfile
+    ports:
+      - "8013:8013"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite:///./erp.db
+    volumes:
+      - ./💼 Intelligent ERP & Business Management:/app
+      - erp-data:/app/data
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # ERP 前端
+  erp-frontend:
+    build:
+      context: ./💼 Intelligent ERP & Business Management/web/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8012:80"
+    depends_on:
+      - erp-backend
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # 股票服务
+  stock-service:
+    build:
+      context: ./📈 Intelligent Stock Trading
+      dockerfile: Dockerfile
+    ports:
+      - "8014:8014"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./📈 Intelligent Stock Trading:/app
+      - stock-data:/app/data
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # 趋势分析服务
+  trend-service:
+    build:
+      context: ./🔍 Intelligent Trend Analysis
+      dockerfile: Dockerfile
+    ports:
+      - "8015:8015"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./🔍 Intelligent Trend Analysis:/app
+      - trend-data:/app/data
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # 内容创作服务
+  content-service:
+    build:
+      context: ./🎨 Intelligent Content Creation
+      dockerfile: Dockerfile
+    ports:
+      - "8016:8016"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./🎨 Intelligent Content Creation:/app
+      - content-data:/app/data
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # 任务代理服务
+  task-agent:
+    build:
+      context: ./🤖 Intelligent Task Agent
+      dockerfile: Dockerfile
+    ports:
+      - "8017:8017"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./🤖 Intelligent Task Agent:/app
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # 资源管理服务
+  resource-manager:
+    build:
+      context: ./🛠️ Resource Management
+      dockerfile: Dockerfile
+    ports:
+      - "8018:8018"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./🛠️ Resource Management:/app
+    privileged: true  # 需要访问系统资源
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # 自我学习服务
+  learning-service:
+    build:
+      context: ./🧠 Self Learning System
+      dockerfile: Dockerfile
+    ports:
+      - "8019:8019"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./🧠 Self Learning System:/app
+      - learning-data:/app/data
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # PostgreSQL 数据库（生产环境使用）
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=aistack
+      - POSTGRES_USER=aistack
+      - POSTGRES_PASSWORD=aistack_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - erp-frontend
+      - erp-backend
+      - rag-service
+      - stock-service
+      - trend-service
+      - content-service
+      - task-agent
+      - resource-manager
+      - learning-service
+    restart: unless-stopped
+    networks:
+      - aistack-network
+
+networks:
+  aistack-network:
+    driver: bridge
+
+volumes:
+  erp-data:
+  stock-data:
+  trend-data:
+  content-data:
+  learning-data:
+  postgres-data:
+  redis-data:
+

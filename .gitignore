@@ -1,27 +1,97 @@
-# 忽略虚拟环境
-.venv
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+env/
+ENV/
+venv_311/
 
-# 忽略密钥文件
+# IDE
+.vscode/
+.idea/
+.cursor/
+.codebuddy/
+.config/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 日志文件
+*.log
+logs/
+*.log.*
+nohup.out
+
+# 敏感信息
 .env
 .env.*
+*password*
+*secret*
+*_key
+*.key
+config_local.py
+secrets.py
+credentials.json
+*.pem
+*.cer
+*.crt
 
-# 忽略备份文件
-.git.bak_*/
+# 数据库
+*.db
+*.sqlite
+*.sqlite3
 
-# 忽略离线包
-offline_bundle/
-offline_bundle_no_model.tar.gz
-.git.corrupt_*/
-.git.corrupt_*/
+# 缓存和临时文件
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+*.mo
+*.pot
 
-# system and cache
-.DS_Store
-__pycache__/
-*.pyc
-logs/
-cache/
-backups/
-offline_bundle/
-offline_bundle_no_model.tar.gz
-.git.bak_*/
-.git.corrupt_*/
+# 模型文件（太大）
+models/all-MiniLM-L6-v2/model.safetensors
+models/.locks/
+models/models--*
+
+# Node
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Backup
+backup-*/
+*.backup
+*.bak
+
+# OS
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Project specific
+ai-chat-center/server.log
+ai-chat-center/static/audio/*.mp3
+performance_report.json
+audit_report.json

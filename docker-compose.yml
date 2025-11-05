@@ -1,0 +1,150 @@
+version: "3.9"
+
+services:
+  # ============ RAG & 知识图谱服务 ============
+  
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-api
+    environment:
+      - RAG_API_KEY=${RAG_API_KEY:-secret123}
+      - VECTOR_BACKEND=faiss
+      - LOCAL_ST_MODEL_PATH=/app/models/all-MiniLM-L6-v2
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      - HF_HOME=/app/models
+      - HUGGINGFACE_HUB_CACHE=/app/models
+      - TRANSFORMERS_CACHE=/app/models
+      - SENTENCE_TRANSFORMERS_HOME=/app/models
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    ports:
+      - "8011:8011"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./logs:/app/logs
+    working_dir: /app
+    command: >
+      uvicorn "api.app:app" --app-dir "📚 Enhanced RAG & Knowledge Graph"
+      --host 0.0.0.0 --port 8011 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8011/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - ai-stack-network
+
+  # ============ ERP系统服务 ============
+  
+  erp-postgres:
+    image: postgres:15-alpine
+    container_name: erp-postgres
+    environment:
+      POSTGRES_DB: erp_db
+      POSTGRES_USER: erp_user
+      POSTGRES_PASSWORD: ${ERP_DB_PASSWORD:-erp_password_2025}
+    ports:
+      - "5432:5432"
+    volumes:
+      - erp_postgres_data:/var/lib/postgresql/data
+      - ./💼 Intelligent ERP & Business Management/scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ai-stack-network
+
+  erp-api:
+    build:
+      context: ./💼 Intelligent ERP & Business Management
+      dockerfile: api/Dockerfile
+    container_name: erp-api
+    environment:
+      - DATABASE_URL=postgresql://erp_user:${ERP_DB_PASSWORD:-erp_password_2025}@erp-postgres:5432/erp_db
+      - API_HOST=0.0.0.0
+      - API_PORT=8013
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - RAG_API_URL=http://rag-api:8011
+    ports:
+      - "8013:8013"
+    depends_on:
+      erp-postgres:
+        condition: service_healthy
+    volumes:
+      - ./💼 Intelligent ERP & Business Management:/app
+    restart: unless-stopped
+    networks:
+      - ai-stack-network
+
+  erp-web:
+    build:
+      context: ./💼 Intelligent ERP & Business Management/web/frontend
+      dockerfile: Dockerfile
+    container_name: erp-web
+    ports:
+      - "8012:8012"
+    depends_on:
+      - erp-api
+    restart: unless-stopped
+    networks:
+      - ai-stack-network
+
+  # ============ OpenWebUI服务 ============
+  
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-super-secret-key-2025}
+      - RAG_API_URL=http://rag-api:8011
+      - ERP_API_URL=http://erp-api:8013
+    ports:
+      - "3000:8080"
+    volumes:
+      - open_webui_data:/app/backend/data
+    restart: unless-stopped
+    networks:
+      - ai-stack-network
+
+  # ============ 可选服务 ============
+  
+  # Nginx反向代理（可选，用于统一入口）
+  nginx:
+    image: nginx:alpine
+    container_name: ai-stack-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - rag-api
+      - erp-api
+      - erp-web
+      - open-webui
+    restart: unless-stopped
+    networks:
+      - ai-stack-network
+    profiles:
+      - full  # 只在full profile时启动
+
+volumes:
+  erp_postgres_data:
+    name: erp_postgres_data
+  open_webui_data:
+    name: open_webui_data
+
+networks:
+  ai-stack-network:
+    name: ai-stack-network
+    driver: bridge
+

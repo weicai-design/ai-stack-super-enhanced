@@ -6,12 +6,29 @@ services:
       args:
         PY_BASE: python:3.11-slim
     environment:
-      - RAG_API_KEY=secret123
+      - RAG_API_KEY=${RAG_API_KEY:-secret123}
       - VECTOR_BACKEND=faiss
+      - LOCAL_ST_MODEL_PATH=/app/models/all-MiniLM-L6-v2
+      # 国内镜像配置（无VPN环境）
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      - HF_HUB_DISABLE_EXPERIMENTAL_WARNING=1
+      - HF_HOME=/app/models
+      - HUGGINGFACE_HUB_CACHE=/app/models
+      - TRANSFORMERS_CACHE=/app/models
+      - SENTENCE_TRANSFORMERS_HOME=/app/models
     ports:
-      - "8000:8000"
+      - "8011:8011"
     volumes:
       - ./:/app
+      - ./models:/app/models
+      - ./data:/app/data
+    working_dir: /app
     command: >
       uvicorn "api.app:app" --app-dir "📚 Enhanced RAG & Knowledge Graph"
-      --host 0.0.0.0 --port 8000
+      --host 0.0.0.0 --port 8011 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8011/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

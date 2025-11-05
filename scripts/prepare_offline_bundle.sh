@@ -29,11 +29,11 @@ REQ
 echo "Using pip to download wheels into $WHEEL_DIR"
 
 
-# Use a domestic PyPI mirror if desired. Uncomment and edit the --index-url line.
-# For example, use TUNA (Tsinghua) mirror: https://pypi.tuna.tsinghua.edu.cn/simple
-PIP_EXTRA_ARGS=()
-# Example to use TUNA mirror:
-# PIP_EXTRA_ARGS=(--index-url "https://pypi.tuna.tsinghua.edu.cn/simple")
+# Use a domestic PyPI mirror (无VPN环境优化)
+# 默认使用清华大学镜像（国内用户推荐）
+PIP_EXTRA_ARGS=(--index-url "https://pypi.tuna.tsinghua.edu.cn/simple" --trusted-host "pypi.tuna.tsinghua.edu.cn")
+# 如果清华镜像不可用，可以切换到：
+# PIP_EXTRA_ARGS=(--index-url "https://mirrors.aliyun.com/pypi/simple" --trusted-host "mirrors.aliyun.com")
 
 # Expand safely even when array is empty
 if [ ${#PIP_EXTRA_ARGS[@]} -gt 0 ]; then
