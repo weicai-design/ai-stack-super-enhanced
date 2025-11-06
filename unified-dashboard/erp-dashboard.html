@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP管理控制台 - AI Stack</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #1e3c72;
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .header .stats {
+            display: flex;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            flex: 1;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .module-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .module-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .module-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .module-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1e3c72;
+        }
+
+        .completion-badge {
+            background: #10b981;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .module-features {
+            list-style: none;
+            margin: 15px 0;
+        }
+
+        .module-features li {
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            color: #555;
+            display: flex;
+            align-items: center;
+        }
+
+        .module-features li:before {
+            content: "✓";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #555;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .monitoring-panel {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .monitoring-panel h2 {
+            color: #1e3c72;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            color: #1e3c72;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+
+        .back-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .module-card {
+            animation: fadeIn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-button">← 返回主控制台</a>
+
+    <div id="app" class="container">
+        <div class="header">
+            <h1>💼 ERP管理控制台</h1>
+            <p>企业资源规划 · 全流程管理 · 实时监控</p>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <h3>总模块数</h3>
+                    <div class="value">15</div>
+                </div>
+                <div class="stat-card">
+                    <h3>平均完成度</h3>
+                    <div class="value">78%</div>
+                </div>
+                <div class="stat-card">
+                    <h3>API接口</h3>
+                    <div class="value">85+</div>
+                </div>
+                <div class="stat-card">
+                    <h3>运行状态</h3>
+                    <div class="value">🟢</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="monitoring-panel">
+            <h2>📊 实时监控面板</h2>
+            <div class="chart-container">
+                <canvas id="moduleCompletionChart"></canvas>
+            </div>
+        </div>
+
+        <div class="modules-grid">
+            <div class="module-card" v-for="module in modules" :key="module.id">
+                <div class="module-header">
+                    <div class="module-title">{{ module.icon }} {{ module.name }}</div>
+                    <div class="completion-badge">{{ module.completion }}%</div>
+                </div>
+                
+                <ul class="module-features">
+                    <li v-for="feature in module.features" :key="feature">{{ feature }}</li>
+                </ul>
+                
+                <div class="action-buttons">
+                    <button class="btn btn-primary" @click="openModule(module)">打开模块</button>
+                    <button class="btn btn-secondary" @click="viewDocs(module)">查看文档</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    modules: [
+                        {
+                            id: 'customer',
+                            name: '客户管理',
+                            icon: '👥',
+                            completion: 70,
+                            features: ['客户资料管理', '客户价值分析', '客户分类升级'],
+                            url: 'http://localhost:8013/docs#customer'
+                        },
+                        {
+                            id: 'order',
+                            name: '订单管理',
+                            icon: '📋',
+                            completion: 70,
+                            features: ['订单创建', '状态跟踪', '订单分析'],
+                            url: 'http://localhost:8013/docs#order'
+                        },
+                        {
+                            id: 'project',
+                            name: '项目管理',
+                            icon: '📊',
+                            completion: 75,
+                            features: ['项目启动', '里程碑管理', '成本控制', '项目验收'],
+                            url: 'http://localhost:8013/docs#project'
+                        },
+                        {
+                            id: 'procurement',
+                            name: '采购管理',
+                            icon: '🛒',
+                            completion: 85,
+                            features: ['采购申请', '审批流程', '供应商管理', '绩效评估'],
+                            url: 'http://localhost:8013/docs#procurement'
+                        },
+                        {
+                            id: 'receipt',
+                            name: '到料管理',
+                            icon: '📦',
+                            completion: 90,
+                            features: ['到货通知', '质量检验', '不合格处理', '入库管理'],
+                            url: 'http://localhost:8013/docs#receipt'
+                        },
+                        {
+                            id: 'inventory',
+                            name: '物料管理',
+                            icon: '📊',
+                            completion: 90,
+                            features: ['库存变动', '批次管理', '库存预警', '成本核算'],
+                            url: 'http://localhost:8013/docs#material'
+                        },
+                        {
+                            id: 'warehouse',
+                            name: '仓储管理',
+                            icon: '🏭',
+                            completion: 88,
+                            features: ['库位管理', '智能上架', 'FIFO拣货', '利用率分析'],
+                            url: 'http://localhost:8013/docs#warehouse'
+                        },
+                        {
+                            id: 'production',
+                            name: '生产管理',
+                            icon: '⚙️',
+                            completion: 70,
+                            features: ['生产计划', '执行跟踪', '产能分析', 'MRP计算'],
+                            url: 'http://localhost:8013/docs#production'
+                        },
+                        {
+                            id: 'quality',
+                            name: '质量管理',
+                            icon: '✅',
+                            completion: 70,
+                            features: ['质量检验', '不良品分析', '质量趋势'],
+                            url: 'http://localhost:8013/docs#quality'
+                        },
+                        {
+                            id: 'delivery',
+                            name: '交付管理',
+                            icon: '🚚',
+                            completion: 90,
+                            features: ['交付计划', '装箱单', '发货单', '客户验收'],
+                            url: 'http://localhost:8013/docs#delivery'
+                        },
+                        {
+                            id: 'shipping',
+                            name: '发运管理',
+                            icon: '🚛',
+                            completion: 90,
+                            features: ['发运排程', '车辆调度', '物流追踪', '运输统计'],
+                            url: 'http://localhost:8013/docs#shipping'
+                        },
+                        {
+                            id: 'equipment',
+                            name: '设备管理',
+                            icon: '🔧',
+                            completion: 90,
+                            features: ['设备台账', '维护计划', '故障维修', '健康度评估'],
+                            url: 'http://localhost:8013/docs#equipment'
+                        },
+                        {
+                            id: 'process',
+                            name: '工艺管理',
+                            icon: '📐',
+                            completion: 88,
+                            features: ['工艺路线', '工序管理', '参数设置', '版本控制'],
+                            url: 'http://localhost:8013/docs#process'
+                        },
+                        {
+                            id: 'financial',
+                            name: '财务管理',
+                            icon: '💰',
+                            completion: 85,
+                            features: ['财务看板', '盈亏分析', '成本管控', '经营诊断'],
+                            url: 'http://localhost:8013/docs#financial'
+                        },
+                        {
+                            id: 'monitoring',
+                            name: '闭环监控',
+                            icon: '🔄',
+                            completion: 95,
+                            features: ['问题检测', '改进追踪', '效果验证', '闭环报告'],
+                            url: 'http://localhost:8013/docs#monitoring'
+                        }
+                    ]
+                }
+            },
+            methods: {
+                openModule(module) {
+                    window.open(module.url, '_blank');
+                },
+                viewDocs(module) {
+                    alert(`查看 ${module.name} 文档`);
+                }
+            },
+            mounted() {
+                this.initChart();
+            }
+        }).mount('#app');
+
+        // 初始化图表
+        function initChart() {
+            const ctx = document.getElementById('moduleCompletionChart');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['客户', '订单', '项目', '采购', '到料', '物料', '仓储', '生产', '质量', '交付', '发运', '设备', '工艺', '财务', '监控'],
+                    datasets: [{
+                        label: '完成度 (%)',
+                        data: [70, 70, 75, 85, 90, 90, 88, 70, 70, 90, 90, 90, 88, 85, 95],
+                        backgroundColor: [
+                            'rgba(102, 126, 234, 0.8)',
+                            'rgba(118, 75, 162, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(239, 68, 68, 0.8)',
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(139, 92, 246, 0.8)',
+                            'rgba(236, 72, 153, 0.8)',
+                            'rgba(20, 184, 166, 0.8)',
+                            'rgba(251, 146, 60, 0.8)',
+                            'rgba(34, 197, 94, 0.8)',
+                            'rgba(168, 85, 247, 0.8)',
+                            'rgba(14, 165, 233, 0.8)',
+                            'rgba(132, 204, 22, 0.8)',
+                            'rgba(244, 63, 94, 0.8)'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'ERP各模块完成度对比',
+                            font: {
+                                size: 18
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        setTimeout(initChart, 100);
+    </script>
+</body>
+</html>
+
