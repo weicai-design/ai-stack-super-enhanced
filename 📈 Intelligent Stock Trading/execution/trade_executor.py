@@ -180,3 +180,4 @@ class TradeExecutor:
 # 全局实例
 trade_executor = TradeExecutor()
 
+

@@ -245,3 +245,4 @@ class PlatformPublisher:
 # 全局实例
 content_publisher = PlatformPublisher()
 
+

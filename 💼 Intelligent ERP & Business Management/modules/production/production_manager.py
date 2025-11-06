@@ -366,3 +366,4 @@ class Material:
     """物料表（临时）"""
     pass
 
+

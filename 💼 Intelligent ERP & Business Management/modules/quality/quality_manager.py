@@ -126,3 +126,4 @@ class QualityManager:
         """生成ID"""
         return f"QC{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
 
+

@@ -496,3 +496,4 @@ def get_customer_manager(db_session: Session) -> CustomerManager:
     """获取客户管理器实例"""
     return CustomerManager(db_session)
 
+
