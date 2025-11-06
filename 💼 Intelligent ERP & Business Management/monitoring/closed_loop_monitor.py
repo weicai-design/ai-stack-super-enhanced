@@ -362,12 +362,356 @@ class ClosedLoopMonitor:
             }
 
 
+    def get_improvement_progress(
+        self,
+        issue_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        获取改进进度追踪
+        
+        Args:
+            issue_id: 问题ID（可选）
+        
+        Returns:
+            改进进度列表
+        """
+        try:
+            filtered_improvements = self.improvements
+            
+            if issue_id:
+                filtered_improvements = [
+                    i for i in self.improvements 
+                    if i['issue_id'] == issue_id
+                ]
+            
+            # 计算总体进度
+            total_progress = 0
+            if filtered_improvements:
+                total_progress = sum(i['progress'] for i in filtered_improvements) / len(filtered_improvements)
+            
+            return {
+                "success": True,
+                "improvements": filtered_improvements,
+                "total_count": len(filtered_improvements),
+                "average_progress": round(total_progress, 2)
+            }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def get_module_analysis(self, module: str) -> Dict[str, Any]:
+        """
+        获取模块分析
+        
+        Args:
+            module: 模块名称
+        
+        Returns:
+            模块问题分析
+        """
+        try:
+            module_issues = [i for i in self.issues if i['module'] == module]
+            
+            if not module_issues:
+                return {
+                    "success": True,
+                    "module": module,
+                    "message": "该模块暂无问题记录"
+                }
+            
+            # 统计分析
+            total = len(module_issues)
+            closed = len([i for i in module_issues if i['status'] == IssueStatus.CLOSED.value])
+            active = total - closed
+            
+            # 问题类型分布
+            type_dist = {}
+            for issue in module_issues:
+                itype = issue['issue_type']
+                type_dist[itype] = type_dist.get(itype, 0) + 1
+            
+            # 平均闭环周期
+            closed_issues = [i for i in module_issues if i['status'] == IssueStatus.CLOSED.value and 'cycle_days' in i]
+            avg_cycle = (sum(i['cycle_days'] for i in closed_issues) / len(closed_issues)) if closed_issues else 0
+            
+            return {
+                "success": True,
+                "module": module,
+                "analysis": {
+                    "total_issues": total,
+                    "closed_issues": closed,
+                    "active_issues": active,
+                    "closure_rate": round((closed / total * 100), 2),
+                    "average_cycle_days": round(avg_cycle, 2),
+                    "issue_type_distribution": type_dist
+                }
+            }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def get_trend_analysis(
+        self,
+        start_date: str,
+        end_date: str
+    ) -> Dict[str, Any]:
+        """
+        获取趋势分析
+        
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+        
+        Returns:
+            趋势分析数据
+        """
+        try:
+            # 筛选时间范围内的问题
+            issues_in_range = [
+                i for i in self.issues
+                if start_date <= i['detected_at'][:10] <= end_date
+            ]
+            
+            # 按日期统计
+            daily_stats = {}
+            for issue in issues_in_range:
+                date = issue['detected_at'][:10]
+                if date not in daily_stats:
+                    daily_stats[date] = {
+                        "detected": 0,
+                        "closed": 0
+                    }
+                daily_stats[date]["detected"] += 1
+                
+                if issue['status'] == IssueStatus.CLOSED.value and issue.get('closed_at'):
+                    closed_date = issue['closed_at'][:10]
+                    if start_date <= closed_date <= end_date:
+                        if closed_date not in daily_stats:
+                            daily_stats[closed_date] = {"detected": 0, "closed": 0}
+                        daily_stats[closed_date]["closed"] += 1
+            
+            # 按模块统计趋势
+            module_trends = {}
+            for issue in issues_in_range:
+                module = issue['module']
+                if module not in module_trends:
+                    module_trends[module] = {
+                        "detected": 0,
+                        "closed": 0,
+                        "avg_cycle_days": 0
+                    }
+                module_trends[module]["detected"] += 1
+                
+                if issue['status'] == IssueStatus.CLOSED.value:
+                    module_trends[module]["closed"] += 1
+            
+            return {
+                "success": True,
+                "period": {"start": start_date, "end": end_date},
+                "daily_statistics": daily_stats,
+                "module_trends": module_trends,
+                "total_detected": len(issues_in_range)
+            }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def auto_detect_anomalies(
+        self,
+        module: str,
+        metrics: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        自动检测异常
+        
+        Args:
+            module: 模块名称
+            metrics: 指标数据 {"metric_name": value}
+        
+        Returns:
+            检测到的异常列表
+        """
+        anomalies = []
+        
+        # 预定义的异常规则
+        anomaly_rules = {
+            "quality_pass_rate": {
+                "threshold": 95,
+                "operator": "<",
+                "severity": "高",
+                "description": "质量合格率低于95%"
+            },
+            "on_time_delivery_rate": {
+                "threshold": 90,
+                "operator": "<",
+                "severity": "中",
+                "description": "准时交付率低于90%"
+            },
+            "inventory_turnover": {
+                "threshold": 0.5,
+                "operator": "<",
+                "severity": "低",
+                "description": "库存周转率过低"
+            },
+            "cost_variance": {
+                "threshold": 10,
+                "operator": ">",
+                "severity": "中",
+                "description": "成本偏差超过10%"
+            }
+        }
+        
+        for metric_name, value in metrics.items():
+            if metric_name in anomaly_rules:
+                rule = anomaly_rules[metric_name]
+                threshold = rule["threshold"]
+                
+                is_anomaly = False
+                if rule["operator"] == "<" and value < threshold:
+                    is_anomaly = True
+                elif rule["operator"] == ">" and value > threshold:
+                    is_anomaly = True
+                
+                if is_anomaly:
+                    # 自动记录问题
+                    anomaly_result = self.detect_issue({
+                        "module": module,
+                        "issue_type": f"{metric_name}_异常",
+                        "severity": rule["severity"],
+                        "description": f"{rule['description']}: 当前值{value}, 阈值{threshold}",
+                        "detected_by": "系统自动",
+                        "data": {
+                            "metric": metric_name,
+                            "value": value,
+                            "threshold": threshold
+                        }
+                    })
+                    
+                    if anomaly_result["success"]:
+                        anomalies.append(anomaly_result["issue"])
+        
+        return anomalies
+    
+    def generate_closed_loop_report(
+        self,
+        start_date: str,
+        end_date: str
+    ) -> Dict[str, Any]:
+        """
+        生成闭环监控报告
+        
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+        
+        Returns:
+            闭环监控报告
+        """
+        try:
+            # 筛选时间范围内的问题
+            issues_in_range = [
+                i for i in self.issues
+                if start_date <= i['detected_at'][:10] <= end_date
+            ]
+            
+            total_issues = len(issues_in_range)
+            
+            # 按状态统计
+            status_summary = {}
+            for issue in issues_in_range:
+                status = issue['status']
+                status_summary[status] = status_summary.get(status, 0) + 1
+            
+            # 闭环统计
+            closed_issues = [i for i in issues_in_range if i['status'] == IssueStatus.CLOSED.value]
+            closure_rate = (len(closed_issues) / total_issues * 100) if total_issues > 0 else 0
+            
+            # 平均闭环周期
+            avg_cycle_days = (sum(i.get('cycle_days', 0) for i in closed_issues) / len(closed_issues)) if closed_issues else 0
+            
+            # 按模块统计
+            module_summary = {}
+            for issue in issues_in_range:
+                module = issue['module']
+                if module not in module_summary:
+                    module_summary[module] = {
+                        "total": 0,
+                        "closed": 0,
+                        "active": 0
+                    }
+                module_summary[module]["total"] += 1
+                if issue['status'] == IssueStatus.CLOSED.value:
+                    module_summary[module]["closed"] += 1
+                else:
+                    module_summary[module]["active"] += 1
+            
+            # 改进措施统计
+            improvements_in_range = [
+                imp for imp in self.improvements
+                if imp['issue_id'] in [i['issue_id'] for i in issues_in_range]
+            ]
+            
+            total_improvements = len(improvements_in_range)
+            completed_improvements = len([i for i in improvements_in_range if i['status'] == '已完成'])
+            
+            # TOP问题类型
+            issue_type_count = {}
+            for issue in issues_in_range:
+                itype = issue['issue_type']
+                issue_type_count[itype] = issue_type_count.get(itype, 0) + 1
+            
+            top_issue_types = sorted(
+                issue_type_count.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )[:5]
+            
+            report = {
+                "report_period": {
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "generated_at": datetime.utcnow().isoformat()
+                },
+                "executive_summary": {
+                    "total_issues_detected": total_issues,
+                    "total_issues_closed": len(closed_issues),
+                    "closure_rate_percent": round(closure_rate, 2),
+                    "average_cycle_days": round(avg_cycle_days, 2),
+                    "total_improvements": total_improvements,
+                    "completed_improvements": completed_improvements
+                },
+                "status_breakdown": status_summary,
+                "module_performance": module_summary,
+                "top_issue_types": dict(top_issue_types),
+                "active_high_severity": len([
+                    i for i in issues_in_range
+                    if i['severity'] in ['高', '紧急'] and i['status'] != IssueStatus.CLOSED.value
+                ])
+            }
+            
+            return {
+                "success": True,
+                "report": report
+            }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+
 # 全局实例
 closed_loop_monitor = ClosedLoopMonitor()
-
-
-
-
 
 
 
