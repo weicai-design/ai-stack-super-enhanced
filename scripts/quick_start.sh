@@ -168,3 +168,6 @@ echo "   • 健康检查: python3 $PROJECT_ROOT/scripts/health_check.py"
 echo "   • 停止服务: $PROJECT_ROOT/scripts/stop_all.sh"
 echo ""
 
+
+
+

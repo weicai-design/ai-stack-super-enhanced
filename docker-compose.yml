@@ -1,122 +1,177 @@
-version: "3.9"
+version: '3.8'
 
 services:
-  # ============ RAG & 知识图谱服务 ============
-  
-  rag-api:
+  # AI交互中心
+  ai-chat-center:
     build:
-      context: .
+      context: ./ai-chat-center
       dockerfile: Dockerfile
-    container_name: rag-api
-    environment:
-      - RAG_API_KEY=${RAG_API_KEY:-secret123}
-      - VECTOR_BACKEND=faiss
-      - LOCAL_ST_MODEL_PATH=/app/models/all-MiniLM-L6-v2
-      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
-      - HF_HOME=/app/models
-      - HUGGINGFACE_HUB_CACHE=/app/models
-      - TRANSFORMERS_CACHE=/app/models
-      - SENTENCE_TRANSFORMERS_HOME=/app/models
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    container_name: ai-chat-center
     ports:
-      - "8011:8011"
+      - "8020:8020"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - DATABASE_URL=sqlite:///./data/chat.db
     volumes:
-      - ./models:/app/models
-      - ./data:/app/data
+      - ./ai-chat-center/data:/app/data
       - ./logs:/app/logs
-    working_dir: /app
-    command: >
-      uvicorn "api.app:app" --app-dir "📚 Enhanced RAG & Knowledge Graph"
-      --host 0.0.0.0 --port 8011 --reload
+    depends_on:
+      - ollama
+    networks:
+      - ai-stack-network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8011/readyz"]
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    restart: unless-stopped
-    networks:
-      - ai-stack-network
 
-  # ============ ERP系统服务 ============
-  
-  erp-postgres:
-    image: postgres:15-alpine
-    container_name: erp-postgres
-    environment:
-      POSTGRES_DB: erp_db
-      POSTGRES_USER: erp_user
-      POSTGRES_PASSWORD: ${ERP_DB_PASSWORD:-erp_password_2025}
+  # RAG知识系统
+  rag-system:
+    build:
+      context: ./📚 Enhanced RAG & Knowledge Graph
+      dockerfile: Dockerfile
+    container_name: rag-system
     ports:
-      - "5432:5432"
+      - "8011:8011"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=sqlite:///./data/rag.db
     volumes:
-      - erp_postgres_data:/var/lib/postgresql/data
-      - ./💼 Intelligent ERP & Business Management/scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
+      - ./📚 Enhanced RAG & Knowledge Graph/data:/app/data
+      - ./logs:/app/logs
     networks:
       - ai-stack-network
+    restart: unless-stopped
 
-  erp-api:
+  # ERP系统
+  erp-system:
     build:
       context: ./💼 Intelligent ERP & Business Management
-      dockerfile: api/Dockerfile
-    container_name: erp-api
-    environment:
-      - DATABASE_URL=postgresql://erp_user:${ERP_DB_PASSWORD:-erp_password_2025}@erp-postgres:5432/erp_db
-      - API_HOST=0.0.0.0
-      - API_PORT=8013
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
-      - RAG_API_URL=http://rag-api:8011
+      dockerfile: Dockerfile
+    container_name: erp-system
     ports:
       - "8013:8013"
-    depends_on:
-      erp-postgres:
-        condition: service_healthy
-    volumes:
-      - ./💼 Intelligent ERP & Business Management:/app
-    restart: unless-stopped
-    networks:
-      - ai-stack-network
-
-  erp-web:
-    build:
-      context: ./💼 Intelligent ERP & Business Management/web/frontend
-      dockerfile: Dockerfile
-    container_name: erp-web
-    ports:
-      - "8012:8012"
-    depends_on:
-      - erp-api
-    restart: unless-stopped
-    networks:
-      - ai-stack-network
-
-  # ============ OpenWebUI服务 ============
-  
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:main
-    container_name: open-webui
     environment:
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
-      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-super-secret-key-2025}
-      - RAG_API_URL=http://rag-api:8011
-      - ERP_API_URL=http://erp-api:8013
-    ports:
-      - "3000:8080"
+      - DATABASE_URL=sqlite:///./data/erp.db
     volumes:
-      - open_webui_data:/app/backend/data
-    restart: unless-stopped
+      - ./💼 Intelligent ERP & Business Management/data:/app/data
+      - ./logs:/app/logs
     networks:
       - ai-stack-network
+    restart: unless-stopped
 
-  # ============ 可选服务 ============
-  
-  # Nginx反向代理（可选，用于统一入口）
+  # 股票交易系统
+  stock-trading:
+    build:
+      context: ./📈 Intelligent Stock Trading
+      dockerfile: Dockerfile
+    container_name: stock-trading
+    ports:
+      - "8014:8014"
+    environment:
+      - DATABASE_URL=sqlite:///./data/stock.db
+    volumes:
+      - ./📈 Intelligent Stock Trading/data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - ai-stack-network
+    restart: unless-stopped
+
+  # 趋势分析系统
+  trend-analysis:
+    build:
+      context: ./🔍 Intelligent Trend Analysis
+      dockerfile: Dockerfile
+    container_name: trend-analysis
+    ports:
+      - "8015:8015"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - ai-stack-network
+    restart: unless-stopped
+
+  # 内容创作系统
+  content-creation:
+    build:
+      context: ./🎨 Intelligent Content Creation
+      dockerfile: Dockerfile
+    container_name: content-creation
+    ports:
+      - "8016:8016"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./🎨 Intelligent Content Creation/data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - ai-stack-network
+    restart: unless-stopped
+
+  # 任务代理系统
+  task-agent:
+    build:
+      context: ./🤖 Intelligent Task Agent
+      dockerfile: Dockerfile
+    container_name: task-agent
+    ports:
+      - "8017:8017"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - ai-stack-network
+    restart: unless-stopped
+
+  # 资源管理系统
+  resource-management:
+    build:
+      context: ./⚙️ System Resource Management
+      dockerfile: Dockerfile
+    container_name: resource-management
+    ports:
+      - "8018:8018"
+    volumes:
+      - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - ai-stack-network
+    restart: unless-stopped
+    privileged: true
+
+  # 自我学习系统
+  self-learning:
+    build:
+      context: ./🧠 Self Learning System
+      dockerfile: Dockerfile
+    container_name: self-learning
+    ports:
+      - "8019:8019"
+    environment:
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+    volumes:
+      - ./🧠 Self Learning System/data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - ollama
+    networks:
+      - ai-stack-network
+    restart: unless-stopped
+
+  # Ollama服务
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - ai-stack-network
+    restart: unless-stopped
+
+  # Nginx反向代理
   nginx:
     image: nginx:alpine
     container_name: ai-stack-nginx
@@ -125,26 +180,19 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./unified-dashboard:/usr/share/nginx/html:ro
     depends_on:
-      - rag-api
-      - erp-api
-      - erp-web
-      - open-webui
-    restart: unless-stopped
+      - ai-chat-center
+      - rag-system
+      - erp-system
     networks:
       - ai-stack-network
-    profiles:
-      - full  # 只在full profile时启动
-
-volumes:
-  erp_postgres_data:
-    name: erp_postgres_data
-  open_webui_data:
-    name: open_webui_data
+    restart: unless-stopped
 
 networks:
   ai-stack-network:
-    name: ai-stack-network
     driver: bridge
 
+volumes:
+  ollama-data:

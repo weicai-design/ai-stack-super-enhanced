@@ -497,3 +497,6 @@ def get_customer_manager(db_session: Session) -> CustomerManager:
     return CustomerManager(db_session)
 
 
+
+
+

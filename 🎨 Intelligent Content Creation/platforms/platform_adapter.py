@@ -465,3 +465,6 @@ class PlatformFactory:
         """列出支持的平台"""
         return list(cls.ADAPTERS.keys())
 
+
+
+
