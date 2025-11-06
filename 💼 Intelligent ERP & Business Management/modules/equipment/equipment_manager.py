@@ -10,11 +10,12 @@ import json
 
 class EquipmentStatus(Enum):
     """设备状态"""
-    IDLE = "idle"  # 空闲
-    RUNNING = "running"  # 运行中
+    AVAILABLE = "available"  # 可用
+    IN_USE = "in_use"  # 使用中
     MAINTENANCE = "maintenance"  # 维护中
-    BREAKDOWN = "breakdown"  # 故障
-    RETIRED = "retired"  # 报废
+    REPAIR = "repair"  # 维修中
+    STANDBY = "standby"  # 待机
+    SCRAPPED = "scrapped"  # 报废
 
 
 class MaintenanceType(Enum):
@@ -24,8 +25,7 @@ class MaintenanceType(Enum):
     MONTHLY = "monthly"  # 月保养
     QUARTERLY = "quarterly"  # 季度保养
     ANNUAL = "annual"  # 年度保养
-    PREVENTIVE = "preventive"  # 预防性维护
-    CORRECTIVE = "corrective"  # 纠正性维护
+    OVERHAUL = "overhaul"  # 大修
 
 
 class EquipmentManager:
@@ -34,17 +34,17 @@ class EquipmentManager:
     def __init__(self):
         """初始化设备管理器"""
         self.equipments = {}
-        self.maintenance_records = []
         self.maintenance_plans = {}
-        self.breakdown_records = []
+        self.maintenance_records = []
+        self.repair_records = []
         self.spare_parts = {}
-        self.oee_records = []
+        self.equipment_counter = 1000
     
     def register_equipment(
         self,
         equipment_id: str,
         name: str,
-        equipment_type: str,
+        category: str,
         model: str,
         manufacturer: str,
         purchase_date: str,
@@ -52,15 +52,15 @@ class EquipmentManager:
         specifications: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
-        注册设备
+        登记设备
         
         Args:
             equipment_id: 设备编号
             name: 设备名称
-            equipment_type: 设备类型
+            category: 设备类别
             model: 型号
             manufacturer: 制造商
-            purchase_date: 购买日期
+            purchase_date: 购置日期
             location: 安装位置
             specifications: 技术规格
         
@@ -70,26 +70,27 @@ class EquipmentManager:
         equipment = {
             "equipment_id": equipment_id,
             "name": name,
-            "equipment_type": equipment_type,
+            "category": category,
             "model": model,
             "manufacturer": manufacturer,
             "purchase_date": purchase_date,
             "location": location,
             "specifications": specifications or {},
-            "status": EquipmentStatus.IDLE.value,
-            "total_running_hours": 0,
-            "mtbf": 0,  # 平均故障间隔时间
-            "mttr": 0,  # 平均修复时间
-            "created_at": datetime.now().isoformat(),
-            "last_maintenance": None,
-            "next_maintenance_due": None
+            "status": EquipmentStatus.AVAILABLE.value,
+            "usage_hours": 0,
+            "maintenance_count": 0,
+            "repair_count": 0,
+            "last_maintenance_date": None,
+            "next_maintenance_date": None,
+            "registered_at": datetime.now().isoformat(),
+            "active": True
         }
         
         self.equipments[equipment_id] = equipment
         
         return {
             "success": True,
-            "message": "设备已注册",
+            "message": "设备已登记",
             "equipment": equipment
         }
     
@@ -98,7 +99,7 @@ class EquipmentManager:
         equipment_id: str,
         maintenance_type: str,
         interval_days: int,
-        tasks: List[Dict[str, Any]],
+        maintenance_items: List[Dict[str, Any]],
         responsible_person: str = ""
     ) -> Dict[str, Any]:
         """
@@ -107,8 +108,8 @@ class EquipmentManager:
         Args:
             equipment_id: 设备ID
             maintenance_type: 维护类型
-            interval_days: 维护间隔（天）
-            tasks: 维护任务列表 [{"task": "", "standard": "", "duration_minutes": 0}]
+            interval_days: 间隔天数
+            maintenance_items: 维护项目 [{"item": "", "standard": "", "method": ""}]
             responsible_person: 责任人
         
         Returns:
@@ -117,25 +118,29 @@ class EquipmentManager:
         if equipment_id not in self.equipments:
             return {"success": False, "error": "设备不存在"}
         
-        plan_id = f"MP{equipment_id}{len(self.maintenance_plans) + 1:04d}"
+        plan_id = f"MP{datetime.now().strftime('%Y%m%d')}{len(self.maintenance_plans) + 1:04d}"
+        
+        # 计算下次维护日期
+        next_date = (datetime.now() + timedelta(days=interval_days)).strftime('%Y-%m-%d')
         
         plan = {
             "plan_id": plan_id,
             "equipment_id": equipment_id,
             "maintenance_type": maintenance_type,
             "interval_days": interval_days,
-            "tasks": tasks,
+            "maintenance_items": maintenance_items,
             "responsible_person": responsible_person,
-            "active": True,
+            "next_maintenance_date": next_date,
             "created_at": datetime.now().isoformat(),
-            "last_execution": None,
-            "next_due_date": None
+            "active": True
         }
         
-        # 计算首次到期日
-        plan["next_due_date"] = (datetime.now() + timedelta(days=interval_days)).isoformat()[:10]
-        
         self.maintenance_plans[plan_id] = plan
+        
+        # 更新设备的下次维护日期
+        equipment = self.equipments[equipment_id]
+        if not equipment["next_maintenance_date"] or next_date < equipment["next_maintenance_date"]:
+            equipment["next_maintenance_date"] = next_date
         
         return {
             "success": True,
@@ -144,25 +149,27 @@ class EquipmentManager:
             "plan": plan
         }
     
-    def execute_maintenance(
+    def record_maintenance(
         self,
         equipment_id: str,
         maintenance_type: str,
-        executor: str,
-        completed_tasks: List[Dict[str, Any]],
-        duration_minutes: int,
-        notes: str = ""
+        maintenance_items: List[Dict[str, Any]],
+        maintainer: str,
+        duration_hours: float,
+        parts_used: List[Dict[str, Any]] = None,
+        findings: str = ""
     ) -> Dict[str, Any]:
         """
-        执行维护
+        记录维护保养
         
         Args:
             equipment_id: 设备ID
             maintenance_type: 维护类型
-            executor: 执行人
-            completed_tasks: 完成的任务 [{"task": "", "result": "pass/fail", "note": ""}]
-            duration_minutes: 耗时（分钟）
-            notes: 备注
+            maintenance_items: 维护项目 [{"item": "", "result": "pass/fail", "note": ""}]
+            maintainer: 维护人员
+            duration_hours: 耗时（小时）
+            parts_used: 使用的备件
+            findings: 发现的问题
         
         Returns:
             维护记录
@@ -178,40 +185,42 @@ class EquipmentManager:
             "record_id": record_id,
             "equipment_id": equipment_id,
             "maintenance_type": maintenance_type,
-            "executor": executor,
-            "completed_tasks": completed_tasks,
-            "duration_minutes": duration_minutes,
-            "notes": notes,
-            "executed_at": datetime.now().isoformat(),
-            "result": "completed"
+            "maintenance_items": maintenance_items,
+            "maintainer": maintainer,
+            "duration_hours": duration_hours,
+            "parts_used": parts_used or [],
+            "findings": findings,
+            "maintenance_date": datetime.now().strftime('%Y-%m-%d'),
+            "created_at": datetime.now().isoformat()
         }
         
         self.maintenance_records.append(record)
         
-        # 更新设备维护信息
-        equipment["last_maintenance"] = datetime.now().isoformat()
-        equipment["status"] = EquipmentStatus.IDLE.value
+        # 更新设备信息
+        equipment["last_maintenance_date"] = record["maintenance_date"]
+        equipment["maintenance_count"] += 1
         
-        # 更新相关维护计划
+        # 更新下次维护日期（如果有对应的计划）
         for plan in self.maintenance_plans.values():
-            if (plan["equipment_id"] == equipment_id and 
-                plan["maintenance_type"] == maintenance_type):
-                plan["last_execution"] = datetime.now().isoformat()
-                plan["next_due_date"] = (datetime.now() + timedelta(days=plan["interval_days"])).isoformat()[:10]
+            if plan["equipment_id"] == equipment_id and plan["maintenance_type"] == maintenance_type:
+                next_date = (datetime.now() + timedelta(days=plan["interval_days"])).strftime('%Y-%m-%d')
+                plan["next_maintenance_date"] = next_date
+                equipment["next_maintenance_date"] = next_date
+                break
         
         return {
             "success": True,
             "record_id": record_id,
-            "message": "维护已完成",
+            "message": "维护记录已创建",
             "record": record
         }
     
-    def report_breakdown(
+    def report_failure(
         self,
         equipment_id: str,
-        fault_description: str,
-        reporter: str,
-        severity: str = "medium",
+        failure_description: str,
+        severity: str,
+        reported_by: str,
         impact: str = ""
     ) -> Dict[str, Any]:
         """
@@ -219,10 +228,10 @@ class EquipmentManager:
         
         Args:
             equipment_id: 设备ID
-            fault_description: 故障描述
-            reporter: 报告人
+            failure_description: 故障描述
             severity: 严重程度 (low/medium/high/critical)
-            impact: 影响描述
+            reported_by: 报告人
+            impact: 影响
         
         Returns:
             故障记录
@@ -232,329 +241,343 @@ class EquipmentManager:
         
         equipment = self.equipments[equipment_id]
         
-        breakdown_id = f"BD{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        repair_id = f"RP{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
-        breakdown = {
-            "breakdown_id": breakdown_id,
+        repair_record = {
+            "repair_id": repair_id,
             "equipment_id": equipment_id,
-            "fault_description": fault_description,
-            "reporter": reporter,
+            "failure_description": failure_description,
             "severity": severity,
+            "reported_by": reported_by,
             "impact": impact,
-            "reported_at": datetime.now().isoformat(),
             "status": "reported",
-            "assigned_to": None,
-            "repair_started": None,
-            "repair_completed": None,
-            "downtime_minutes": 0,
+            "reported_at": datetime.now().isoformat(),
+            "repair_started_at": None,
+            "repair_completed_at": None,
             "root_cause": None,
-            "solution": None
+            "repair_actions": [],
+            "parts_replaced": [],
+            "cost": 0
         }
         
-        self.breakdown_records.append(breakdown)
+        self.repair_records.append(repair_record)
         
         # 更新设备状态
-        equipment["status"] = EquipmentStatus.BREAKDOWN.value
+        if severity in ["high", "critical"]:
+            equipment["status"] = EquipmentStatus.REPAIR.value
         
         return {
             "success": True,
-            "breakdown_id": breakdown_id,
-            "message": "故障已报告",
-            "breakdown": breakdown
+            "repair_id": repair_id,
+            "message": "故障已记录",
+            "repair_record": repair_record
         }
     
-    def repair_breakdown(
+    def start_repair(
         self,
-        breakdown_id: str,
-        repairer: str,
-        root_cause: str,
-        solution: str,
-        spare_parts_used: List[Dict[str, Any]] = None
+        repair_id: str,
+        technician: str,
+        estimated_duration_hours: float
     ) -> Dict[str, Any]:
         """
-        修复故障
+        开始维修
         
         Args:
-            breakdown_id: 故障ID
-            repairer: 维修人
-            root_cause: 根本原因
-            solution: 解决方案
-            spare_parts_used: 使用的备件 [{"part_id": "", "quantity": 0}]
+            repair_id: 维修ID
+            technician: 维修人员
+            estimated_duration_hours: 预计耗时
         
         Returns:
-            修复结果
+            更新结果
         """
-        breakdown = next((b for b in self.breakdown_records if b["breakdown_id"] == breakdown_id), None)
+        repair_record = next((r for r in self.repair_records if r["repair_id"] == repair_id), None)
         
-        if not breakdown:
-            return {"success": False, "error": "故障记录不存在"}
+        if not repair_record:
+            return {"success": False, "error": "维修记录不存在"}
         
-        # 更新故障记录
-        breakdown["status"] = "repaired"
-        breakdown["assigned_to"] = repairer
-        breakdown["root_cause"] = root_cause
-        breakdown["solution"] = solution
-        breakdown["spare_parts_used"] = spare_parts_used or []
-        breakdown["repair_completed"] = datetime.now().isoformat()
-        
-        # 计算停机时间
-        if breakdown.get("repair_started"):
-            started = datetime.fromisoformat(breakdown["repair_started"])
-        else:
-            started = datetime.fromisoformat(breakdown["reported_at"])
-        
-        completed = datetime.now()
-        breakdown["downtime_minutes"] = int((completed - started).total_seconds() / 60)
+        repair_record["status"] = "in_repair"
+        repair_record["technician"] = technician
+        repair_record["estimated_duration_hours"] = estimated_duration_hours
+        repair_record["repair_started_at"] = datetime.now().isoformat()
         
         # 更新设备状态
-        equipment = self.equipments[breakdown["equipment_id"]]
-        equipment["status"] = EquipmentStatus.IDLE.value
-        
-        # 更新MTTR（平均修复时间）
-        repaired_breakdowns = [b for b in self.breakdown_records 
-                               if b["equipment_id"] == breakdown["equipment_id"] 
-                               and b["status"] == "repaired"]
-        
-        total_downtime = sum(b["downtime_minutes"] for b in repaired_breakdowns)
-        equipment["mttr"] = total_downtime / len(repaired_breakdowns) if repaired_breakdowns else 0
+        equipment_id = repair_record["equipment_id"]
+        if equipment_id in self.equipments:
+            self.equipments[equipment_id]["status"] = EquipmentStatus.REPAIR.value
         
         return {
             "success": True,
-            "message": "故障已修复",
-            "breakdown": breakdown,
-            "downtime_minutes": breakdown["downtime_minutes"]
+            "message": "维修已开始",
+            "repair_record": repair_record
         }
     
-    def record_oee(
+    def complete_repair(
         self,
-        equipment_id: str,
-        date: str,
-        planned_production_time: int,
-        actual_production_time: int,
-        ideal_cycle_time: float,
-        total_pieces: int,
-        good_pieces: int
+        repair_id: str,
+        root_cause: str,
+        repair_actions: List[str],
+        parts_replaced: List[Dict[str, Any]],
+        cost: float,
+        test_result: str
     ) -> Dict[str, Any]:
         """
-        记录设备综合效率(OEE)
+        完成维修
+        
+        Args:
+            repair_id: 维修ID
+            root_cause: 根本原因
+            repair_actions: 维修措施
+            parts_replaced: 更换的零件
+            cost: 费用
+            test_result: 测试结果
+        
+        Returns:
+            完成结果
+        """
+        repair_record = next((r for r in self.repair_records if r["repair_id"] == repair_id), None)
+        
+        if not repair_record:
+            return {"success": False, "error": "维修记录不存在"}
+        
+        repair_record["status"] = "completed"
+        repair_record["root_cause"] = root_cause
+        repair_record["repair_actions"] = repair_actions
+        repair_record["parts_replaced"] = parts_replaced
+        repair_record["cost"] = cost
+        repair_record["test_result"] = test_result
+        repair_record["repair_completed_at"] = datetime.now().isoformat()
+        
+        # 计算维修耗时
+        if repair_record["repair_started_at"]:
+            start_time = datetime.fromisoformat(repair_record["repair_started_at"])
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds() / 3600
+            repair_record["actual_duration_hours"] = round(duration, 2)
+        
+        # 更新设备状态和统计
+        equipment_id = repair_record["equipment_id"]
+        if equipment_id in self.equipments:
+            equipment = self.equipments[equipment_id]
+            equipment["status"] = EquipmentStatus.AVAILABLE.value
+            equipment["repair_count"] += 1
+        
+        return {
+            "success": True,
+            "message": "维修已完成",
+            "repair_record": repair_record
+        }
+    
+    def update_equipment_usage(
+        self,
+        equipment_id: str,
+        hours: float
+    ) -> Dict[str, Any]:
+        """
+        更新设备使用时长
         
         Args:
             equipment_id: 设备ID
-            date: 日期
-            planned_production_time: 计划生产时间（分钟）
-            actual_production_time: 实际生产时间（分钟）
-            ideal_cycle_time: 理想节拍时间（分钟/件）
-            total_pieces: 总产量
-            good_pieces: 良品数量
+            hours: 使用小时数
         
         Returns:
-            OEE记录
+            更新结果
         """
         if equipment_id not in self.equipments:
             return {"success": False, "error": "设备不存在"}
         
-        # 计算OEE三要素
-        # 可用率 = 实际生产时间 / 计划生产时间
-        availability = (actual_production_time / planned_production_time * 100) if planned_production_time > 0 else 0
-        
-        # 表现性 = (理想节拍时间 × 总产量) / 实际生产时间
-        performance = (ideal_cycle_time * total_pieces / actual_production_time * 100) if actual_production_time > 0 else 0
-        
-        # 质量率 = 良品数量 / 总产量
-        quality = (good_pieces / total_pieces * 100) if total_pieces > 0 else 0
-        
-        # OEE = 可用率 × 表现性 × 质量率
-        oee = availability * performance * quality / 10000
-        
-        oee_record = {
-            "equipment_id": equipment_id,
-            "date": date,
-            "planned_production_time": planned_production_time,
-            "actual_production_time": actual_production_time,
-            "ideal_cycle_time": ideal_cycle_time,
-            "total_pieces": total_pieces,
-            "good_pieces": good_pieces,
-            "availability": round(availability, 2),
-            "performance": round(performance, 2),
-            "quality": round(quality, 2),
-            "oee": round(oee, 2),
-            "recorded_at": datetime.now().isoformat()
-        }
-        
-        self.oee_records.append(oee_record)
+        equipment = self.equipments[equipment_id]
+        equipment["usage_hours"] += hours
         
         return {
             "success": True,
-            "message": "OEE已记录",
-            "oee_record": oee_record
+            "message": "使用时长已更新",
+            "total_hours": equipment["usage_hours"]
         }
     
-    def get_maintenance_due_list(
+    def get_equipment_health(
         self,
-        days_ahead: int = 7
-    ) -> List[Dict[str, Any]]:
-        """
-        获取到期维护列表
-        
-        Args:
-            days_ahead: 提前天数
-        
-        Returns:
-            到期维护列表
-        """
-        due_date = (datetime.now() + timedelta(days=days_ahead)).date()
-        due_plans = []
-        
-        for plan in self.maintenance_plans.values():
-            if not plan["active"]:
-                continue
-            
-            if plan.get("next_due_date"):
-                next_due = datetime.fromisoformat(plan["next_due_date"]).date()
-                if next_due <= due_date:
-                    equipment = self.equipments.get(plan["equipment_id"], {})
-                    due_plans.append({
-                        "plan": plan,
-                        "equipment": equipment,
-                        "days_until_due": (next_due - datetime.now().date()).days
-                    })
-        
-        # 按到期日排序
-        due_plans.sort(key=lambda x: x["days_until_due"])
-        
-        return due_plans
-    
-    def get_equipment_performance(
-        self,
-        equipment_id: str,
-        start_date: str,
-        end_date: str
+        equipment_id: str
     ) -> Dict[str, Any]:
         """
-        获取设备绩效
+        获取设备健康度
         
         Args:
             equipment_id: 设备ID
-            start_date: 开始日期
-            end_date: 结束日期
         
         Returns:
-            绩效报告
+            健康度报告
         """
         if equipment_id not in self.equipments:
             return {"success": False, "error": "设备不存在"}
         
         equipment = self.equipments[equipment_id]
         
-        # 筛选时间范围内的OEE记录
-        oee_records = [
-            r for r in self.oee_records
-            if r["equipment_id"] == equipment_id
-            and start_date <= r["date"] <= end_date
-        ]
+        # 计算健康度指标
         
-        # 计算平均OEE
-        avg_oee = sum(r["oee"] for r in oee_records) / len(oee_records) if oee_records else 0
-        avg_availability = sum(r["availability"] for r in oee_records) / len(oee_records) if oee_records else 0
-        avg_performance = sum(r["performance"] for r in oee_records) / len(oee_records) if oee_records else 0
-        avg_quality = sum(r["quality"] for r in oee_records) / len(oee_records) if oee_records else 0
+        # 1. 故障率
+        total_time = equipment["usage_hours"]
+        failure_count = equipment["repair_count"]
+        mtbf = total_time / failure_count if failure_count > 0 else float('inf')  # 平均故障间隔时间
         
-        # 故障统计
-        breakdowns = [
-            b for b in self.breakdown_records
-            if b["equipment_id"] == equipment_id
-            and start_date <= b["reported_at"][:10] <= end_date
-        ]
+        # 2. 维护及时性
+        maintenance_overdue = False
+        if equipment["next_maintenance_date"]:
+            next_date = datetime.strptime(equipment["next_maintenance_date"], '%Y-%m-%d')
+            if next_date < datetime.now():
+                maintenance_overdue = True
         
-        total_breakdowns = len(breakdowns)
-        total_downtime = sum(b.get("downtime_minutes", 0) for b in breakdowns if b["status"] == "repaired")
+        # 3. 使用率
+        # 简化计算：假设设备应该使用8小时/天
+        days_since_purchase = (datetime.now() - datetime.strptime(equipment["purchase_date"], '%Y-%m-%d')).days
+        expected_hours = days_since_purchase * 8
+        utilization_rate = (total_time / expected_hours * 100) if expected_hours > 0 else 0
         
-        # 维护统计
-        maintenances = [
-            m for m in self.maintenance_records
-            if m["equipment_id"] == equipment_id
-            and start_date <= m["executed_at"][:10] <= end_date
-        ]
+        # 4. 综合健康度评分 (0-100)
+        health_score = 100
+        
+        # 故障次数扣分
+        health_score -= min(failure_count * 5, 30)
+        
+        # 维护超期扣分
+        if maintenance_overdue:
+            health_score -= 15
+        
+        # 使用率影响（过低或过高都扣分）
+        if utilization_rate < 50 or utilization_rate > 120:
+            health_score -= 10
+        
+        health_score = max(0, health_score)
+        
+        # 健康等级
+        if health_score >= 90:
+            health_level = "优秀"
+        elif health_score >= 75:
+            health_level = "良好"
+        elif health_score >= 60:
+            health_level = "一般"
+        else:
+            health_level = "需关注"
         
         return {
             "success": True,
             "equipment_id": equipment_id,
-            "equipment_name": equipment["name"],
-            "period": {"start": start_date, "end": end_date},
-            "oee_metrics": {
-                "average_oee": round(avg_oee, 2),
-                "average_availability": round(avg_availability, 2),
-                "average_performance": round(avg_performance, 2),
-                "average_quality": round(avg_quality, 2),
-                "days_with_data": len(oee_records)
-            },
-            "breakdown_metrics": {
-                "total_breakdowns": total_breakdowns,
-                "total_downtime_minutes": total_downtime,
-                "mttr": equipment["mttr"],
-                "mtbf": equipment["mtbf"]
-            },
-            "maintenance_metrics": {
-                "total_maintenances": len(maintenances),
-                "total_maintenance_time": sum(m["duration_minutes"] for m in maintenances)
+            "name": equipment["name"],
+            "health_score": round(health_score, 2),
+            "health_level": health_level,
+            "metrics": {
+                "usage_hours": total_time,
+                "failure_count": failure_count,
+                "mtbf_hours": round(mtbf, 2) if mtbf != float('inf') else "无故障",
+                "utilization_rate": round(utilization_rate, 2),
+                "maintenance_overdue": maintenance_overdue,
+                "maintenance_count": equipment["maintenance_count"]
             }
         }
     
-    def get_spare_parts_inventory(self) -> Dict[str, Any]:
-        """
-        获取备件库存
-        
-        Returns:
-            备件库存信息
-        """
-        return {
-            "success": True,
-            "spare_parts": self.spare_parts,
-            "total_parts": len(self.spare_parts)
-        }
-    
-    def add_spare_part(
+    def get_maintenance_due_list(
         self,
-        part_id: str,
-        name: str,
-        compatible_equipments: List[str],
-        quantity: int,
-        unit: str,
-        min_stock: int = 0
+        days_ahead: int = 7
     ) -> Dict[str, Any]:
         """
-        添加备件
+        获取待维护设备列表
         
         Args:
-            part_id: 备件ID
-            name: 备件名称
-            compatible_equipments: 适用设备列表
-            quantity: 数量
-            unit: 单位
-            min_stock: 最小库存
+            days_ahead: 提前天数
         
         Returns:
-            备件信息
+            待维护列表
         """
-        spare_part = {
-            "part_id": part_id,
-            "name": name,
-            "compatible_equipments": compatible_equipments,
-            "quantity": quantity,
-            "unit": unit,
-            "min_stock": min_stock,
-            "created_at": datetime.now().isoformat()
-        }
+        due_date = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
         
-        self.spare_parts[part_id] = spare_part
+        due_list = []
+        for equipment in self.equipments.values():
+            if equipment["next_maintenance_date"] and equipment["next_maintenance_date"] <= due_date:
+                due_list.append({
+                    "equipment_id": equipment["equipment_id"],
+                    "name": equipment["name"],
+                    "next_maintenance_date": equipment["next_maintenance_date"],
+                    "last_maintenance_date": equipment["last_maintenance_date"],
+                    "status": equipment["status"]
+                })
+        
+        # 按日期排序
+        due_list.sort(key=lambda x: x["next_maintenance_date"])
         
         return {
             "success": True,
-            "message": "备件已添加",
-            "spare_part": spare_part
+            "due_within_days": days_ahead,
+            "total_count": len(due_list),
+            "equipments": due_list
+        }
+    
+    def get_equipment_statistics(
+        self,
+        start_date: str,
+        end_date: str
+    ) -> Dict[str, Any]:
+        """
+        获取设备统计
+        
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+        
+        Returns:
+            统计报告
+        """
+        # 按状态统计
+        status_stats = {}
+        for equipment in self.equipments.values():
+            status = equipment["status"]
+            status_stats[status] = status_stats.get(status, 0) + 1
+        
+        # 维护统计
+        maintenance_in_range = [
+            m for m in self.maintenance_records
+            if start_date <= m["maintenance_date"] <= end_date
+        ]
+        
+        total_maintenance = len(maintenance_in_range)
+        total_maintenance_hours = sum(m["duration_hours"] for m in maintenance_in_range)
+        
+        # 维修统计
+        repairs_in_range = [
+            r for r in self.repair_records
+            if r["reported_at"] and start_date <= r["reported_at"][:10] <= end_date
+        ]
+        
+        total_repairs = len(repairs_in_range)
+        total_repair_cost = sum(r.get("cost", 0) for r in repairs_in_range)
+        
+        # 平均维修时间
+        completed_repairs = [r for r in repairs_in_range if r["status"] == "completed"]
+        avg_repair_time = (sum(r.get("actual_duration_hours", 0) for r in completed_repairs) / len(completed_repairs)) if completed_repairs else 0
+        
+        # 设备可用率
+        total_equipments = len(self.equipments)
+        available_equipments = status_stats.get(EquipmentStatus.AVAILABLE.value, 0) + status_stats.get(EquipmentStatus.IN_USE.value, 0)
+        availability_rate = (available_equipments / total_equipments * 100) if total_equipments > 0 else 0
+        
+        return {
+            "period": {"start": start_date, "end": end_date},
+            "summary": {
+                "total_equipments": total_equipments,
+                "availability_rate": round(availability_rate, 2)
+            },
+            "by_status": status_stats,
+            "maintenance": {
+                "total_count": total_maintenance,
+                "total_hours": round(total_maintenance_hours, 2),
+                "average_per_equipment": round(total_maintenance / total_equipments, 2) if total_equipments > 0 else 0
+            },
+            "repair": {
+                "total_count": total_repairs,
+                "total_cost": round(total_repair_cost, 2),
+                "average_repair_time_hours": round(avg_repair_time, 2),
+                "completion_rate": round((len(completed_repairs) / total_repairs * 100), 2) if total_repairs > 0 else 0
+            }
         }
 
 
 # 创建默认实例
 default_equipment_manager = EquipmentManager()
-
