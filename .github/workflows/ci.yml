@@ -1,23 +1,235 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
+    branches: [ main, develop ]
   pull_request:
+    branches: [ main, develop ]
 
 jobs:
-  test:
+  # ==================== 代码质量检查 ====================
+  lint:
+    name: 代码检查
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          python -m pip install -U pip setuptools wheel
-          pip install -r requirements.txt
-      - name: Run tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}/📚 Enhanced RAG & Knowledge Graph
-        run: |
-          python -m pytest -q
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: 安装依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black mypy
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: 运行flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: 检查代码格式
+      run: |
+        black --check .
+    
+    - name: 类型检查
+      run: |
+        mypy . --ignore-missing-imports || true
+
+  # ==================== 单元测试 ====================
+  test:
+    name: 单元测试
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: 缓存依赖
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: 安装依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov pytest-asyncio
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: 运行测试
+      run: |
+        pytest --cov=. --cov-report=xml --cov-report=html
+    
+    - name: 上传覆盖率报告
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  # ==================== 集成测试 ====================
+  integration-test:
+    name: 集成测试
+    runs-on: ubuntu-latest
+    
+    services:
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: 安装依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: 启动服务
+      run: |
+        cd ai-chat-center
+        nohup python -m uvicorn chat_server:app --host 0.0.0.0 --port 8020 &
+        sleep 5
+    
+    - name: 运行集成测试
+      run: |
+        python scripts/integration_test.py
+
+  # ==================== Docker构建 ====================
+  docker-build:
+    name: Docker镜像构建
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: 登录Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+      if: github.event_name != 'pull_request'
+    
+    - name: 构建并推送
+      uses: docker/build-push-action@v4
+      with:
+        context: ./ai-chat-center
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: |
+          aistack/chat-center:latest
+          aistack/chat-center:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # ==================== 安全扫描 ====================
+  security:
+    name: 安全扫描
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 运行Trivy漏洞扫描
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: 上传扫描结果
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # ==================== 性能测试 ====================
+  performance:
+    name: 性能测试
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: 安装依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install locust
+        pip install -r requirements.txt
+    
+    - name: 运行性能测试
+      run: |
+        # 这里可以添加性能测试脚本
+        echo "性能测试..."
+
+  # ==================== 部署（仅main分支） ====================
+  deploy:
+    name: 部署到生产环境
+    runs-on: ubuntu-latest
+    needs: [lint, test, integration-test, docker-build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 部署到服务器
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_USER }}
+        key: ${{ secrets.DEPLOY_KEY }}
+        script: |
+          cd /opt/ai-stack
+          git pull
+          docker-compose down
+          docker-compose pull
+          docker-compose up -d
+          docker-compose ps
+    
+    - name: 健康检查
+      run: |
+        sleep 30
+        curl -f http://${{ secrets.DEPLOY_HOST }}/health || exit 1
+    
+    - name: 通知部署结果
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: 'AI Stack 部署完成！'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
