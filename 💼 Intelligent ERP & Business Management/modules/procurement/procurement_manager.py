@@ -1,16 +1,7 @@
-#!/usr/bin/env python3
 """
-采购管理系统
-Procurement Management System
-
-功能：
-- 采购计划管理
-- 供应商管理
-- 采购订单管理
-- 采购执行跟踪
-- 采购成本分析
+采购管理模块
+实现完整的采购流程管理功能
 """
-
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from enum import Enum
@@ -19,20 +10,25 @@ import json
 
 class ProcurementStatus(Enum):
     """采购状态"""
-    PLANNED = "planned"  # 已计划
-    APPROVED = "approved"  # 已批准
+    DRAFT = "draft"  # 草稿
+    PENDING_APPROVAL = "pending_approval"  # 待审批
+    APPROVED = "approved"  # 已审批
     ORDERED = "ordered"  # 已下单
     PARTIAL_RECEIVED = "partial_received"  # 部分到货
     RECEIVED = "received"  # 已到货
     CANCELLED = "cancelled"  # 已取消
+    CLOSED = "closed"  # 已关闭
 
 
-class SupplierLevel(Enum):
-    """供应商等级"""
-    A = "A级供应商"  # 优秀
-    B = "B级供应商"  # 良好
-    C = "C级供应商"  # 一般
-    D = "D级供应商"  # 待改进
+class ProcurementType(Enum):
+    """采购类型"""
+    RAW_MATERIAL = "raw_material"  # 原材料
+    COMPONENT = "component"  # 零部件
+    FINISHED_GOODS = "finished_goods"  # 成品
+    PACKAGING = "packaging"  # 包装材料
+    CONSUMABLE = "consumable"  # 耗材
+    EQUIPMENT = "equipment"  # 设备
+    SERVICE = "service"  # 服务
 
 
 class ProcurementManager:
@@ -40,293 +36,381 @@ class ProcurementManager:
     
     def __init__(self):
         """初始化采购管理器"""
-        self.procurement_plans: Dict[str, Dict[str, Any]] = {}
-        self.purchase_orders: Dict[str, Dict[str, Any]] = {}
-        self.suppliers: Dict[str, Dict[str, Any]] = {}
-        self.material_requirements: Dict[str, Dict[str, Any]] = {}
-        
-    # ==================== 采购计划管理 ====================
+        self.procurement_orders = {}
+        self.suppliers = {}
+        self.purchase_requests = {}
+        self.price_history = {}
+        self.order_counter = 1000
     
-    def create_procurement_plan(
+    def create_purchase_request(
         self,
-        plan_id: str,
-        material_id: str,
-        material_name: str,
-        quantity: float,
-        unit: str,
+        requester: str,
+        items: List[Dict[str, Any]],
+        reason: str,
         required_date: str,
-        budget: float,
-        priority: str = "normal",
-        notes: str = ""
+        priority: str = "normal"
     ) -> Dict[str, Any]:
         """
-        创建采购计划
+        创建采购申请
         
         Args:
-            plan_id: 计划ID
-            material_id: 物料ID
-            material_name: 物料名称
-            quantity: 采购数量
-            unit: 单位
+            requester: 申请人
+            items: 物料清单 [{"material_id": "", "quantity": 0, "spec": ""}]
+            reason: 申请理由
             required_date: 需求日期
-            budget: 预算
-            priority: 优先级（urgent/high/normal/low）
-            notes: 备注
+            priority: 优先级 (low/normal/high/urgent)
         
         Returns:
-            采购计划信息
+            采购申请信息
         """
-        plan = {
-            "plan_id": plan_id,
-            "material_id": material_id,
-            "material_name": material_name,
-            "quantity": quantity,
-            "unit": unit,
+        request_id = f"PR{datetime.now().strftime('%Y%m%d')}{len(self.purchase_requests) + 1:04d}"
+        
+        request = {
+            "request_id": request_id,
+            "requester": requester,
+            "items": items,
+            "reason": reason,
             "required_date": required_date,
-            "budget": budget,
             "priority": priority,
-            "status": ProcurementStatus.PLANNED.value,
-            "notes": notes,
+            "status": "pending",
             "created_at": datetime.now().isoformat(),
-            "created_by": "system",
             "approved_at": None,
             "approved_by": None
         }
         
-        self.procurement_plans[plan_id] = plan
-        return plan
+        self.purchase_requests[request_id] = request
+        return {
+            "success": True,
+            "request_id": request_id,
+            "message": "采购申请已创建",
+            "request": request
+        }
     
-    def approve_procurement_plan(
+    def approve_purchase_request(
         self,
-        plan_id: str,
-        approved_by: str,
-        approved_budget: Optional[float] = None
+        request_id: str,
+        approver: str,
+        approved: bool,
+        comment: str = ""
     ) -> Dict[str, Any]:
         """
-        批准采购计划
+        审批采购申请
         
         Args:
-            plan_id: 计划ID
-            approved_by: 批准人
-            approved_budget: 批准预算（可选）
+            request_id: 申请ID
+            approver: 审批人
+            approved: 是否批准
+            comment: 审批意见
         
         Returns:
-            更新后的计划信息
+            审批结果
         """
-        if plan_id not in self.procurement_plans:
-            raise ValueError(f"采购计划 {plan_id} 不存在")
+        if request_id not in self.purchase_requests:
+            return {"success": False, "error": "采购申请不存在"}
         
-        plan = self.procurement_plans[plan_id]
-        plan["status"] = ProcurementStatus.APPROVED.value
-        plan["approved_at"] = datetime.now().isoformat()
-        plan["approved_by"] = approved_by
+        request = self.purchase_requests[request_id]
         
-        if approved_budget is not None:
-            plan["approved_budget"] = approved_budget
+        if approved:
+            request["status"] = "approved"
+            request["approved_at"] = datetime.now().isoformat()
+            request["approved_by"] = approver
+            request["approval_comment"] = comment
+            
+            # 自动转换为采购订单
+            po_result = self.create_procurement_order_from_request(request_id)
+            
+            return {
+                "success": True,
+                "message": "采购申请已批准",
+                "request": request,
+                "procurement_order": po_result.get("order")
+            }
         else:
-            plan["approved_budget"] = plan["budget"]
-        
-        return plan
+            request["status"] = "rejected"
+            request["rejected_at"] = datetime.now().isoformat()
+            request["rejected_by"] = approver
+            request["rejection_reason"] = comment
+            
+            return {
+                "success": True,
+                "message": "采购申请已拒绝",
+                "request": request
+            }
     
-    def get_procurement_plans(
+    def create_procurement_order_from_request(
         self,
-        status: Optional[str] = None,
-        priority: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        request_id: str
+    ) -> Dict[str, Any]:
         """
-        获取采购计划列表
+        从采购申请创建采购订单
         
         Args:
-            status: 状态筛选
-            priority: 优先级筛选
-            start_date: 开始日期
-            end_date: 结束日期
+            request_id: 采购申请ID
         
         Returns:
-            采购计划列表
+            采购订单信息
         """
-        plans = list(self.procurement_plans.values())
+        if request_id not in self.purchase_requests:
+            return {"success": False, "error": "采购申请不存在"}
         
-        # 状态筛选
-        if status:
-            plans = [p for p in plans if p["status"] == status]
+        request = self.purchase_requests[request_id]
         
-        # 优先级筛选
-        if priority:
-            plans = [p for p in plans if p["priority"] == priority]
+        if request["status"] != "approved":
+            return {"success": False, "error": "采购申请未批准"}
         
-        # 日期筛选
-        if start_date:
-            plans = [p for p in plans if p["required_date"] >= start_date]
-        if end_date:
-            plans = [p for p in plans if p["required_date"] <= end_date]
+        # 根据物料选择供应商
+        supplier_id = self._select_best_supplier(request["items"])
         
-        # 按需求日期排序
-        plans.sort(key=lambda x: x["required_date"])
-        
-        return plans
+        return self.create_procurement_order(
+            supplier_id=supplier_id,
+            items=request["items"],
+            delivery_date=request["required_date"],
+            reference=f"基于采购申请 {request_id}"
+        )
     
-    # ==================== 采购订单管理 ====================
-    
-    def create_purchase_order(
+    def create_procurement_order(
         self,
-        order_id: str,
-        plan_id: str,
         supplier_id: str,
-        material_id: str,
-        material_name: str,
-        quantity: float,
-        unit: str,
-        unit_price: float,
-        total_amount: float,
+        items: List[Dict[str, Any]],
         delivery_date: str,
         payment_terms: str = "Net 30",
-        notes: str = ""
+        reference: str = ""
     ) -> Dict[str, Any]:
         """
         创建采购订单
         
         Args:
-            order_id: 订单ID
-            plan_id: 关联的采购计划ID
             supplier_id: 供应商ID
-            material_id: 物料ID
-            material_name: 物料名称
-            quantity: 采购数量
-            unit: 单位
-            unit_price: 单价
-            total_amount: 总金额
+            items: 采购项目 [{"material_id": "", "quantity": 0, "unit_price": 0}]
             delivery_date: 交货日期
             payment_terms: 付款条款
-            notes: 备注
+            reference: 参考信息
         
         Returns:
             采购订单信息
         """
+        order_id = f"PO{datetime.now().strftime('%Y%m%d')}{self.order_counter:04d}"
+        self.order_counter += 1
+        
+        # 计算总金额
+        total_amount = sum(item["quantity"] * item.get("unit_price", 0) for item in items)
+        
         order = {
             "order_id": order_id,
-            "plan_id": plan_id,
             "supplier_id": supplier_id,
-            "material_id": material_id,
-            "material_name": material_name,
-            "quantity": quantity,
-            "unit": unit,
-            "unit_price": unit_price,
+            "items": items,
             "total_amount": total_amount,
+            "currency": "CNY",
             "delivery_date": delivery_date,
             "payment_terms": payment_terms,
-            "status": ProcurementStatus.ORDERED.value,
-            "notes": notes,
+            "reference": reference,
+            "status": ProcurementStatus.APPROVED.value,
             "created_at": datetime.now().isoformat(),
-            "received_quantity": 0,
-            "received_dates": [],
-            "cancelled": False
+            "created_by": "system",
+            "ordered_at": None,
+            "received_items": [],
+            "invoice_amount": 0,
+            "paid_amount": 0
         }
         
-        self.purchase_orders[order_id] = order
+        self.procurement_orders[order_id] = order
         
-        # 更新采购计划状态
-        if plan_id in self.procurement_plans:
-            self.procurement_plans[plan_id]["status"] = ProcurementStatus.ORDERED.value
-            self.procurement_plans[plan_id]["order_id"] = order_id
-        
-        return order
+        return {
+            "success": True,
+            "order_id": order_id,
+            "message": "采购订单已创建",
+            "order": order
+        }
     
-    def receive_material(
+    def send_order_to_supplier(
         self,
         order_id: str,
-        received_quantity: float,
-        received_date: Optional[str] = None,
-        quality_status: str = "passed",
-        notes: str = ""
+        send_method: str = "email"
     ) -> Dict[str, Any]:
         """
-        物料到货登记
+        发送订单给供应商
         
         Args:
             order_id: 订单ID
-            received_quantity: 到货数量
-            received_date: 到货日期
-            quality_status: 质量状态（passed/failed/pending）
-            notes: 备注
+            send_method: 发送方式 (email/fax/portal)
         
         Returns:
-            更新后的订单信息
+            发送结果
         """
-        if order_id not in self.purchase_orders:
-            raise ValueError(f"采购订单 {order_id} 不存在")
+        if order_id not in self.procurement_orders:
+            return {"success": False, "error": "采购订单不存在"}
         
-        order = self.purchase_orders[order_id]
+        order = self.procurement_orders[order_id]
+        order["status"] = ProcurementStatus.ORDERED.value
+        order["ordered_at"] = datetime.now().isoformat()
+        order["send_method"] = send_method
         
-        if received_date is None:
-            received_date = datetime.now().isoformat()
+        # 实际应用中，这里会调用邮件服务或其他发送方式
         
-        # 记录到货信息
-        receive_record = {
-            "quantity": received_quantity,
-            "date": received_date,
-            "quality_status": quality_status,
-            "notes": notes
+        return {
+            "success": True,
+            "message": f"采购订单已通过{send_method}发送给供应商",
+            "order": order
         }
-        order["received_dates"].append(receive_record)
+    
+    def record_goods_receipt(
+        self,
+        order_id: str,
+        received_items: List[Dict[str, Any]],
+        receipt_date: str,
+        quality_check: bool = True
+    ) -> Dict[str, Any]:
+        """
+        记录收货
         
-        # 更新已到货数量
-        if quality_status == "passed":
-            order["received_quantity"] += received_quantity
+        Args:
+            order_id: 订单ID
+            received_items: 收货项目 [{"material_id": "", "quantity": 0, "quality": "pass"}]
+            receipt_date: 收货日期
+            quality_check: 是否通过质检
+        
+        Returns:
+            收货记录
+        """
+        if order_id not in self.procurement_orders:
+            return {"success": False, "error": "采购订单不存在"}
+        
+        order = self.procurement_orders[order_id]
+        
+        # 添加收货记录
+        receipt_record = {
+            "receipt_id": f"GR{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "order_id": order_id,
+            "received_items": received_items,
+            "receipt_date": receipt_date,
+            "quality_check": quality_check,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        order["received_items"].append(receipt_record)
+        
+        # 检查是否全部收货
+        total_ordered = {item["material_id"]: item["quantity"] for item in order["items"]}
+        total_received = {}
+        
+        for receipt in order["received_items"]:
+            for item in receipt["received_items"]:
+                mat_id = item["material_id"]
+                total_received[mat_id] = total_received.get(mat_id, 0) + item["quantity"]
         
         # 更新订单状态
-        if order["received_quantity"] >= order["quantity"]:
+        all_received = all(
+            total_received.get(mat_id, 0) >= qty
+            for mat_id, qty in total_ordered.items()
+        )
+        
+        if all_received:
             order["status"] = ProcurementStatus.RECEIVED.value
-        elif order["received_quantity"] > 0:
+        else:
             order["status"] = ProcurementStatus.PARTIAL_RECEIVED.value
         
-        return order
+        return {
+            "success": True,
+            "message": "收货记录已创建",
+            "receipt": receipt_record,
+            "order_status": order["status"]
+        }
     
-    def cancel_purchase_order(
+    def get_procurement_analysis(
         self,
-        order_id: str,
-        reason: str,
-        cancelled_by: str
+        start_date: str,
+        end_date: str
     ) -> Dict[str, Any]:
         """
-        取消采购订单
+        采购分析
         
         Args:
-            order_id: 订单ID
-            reason: 取消原因
-            cancelled_by: 取消人
+            start_date: 开始日期
+            end_date: 结束日期
         
         Returns:
-            更新后的订单信息
+            采购分析报告
         """
-        if order_id not in self.purchase_orders:
-            raise ValueError(f"采购订单 {order_id} 不存在")
+        # 筛选时间范围内的订单
+        orders_in_range = [
+            order for order in self.procurement_orders.values()
+            if start_date <= order["created_at"][:10] <= end_date
+        ]
         
-        order = self.purchase_orders[order_id]
-        order["status"] = ProcurementStatus.CANCELLED.value
-        order["cancelled"] = True
-        order["cancel_reason"] = reason
-        order["cancelled_by"] = cancelled_by
-        order["cancelled_at"] = datetime.now().isoformat()
+        # 统计分析
+        total_orders = len(orders_in_range)
+        total_amount = sum(order["total_amount"] for order in orders_in_range)
         
-        return order
+        # 按供应商统计
+        by_supplier = {}
+        for order in orders_in_range:
+            supplier = order["supplier_id"]
+            if supplier not in by_supplier:
+                by_supplier[supplier] = {
+                    "order_count": 0,
+                    "total_amount": 0
+                }
+            by_supplier[supplier]["order_count"] += 1
+            by_supplier[supplier]["total_amount"] += order["total_amount"]
+        
+        # 按状态统计
+        by_status = {}
+        for order in orders_in_range:
+            status = order["status"]
+            by_status[status] = by_status.get(status, 0) + 1
+        
+        # 及时交货率
+        on_time_deliveries = 0
+        total_deliveries = 0
+        
+        for order in orders_in_range:
+            if order["status"] in [ProcurementStatus.RECEIVED.value, ProcurementStatus.CLOSED.value]:
+                total_deliveries += 1
+                if order.get("received_items"):
+                    last_receipt = order["received_items"][-1]
+                    if last_receipt["receipt_date"] <= order["delivery_date"]:
+                        on_time_deliveries += 1
+        
+        on_time_rate = (on_time_deliveries / total_deliveries * 100) if total_deliveries > 0 else 0
+        
+        return {
+            "period": {"start": start_date, "end": end_date},
+            "summary": {
+                "total_orders": total_orders,
+                "total_amount": total_amount,
+                "average_order_value": total_amount / total_orders if total_orders > 0 else 0
+            },
+            "by_supplier": by_supplier,
+            "by_status": by_status,
+            "performance": {
+                "on_time_delivery_rate": round(on_time_rate, 2),
+                "total_deliveries": total_deliveries,
+                "on_time_deliveries": on_time_deliveries
+            }
+        }
     
-    # ==================== 供应商管理 ====================
+    def _select_best_supplier(self, items: List[Dict[str, Any]]) -> str:
+        """
+        选择最佳供应商
+        
+        Args:
+            items: 物料清单
+        
+        Returns:
+            供应商ID
+        """
+        # 简化版本，实际应根据价格、质量、交货期等综合评估
+        # 这里返回默认供应商
+        return "SUP001"
     
     def add_supplier(
         self,
         supplier_id: str,
         name: str,
-        contact_person: str,
-        phone: str,
-        email: str,
-        address: str,
+        contact: Dict[str, Any],
         materials: List[str],
-        level: str = "C",
         payment_terms: str = "Net 30",
-        notes: str = ""
+        rating: float = 0.0
     ) -> Dict[str, Any]:
         """
         添加供应商
@@ -334,14 +418,10 @@ class ProcurementManager:
         Args:
             supplier_id: 供应商ID
             name: 供应商名称
-            contact_person: 联系人
-            phone: 电话
-            email: 邮箱
-            address: 地址
+            contact: 联系信息
             materials: 可供应物料列表
-            level: 供应商等级（A/B/C/D）
             payment_terms: 付款条款
-            notes: 备注
+            rating: 供应商评级
         
         Returns:
             供应商信息
@@ -349,280 +429,94 @@ class ProcurementManager:
         supplier = {
             "supplier_id": supplier_id,
             "name": name,
-            "contact_person": contact_person,
-            "phone": phone,
-            "email": email,
-            "address": address,
+            "contact": contact,
             "materials": materials,
-            "level": level,
             "payment_terms": payment_terms,
-            "notes": notes,
+            "rating": rating,
             "created_at": datetime.now().isoformat(),
-            "total_orders": 0,
-            "total_amount": 0.0,
-            "on_time_delivery_rate": 100.0,
-            "quality_pass_rate": 100.0,
-            "last_order_date": None
+            "active": True
         }
         
         self.suppliers[supplier_id] = supplier
-        return supplier
+        
+        return {
+            "success": True,
+            "message": "供应商已添加",
+            "supplier": supplier
+        }
     
-    def update_supplier_performance(
+    def get_supplier_performance(
         self,
         supplier_id: str,
-        order_id: str
-    ) -> Dict[str, Any]:
-        """
-        更新供应商绩效
-        
-        Args:
-            supplier_id: 供应商ID
-            order_id: 订单ID
-        
-        Returns:
-            更新后的供应商信息
-        """
-        if supplier_id not in self.suppliers:
-            raise ValueError(f"供应商 {supplier_id} 不存在")
-        
-        if order_id not in self.purchase_orders:
-            raise ValueError(f"采购订单 {order_id} 不存在")
-        
-        supplier = self.suppliers[supplier_id]
-        order = self.purchase_orders[order_id]
-        
-        # 更新订单统计
-        supplier["total_orders"] += 1
-        supplier["total_amount"] += order["total_amount"]
-        supplier["last_order_date"] = order["created_at"]
-        
-        # 计算准时交货率
-        if order["status"] == ProcurementStatus.RECEIVED.value:
-            delivery_date = datetime.fromisoformat(order["delivery_date"])
-            last_received = datetime.fromisoformat(order["received_dates"][-1]["date"])
-            
-            if last_received <= delivery_date:
-                # 准时交货
-                pass
-            else:
-                # 延迟交货，降低准时率
-                supplier["on_time_delivery_rate"] = (
-                    supplier["on_time_delivery_rate"] * 0.95
-                )
-        
-        # 计算质量合格率
-        passed_quantity = sum(
-            r["quantity"] for r in order["received_dates"]
-            if r["quality_status"] == "passed"
-        )
-        total_received = order["received_quantity"]
-        
-        if total_received > 0:
-            order_quality_rate = (passed_quantity / total_received) * 100
-            # 加权平均
-            supplier["quality_pass_rate"] = (
-                supplier["quality_pass_rate"] * 0.8 + order_quality_rate * 0.2
-            )
-        
-        # 根据绩效更新供应商等级
-        self._update_supplier_level(supplier_id)
-        
-        return supplier
-    
-    def _update_supplier_level(self, supplier_id: str):
-        """
-        根据绩效更新供应商等级
-        
-        Args:
-            supplier_id: 供应商ID
-        """
-        supplier = self.suppliers[supplier_id]
-        
-        on_time_rate = supplier["on_time_delivery_rate"]
-        quality_rate = supplier["quality_pass_rate"]
-        
-        # 综合评分
-        score = on_time_rate * 0.5 + quality_rate * 0.5
-        
-        if score >= 95:
-            supplier["level"] = "A"
-        elif score >= 85:
-            supplier["level"] = "B"
-        elif score >= 75:
-            supplier["level"] = "C"
-        else:
-            supplier["level"] = "D"
-    
-    def get_supplier_list(
-        self,
-        level: Optional[str] = None,
-        material: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        获取供应商列表
-        
-        Args:
-            level: 等级筛选
-            material: 物料筛选
-        
-        Returns:
-            供应商列表
-        """
-        suppliers = list(self.suppliers.values())
-        
-        if level:
-            suppliers = [s for s in suppliers if s["level"] == level]
-        
-        if material:
-            suppliers = [s for s in suppliers if material in s["materials"]]
-        
-        # 按等级和总金额排序
-        level_order = {"A": 0, "B": 1, "C": 2, "D": 3}
-        suppliers.sort(
-            key=lambda x: (level_order.get(x["level"], 99), -x["total_amount"])
-        )
-        
-        return suppliers
-    
-    # ==================== 采购分析 ====================
-    
-    def analyze_procurement_cost(
-        self,
         start_date: str,
-        end_date: str,
-        group_by: str = "month"
+        end_date: str
     ) -> Dict[str, Any]:
         """
-        采购成本分析
+        获取供应商绩效
         
         Args:
+            supplier_id: 供应商ID
             start_date: 开始日期
             end_date: 结束日期
-            group_by: 分组方式（day/week/month/quarter/year）
         
         Returns:
-            成本分析结果
+            供应商绩效报告
         """
-        # 筛选日期范围内的订单
-        orders = [
-            o for o in self.purchase_orders.values()
-            if start_date <= o["created_at"][:10] <= end_date
+        # 筛选该供应商的订单
+        supplier_orders = [
+            order for order in self.procurement_orders.values()
+            if order["supplier_id"] == supplier_id
+            and start_date <= order["created_at"][:10] <= end_date
         ]
         
-        # 统计
-        total_orders = len(orders)
-        total_amount = sum(o["total_amount"] for o in orders)
-        avg_amount = total_amount / total_orders if total_orders > 0 else 0
+        if not supplier_orders:
+            return {
+                "supplier_id": supplier_id,
+                "period": {"start": start_date, "end": end_date},
+                "message": "该时期内无订单数据"
+            }
         
-        # 按物料分组
-        material_costs = {}
-        for order in orders:
-            material_id = order["material_id"]
-            if material_id not in material_costs:
-                material_costs[material_id] = {
-                    "material_name": order["material_name"],
-                    "quantity": 0,
-                    "amount": 0,
-                    "orders": 0
-                }
-            
-            material_costs[material_id]["quantity"] += order["quantity"]
-            material_costs[material_id]["amount"] += order["total_amount"]
-            material_costs[material_id]["orders"] += 1
+        # 统计指标
+        total_orders = len(supplier_orders)
+        total_amount = sum(order["total_amount"] for order in supplier_orders)
         
-        # 按供应商分组
-        supplier_costs = {}
-        for order in orders:
-            supplier_id = order["supplier_id"]
-            if supplier_id not in supplier_costs:
-                supplier_costs[supplier_id] = {
-                    "supplier_name": self.suppliers.get(supplier_id, {}).get("name", "未知"),
-                    "amount": 0,
-                    "orders": 0
-                }
-            
-            supplier_costs[supplier_id]["amount"] += order["total_amount"]
-            supplier_costs[supplier_id]["orders"] += 1
+        # 质量指标
+        quality_issues = 0
+        for order in supplier_orders:
+            for receipt in order.get("received_items", []):
+                for item in receipt["received_items"]:
+                    if item.get("quality") != "pass":
+                        quality_issues += 1
+        
+        # 交货准时率
+        on_time = sum(
+            1 for order in supplier_orders
+            if order["status"] == ProcurementStatus.RECEIVED.value
+            and order.get("received_items")
+            and order["received_items"][-1]["receipt_date"] <= order["delivery_date"]
+        )
+        
+        delivered_orders = sum(
+            1 for order in supplier_orders
+            if order["status"] in [ProcurementStatus.RECEIVED.value, ProcurementStatus.CLOSED.value]
+        )
+        
+        on_time_rate = (on_time / delivered_orders * 100) if delivered_orders > 0 else 0
         
         return {
+            "supplier_id": supplier_id,
+            "supplier_name": self.suppliers.get(supplier_id, {}).get("name", "Unknown"),
             "period": {"start": start_date, "end": end_date},
-            "summary": {
+            "metrics": {
                 "total_orders": total_orders,
                 "total_amount": total_amount,
-                "avg_amount": avg_amount
-            },
-            "by_material": material_costs,
-            "by_supplier": supplier_costs,
-            "top_materials": sorted(
-                material_costs.items(),
-                key=lambda x: x[1]["amount"],
-                reverse=True
-            )[:10],
-            "top_suppliers": sorted(
-                supplier_costs.items(),
-                key=lambda x: x[1]["amount"],
-                reverse=True
-            )[:10]
-        }
-    
-    def get_procurement_status_report(self) -> Dict[str, Any]:
-        """
-        获取采购状态报告
-        
-        Returns:
-            采购状态报告
-        """
-        # 统计采购计划状态
-        plan_status = {}
-        for plan in self.procurement_plans.values():
-            status = plan["status"]
-            plan_status[status] = plan_status.get(status, 0) + 1
-        
-        # 统计采购订单状态
-        order_status = {}
-        for order in self.purchase_orders.values():
-            status = order["status"]
-            order_status[status] = order_status.get(status, 0) + 1
-        
-        # 统计供应商等级
-        supplier_level = {}
-        for supplier in self.suppliers.values():
-            level = supplier["level"]
-            supplier_level[level] = supplier_level.get(level, 0) + 1
-        
-        # 紧急采购
-        urgent_plans = [
-            p for p in self.procurement_plans.values()
-            if p["priority"] == "urgent" and p["status"] != ProcurementStatus.RECEIVED.value
-        ]
-        
-        # 延迟交货
-        today = datetime.now().date()
-        delayed_orders = []
-        for order in self.purchase_orders.values():
-            if order["status"] in [
-                ProcurementStatus.ORDERED.value,
-                ProcurementStatus.PARTIAL_RECEIVED.value
-            ]:
-                delivery_date = datetime.fromisoformat(order["delivery_date"]).date()
-                if delivery_date < today:
-                    delayed_orders.append(order)
-        
-        return {
-            "plan_status": plan_status,
-            "order_status": order_status,
-            "supplier_level": supplier_level,
-            "urgent_plans": len(urgent_plans),
-            "urgent_plan_details": urgent_plans,
-            "delayed_orders": len(delayed_orders),
-            "delayed_order_details": delayed_orders,
-            "total_plans": len(self.procurement_plans),
-            "total_orders": len(self.purchase_orders),
-            "total_suppliers": len(self.suppliers)
+                "average_order_value": total_amount / total_orders,
+                "on_time_delivery_rate": round(on_time_rate, 2),
+                "quality_issues": quality_issues,
+                "quality_pass_rate": round((1 - quality_issues / total_orders) * 100, 2) if total_orders > 0 else 100
+            }
         }
 
 
-# 创建全局实例
+# 创建默认实例
 default_procurement_manager = ProcurementManager()
-
