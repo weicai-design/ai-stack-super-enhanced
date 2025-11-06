@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Stack 系统监控大屏</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #0a0e27;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        .monitor-screen {
+            width: 100vw;
+            height: 100vh;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            grid-template-rows: auto 1fr 1fr;
+            gap: 20px;
+        }
+
+        .header {
+            grid-column: 1 / 4;
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .header h1 {
+            font-size: 36px;
+            margin-bottom: 5px;
+        }
+
+        .header .time {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .panel-title {
+            font-size: 18px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.5);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+        }
+
+        .metric-card.good {
+            border-left-color: #10b981;
+        }
+
+        .metric-card.warning {
+            border-left-color: #f59e0b;
+        }
+
+        .metric-card.danger {
+            border-left-color: #ef4444;
+        }
+
+        .metric-label {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .metric-trend {
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .metric-trend.up {
+            color: #10b981;
+        }
+
+        .metric-trend.down {
+            color: #ef4444;
+        }
+
+        .service-status {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.online {
+            background: #10b981;
+        }
+
+        .status-dot.offline {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            margin-top: 15px;
+        }
+
+        .alert-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 3px solid #ef4444;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .alert-time {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        @keyframes dataFlow {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .data-flow {
+            position: relative;
+            height: 2px;
+            background: rgba(102, 126, 234, 0.2);
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .data-flow::after {
+            content: '';
+            position: absolute;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, #667eea, transparent);
+            animation: dataFlow 2s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="monitor-screen">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>🖥️ AI-Stack 系统监控大屏</h1>
+            <div class="time">{{ currentTime }}</div>
+        </div>
+
+        <!-- 左侧：系统资源 -->
+        <div class="panel">
+            <div class="panel-title">
+                <span>💻 系统资源</span>
+                <span>{{ systemHealth }}%</span>
+            </div>
+            
+            <div class="metric-card good">
+                <div class="metric-label">CPU使用率</div>
+                <div class="metric-value">{{ cpuUsage }}%</div>
+                <div class="metric-trend up">↑ 稳定运行</div>
+            </div>
+
+            <div class="metric-card good">
+                <div class="metric-label">内存使用率</div>
+                <div class="metric-value">{{ memoryUsage }}%</div>
+                <div class="metric-trend up">↑ 正常</div>
+            </div>
+
+            <div class="metric-card warning">
+                <div class="metric-label">磁盘使用率</div>
+                <div class="metric-value">{{ diskUsage }}%</div>
+                <div class="metric-trend">→ 建议清理</div>
+            </div>
+
+            <div class="metric-card good">
+                <div class="metric-label">网络流量</div>
+                <div class="metric-value">{{ networkSpeed }}</div>
+                <div class="metric-trend up">↑ 畅通</div>
+            </div>
+        </div>
+
+        <!-- 中间：服务状态和性能 -->
+        <div class="panel">
+            <div class="panel-title">
+                <span>🚀 服务状态</span>
+                <span>{{ onlineServices }}/9 在线</span>
+            </div>
+            
+            <div v-for="service in services" :key="service.name" class="service-status">
+                <div class="status-dot" :class="service.status"></div>
+                <div style="flex: 1;">
+                    <div>{{ service.name }}</div>
+                    <div style="font-size: 12px; opacity: 0.7;">{{ service.port }}</div>
+                </div>
+                <div>{{ service.responseTime }}ms</div>
+            </div>
+
+            <div class="data-flow"></div>
+
+            <div class="chart-container">
+                <canvas id="requestChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 右侧：业务指标 -->
+        <div class="panel">
+            <div class="panel-title">
+                <span>📊 业务指标</span>
+                <span>实时</span>
+            </div>
+            
+            <div class="metric-card good">
+                <div class="metric-label">今日API调用</div>
+                <div class="metric-value">{{ apiCalls }}</div>
+                <div class="metric-trend up">↑ +15%</div>
+            </div>
+
+            <div class="metric-card good">
+                <div class="metric-label">活跃用户</div>
+                <div class="metric-value">{{ activeUsers }}</div>
+                <div class="metric-trend up">↑ +8%</div>
+            </div>
+
+            <div class="metric-card good">
+                <div class="metric-label">成功率</div>
+                <div class="metric-value">{{ successRate }}%</div>
+                <div class="metric-trend up">↑ 稳定</div>
+            </div>
+        </div>
+
+        <!-- 左下：告警信息 -->
+        <div class="panel">
+            <div class="panel-title">
+                <span>⚠️ 告警信息</span>
+                <span>{{ alerts.length }} 条</span>
+            </div>
+            
+            <div v-if="alerts.length === 0" style="text-align: center; opacity: 0.5; padding: 40px 0;">
+                ✅ 系统运行正常，无告警
+            </div>
+            
+            <div v-for="alert in alerts" :key="alert.id" class="alert-item">
+                <div>{{ alert.message }}</div>
+                <div class="alert-time">{{ alert.time }}</div>
+            </div>
+        </div>
+
+        <!-- 中下：模块完成度 -->
+        <div class="panel">
+            <div class="panel-title">
+                <span>📈 模块完成度</span>
+                <span>平均 93.1%</span>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="completionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 右下：实时日志 -->
+        <div class="panel">
+            <div class="panel-title">
+                <span>📝 实时日志</span>
+                <span>最新10条</span>
+            </div>
+            
+            <div v-for="log in logs" :key="log.id" 
+                 style="padding: 8px; margin-bottom: 8px; background: rgba(255,255,255,0.03); border-radius: 4px; font-size: 13px;">
+                <span :style="{color: log.level === 'INFO' ? '#10b981' : log.level === 'WARN' ? '#f59e0b' : '#ef4444'}">
+                    [{{ log.level }}]
+                </span>
+                {{ log.message }}
+                <div style="font-size: 11px; opacity: 0.6; margin-top: 3px;">{{ log.time }}</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    currentTime: '',
+                    systemHealth: 95,
+                    cpuUsage: 45,
+                    memoryUsage: 62,
+                    diskUsage: 68,
+                    networkSpeed: '125MB/s',
+                    onlineServices: 8,
+                    apiCalls: 12548,
+                    activeUsers: 256,
+                    successRate: 99.8,
+                    services: [
+                        { name: 'AI交互中心', port: '8020', status: 'online', responseTime: 85 },
+                        { name: 'RAG系统', port: '8011', status: 'online', responseTime: 120 },
+                        { name: 'ERP系统', port: '8013', status: 'online', responseTime: 95 },
+                        { name: '股票交易', port: '8014', status: 'online', responseTime: 110 },
+                        { name: '趋势分析', port: '8015', status: 'online', responseTime: 150 },
+                        { name: '内容创作', port: '8016', status: 'online', responseTime: 130 },
+                        { name: '任务代理', port: '8017', status: 'online', responseTime: 100 },
+                        { name: '资源管理', port: '8018', status: 'online', responseTime: 90 },
+                        { name: '自我学习', port: '8019', status: 'offline', responseTime: 0 }
+                    ],
+                    alerts: [],
+                    logs: [
+                        { id: 1, level: 'INFO', message: 'ERP系统：订单ORD001创建成功', time: '10:25:33' },
+                        { id: 2, level: 'INFO', message: 'RAG系统：知识检索完成', time: '10:25:28' },
+                        { id: 3, level: 'INFO', message: 'AI交互：用户user123发送消息', time: '10:25:15' },
+                        { id: 4, level: 'WARN', message: '性能监控：CPU使用率达到75%', time: '10:24:50' },
+                        { id: 5, level: 'INFO', message: '股票交易：行情数据更新完成', time: '10:24:30' }
+                    ]
+                }
+            },
+            methods: {
+                updateTime() {
+                    const now = new Date();
+                    this.currentTime = now.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                },
+                simulateRealtimeData() {
+                    // 模拟实时数据变化
+                    setInterval(() => {
+                        this.cpuUsage = Math.max(20, Math.min(80, this.cpuUsage + (Math.random() - 0.5) * 10));
+                        this.memoryUsage = Math.max(40, Math.min(85, this.memoryUsage + (Math.random() - 0.5) * 5));
+                        this.apiCalls += Math.floor(Math.random() * 50);
+                        this.activeUsers += Math.floor((Math.random() - 0.5) * 10);
+                    }, 3000);
+                }
+            },
+            mounted() {
+                this.updateTime();
+                setInterval(this.updateTime, 1000);
+                this.simulateRealtimeData();
+                
+                // 初始化图表
+                setTimeout(() => {
+                    this.initRequestChart();
+                    this.initCompletionChart();
+                }, 100);
+            }
+        }).mount('#app');
+
+        // 请求趋势图
+        function initRequestChart() {
+            const ctx = document.getElementById('requestChart');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['10:20', '10:21', '10:22', '10:23', '10:24', '10:25'],
+                    datasets: [{
+                        label: 'API请求/分钟',
+                        data: [850, 920, 880, 950, 1020, 980],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#fff' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#fff' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 完成度雷达图
+        function initCompletionChart() {
+            const ctx = document.getElementById('completionChart');
+            new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['RAG', 'AI交互', 'ERP', '股票', '内容', '趋势', '任务', '学习', '资源', '专家'],
+                    datasets: [{
+                        label: '完成度',
+                        data: [100, 100, 78, 98, 95, 85, 88, 86, 95, 100],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                        pointBackgroundColor: '#667eea',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#667eea'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                color: '#fff',
+                                backdropColor: 'transparent'
+                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.2)' },
+                            angleLines: { color: 'rgba(255, 255, 255, 0.2)' },
+                            pointLabels: { color: '#fff' }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+
