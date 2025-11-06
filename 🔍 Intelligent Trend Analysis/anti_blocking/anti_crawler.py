@@ -215,12 +215,359 @@ class AntiCrawlerSystem:
         }
 
 
+    # ============ 封号检测和处理 ============
+    
+    def detect_blocking(
+        self,
+        response_content: str,
+        status_code: int,
+        response_time: float
+    ) -> Dict[str, Any]:
+        """
+        检测是否被封禁
+        
+        Args:
+            response_content: 响应内容
+            status_code: 状态码
+            response_time: 响应时间
+        
+        Returns:
+            检测结果
+        """
+        blocking_detected = False
+        blocking_type = None
+        confidence = 0
+        
+        # 检测1: 状态码
+        if status_code in [403, 429, 503]:
+            blocking_detected = True
+            blocking_type = "status_code_blocking"
+            confidence = 90
+        
+        # 检测2: 响应内容特征
+        blocking_keywords = [
+            "验证码", "captcha", "人机验证", "Access Denied",
+            "Too Many Requests", "blocked", "IP被禁止",
+            "请稍后再试", "访问频繁"
+        ]
+        
+        for keyword in blocking_keywords:
+            if keyword in response_content:
+                blocking_detected = True
+                blocking_type = "content_blocking"
+                confidence = 95
+                break
+        
+        # 检测3: 响应时间异常
+        if response_time > 10:  # 超过10秒
+            blocking_detected = True
+            blocking_type = "slow_response"
+            confidence = 60
+        
+        # 检测4: 空响应或重定向
+        if len(response_content) < 100:
+            blocking_detected = True
+            blocking_type = "empty_response"
+            confidence = 70
+        
+        return {
+            "blocking_detected": blocking_detected,
+            "blocking_type": blocking_type,
+            "confidence": confidence,
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    def handle_blocking(
+        self,
+        domain: str,
+        blocking_type: str
+    ) -> Dict[str, Any]:
+        """
+        处理封禁
+        
+        Args:
+            domain: 域名
+            blocking_type: 封禁类型
+        
+        Returns:
+            处理策略
+        """
+        strategies = []
+        
+        if blocking_type in ["status_code_blocking", "content_blocking"]:
+            # 严重封禁，需要切换IP和增加延迟
+            strategies.append("switch_proxy")
+            strategies.append("increase_delay")
+            strategies.append("clear_cookies")
+            
+            # 暂停该域名的爬取
+            self._pause_domain(domain, minutes=30)
+        
+        elif blocking_type == "slow_response":
+            # 响应慢，可能是频率过高
+            strategies.append("increase_delay")
+            strategies.append("reduce_frequency")
+        
+        elif blocking_type == "empty_response":
+            # 空响应，尝试换UA和代理
+            strategies.append("switch_user_agent")
+            strategies.append("switch_proxy")
+        
+        return {
+            "domain": domain,
+            "blocking_type": blocking_type,
+            "strategies": strategies,
+            "recommended_action": "暂停爬取30分钟后重试"
+        }
+    
+    def _pause_domain(self, domain: str, minutes: int):
+        """
+        暂停域名爬取
+        
+        Args:
+            domain: 域名
+            minutes: 暂停分钟数
+        """
+        if not hasattr(self, 'paused_domains'):
+            self.paused_domains = {}
+        
+        resume_time = datetime.now() + timedelta(minutes=minutes)
+        self.paused_domains[domain] = resume_time.isoformat()
+    
+    def is_domain_paused(self, domain: str) -> bool:
+        """
+        检查域名是否被暂停
+        
+        Args:
+            domain: 域名
+        
+        Returns:
+            是否暂停
+        """
+        if not hasattr(self, 'paused_domains'):
+            return False
+        
+        if domain not in self.paused_domains:
+            return False
+        
+        resume_time = datetime.fromisoformat(self.paused_domains[domain])
+        if datetime.now() >= resume_time:
+            del self.paused_domains[domain]
+            return False
+        
+        return True
+    
+    # ============ 高级反爬功能 ============
+    
+    def simulate_browser_behavior(self) -> Dict[str, Any]:
+        """
+        模拟浏览器行为
+        
+        Returns:
+            模拟参数
+        """
+        # 模拟浏览器指纹
+        fingerprint = {
+            "screen": {
+                "width": random.choice([1920, 2560, 1440]),
+                "height": random.choice([1080, 1440, 900]),
+                "colorDepth": 24
+            },
+            "timezone": random.choice([-480, -420, -360]),  # 中国时区
+            "language": random.choice(["zh-CN", "zh-CN,zh;q=0.9"]),
+            "platform": random.choice(["MacIntel", "Win32", "Linux x86_64"]),
+            "cookieEnabled": True,
+            "doNotTrack": random.choice(["1", None])
+        }
+        
+        # 模拟鼠标移动和滚动
+        behavior = {
+            "mouse_movements": random.randint(5, 20),
+            "scroll_depth": random.uniform(0.3, 0.95),
+            "time_on_page": random.uniform(2, 10),
+            "clicks": random.randint(0, 3)
+        }
+        
+        return {
+            "fingerprint": fingerprint,
+            "behavior": behavior
+        }
+    
+    def get_session_cookies(self, domain: str) -> Dict[str, str]:
+        """
+        获取会话Cookie
+        
+        Args:
+            domain: 域名
+        
+        Returns:
+            Cookie字典
+        """
+        if not hasattr(self, 'session_cookies'):
+            self.session_cookies = {}
+        
+        if domain not in self.session_cookies:
+            # 创建新会话Cookie
+            self.session_cookies[domain] = {
+                "session_id": f"sess_{random.randint(100000, 999999)}",
+                "created_at": datetime.now().isoformat(),
+                "request_count": 0
+            }
+        
+        session = self.session_cookies[domain]
+        session["request_count"] += 1
+        
+        # 如果会话请求过多，刷新会话
+        if session["request_count"] > 50:
+            self.session_cookies[domain] = {
+                "session_id": f"sess_{random.randint(100000, 999999)}",
+                "created_at": datetime.now().isoformat(),
+                "request_count": 1
+            }
+        
+        return {
+            "session_id": self.session_cookies[domain]["session_id"]
+        }
+    
+    def configure_advanced_settings(
+        self,
+        min_delay: int = 2,
+        max_delay: int = 5,
+        max_requests_per_minute: int = 10,
+        retry_times: int = 3,
+        auto_switch_proxy: bool = True,
+        auto_pause_on_blocking: bool = True,
+        pause_duration_minutes: int = 30
+    ) -> Dict[str, Any]:
+        """
+        配置高级设置
+        
+        Args:
+            min_delay: 最小延迟（秒）
+            max_delay: 最大延迟（秒）
+            max_requests_per_minute: 每分钟最大请求数
+            retry_times: 重试次数
+            auto_switch_proxy: 自动切换代理
+            auto_pause_on_blocking: 检测到封禁时自动暂停
+            pause_duration_minutes: 暂停时长（分钟）
+        
+        Returns:
+            配置结果
+        """
+        self.config.update({
+            "min_delay": min_delay,
+            "max_delay": max_delay,
+            "max_requests_per_minute": max_requests_per_minute,
+            "retry_times": retry_times,
+            "auto_switch_proxy": auto_switch_proxy,
+            "auto_pause_on_blocking": auto_pause_on_blocking,
+            "pause_duration_minutes": pause_duration_minutes
+        })
+        
+        return {
+            "success": True,
+            "message": "反爬虫配置已更新",
+            "config": self.config
+        }
+    
+    def get_crawl_health_report(self) -> Dict[str, Any]:
+        """
+        获取爬虫健康度报告
+        
+        Returns:
+            健康度报告
+        """
+        # 统计请求
+        total_requests = sum(len(v) for v in self.request_history.values())
+        
+        # 统计暂停的域名
+        paused_domains = 0
+        if hasattr(self, 'paused_domains'):
+            paused_domains = len([
+                d for d, resume_time in self.paused_domains.items()
+                if datetime.fromisoformat(resume_time) > datetime.now()
+            ])
+        
+        # 资源状态
+        proxy_available = len(self.proxy_pool)
+        ua_available = len(self.user_agents)
+        
+        # 健康评分
+        health_score = 100
+        
+        # 如果有域名被暂停，扣分
+        health_score -= paused_domains * 10
+        
+        # 如果代理池少，扣分
+        if proxy_available < 5:
+            health_score -= 20
+        
+        # 如果UA少，扣分
+        if ua_available < 5:
+            health_score -= 10
+        
+        health_score = max(0, health_score)
+        
+        # 健康等级
+        if health_score >= 80:
+            health_level = "健康"
+        elif health_score >= 60:
+            health_level = "一般"
+        else:
+            health_level = "需关注"
+        
+        return {
+            "health_score": health_score,
+            "health_level": health_level,
+            "statistics": {
+                "total_requests": total_requests,
+                "active_domains": len(self.request_history),
+                "paused_domains": paused_domains,
+                "proxy_pool_size": proxy_available,
+                "user_agent_pool_size": ua_available
+            },
+            "recommendations": self._get_health_recommendations(health_score, proxy_available, ua_available)
+        }
+    
+    def _get_health_recommendations(
+        self,
+        health_score: int,
+        proxy_count: int,
+        ua_count: int
+    ) -> List[str]:
+        """
+        获取健康建议
+        
+        Args:
+            health_score: 健康分数
+            proxy_count: 代理数量
+            ua_count: UA数量
+        
+        Returns:
+            建议列表
+        """
+        recommendations = []
+        
+        if health_score < 60:
+            recommendations.append("整体健康度较低，建议暂停爬取并检查配置")
+        
+        if proxy_count < 5:
+            recommendations.append(f"代理池过小（{proxy_count}个），建议增加到10个以上")
+        
+        if ua_count < 5:
+            recommendations.append(f"User-Agent池过小（{ua_count}个），建议增加到10个以上")
+        
+        if hasattr(self, 'paused_domains') and self.paused_domains:
+            recommendations.append(f"有{len(self.paused_domains)}个域名被暂停，请检查原因")
+        
+        if not recommendations:
+            recommendations.append("爬虫运行正常，无需特别关注")
+        
+        return recommendations
+
+
 # 全局实例
 anti_crawler = AntiCrawlerSystem()
-
-
-
-
 
 
 
