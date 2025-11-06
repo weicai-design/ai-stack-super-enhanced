@@ -1,16 +1,7 @@
-#!/usr/bin/env python3
 """
-工艺管理系统
-Process Management System
-
-功能：
-- 工艺路线管理
-- 工艺参数管理
-- 工序管理
-- 工艺文件管理
-- 工艺变更管理
+工艺管理模块
+实现完整的工艺路线、工艺参数、工艺变更管理功能
 """
-
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from enum import Enum
@@ -20,9 +11,19 @@ import json
 class ProcessStatus(Enum):
     """工艺状态"""
     DRAFT = "draft"  # 草稿
+    REVIEW = "review"  # 评审中
     APPROVED = "approved"  # 已批准
     ACTIVE = "active"  # 生效中
     OBSOLETE = "obsolete"  # 已废弃
+
+
+class ChangeType(Enum):
+    """变更类型"""
+    PARAMETER = "parameter"  # 参数变更
+    OPERATION = "operation"  # 工序变更
+    EQUIPMENT = "equipment"  # 设备变更
+    MATERIAL = "material"  # 材料变更
+    QUALITY = "quality"  # 质量标准变更
 
 
 class ProcessManager:
@@ -30,31 +31,29 @@ class ProcessManager:
     
     def __init__(self):
         """初始化工艺管理器"""
-        self.process_routes: Dict[str, Dict[str, Any]] = {}
-        self.operations: Dict[str, Dict[str, Any]] = {}
-        self.process_documents: Dict[str, Dict[str, Any]] = {}
-        self.process_changes: List[Dict[str, Any]] = []
-        
-    # ==================== 工艺路线管理 ====================
+        self.process_routes = {}
+        self.operations = {}
+        self.process_parameters = {}
+        self.change_requests = []
+        self.work_instructions = {}
+        self.bom_structures = {}
     
     def create_process_route(
         self,
         route_id: str,
         product_id: str,
-        product_name: str,
-        version: str = "1.0",
-        description: str = "",
-        created_by: str = "system"
+        version: str,
+        operations: List[Dict[str, Any]],
+        created_by: str
     ) -> Dict[str, Any]:
         """
         创建工艺路线
         
         Args:
-            route_id: 工艺路线ID
+            route_id: 路线ID
             product_id: 产品ID
-            product_name: 产品名称
             version: 版本号
-            description: 描述
+            operations: 工序列表 [{"op_id": "", "sequence": 0, "description": ""}]
             created_by: 创建人
         
         Returns:
@@ -63,11 +62,9 @@ class ProcessManager:
         route = {
             "route_id": route_id,
             "product_id": product_id,
-            "product_name": product_name,
             "version": version,
-            "description": description,
+            "operations": operations,
             "status": ProcessStatus.DRAFT.value,
-            "operations": [],  # 工序列表
             "created_by": created_by,
             "created_at": datetime.now().isoformat(),
             "approved_by": None,
@@ -76,484 +73,447 @@ class ProcessManager:
         }
         
         self.process_routes[route_id] = route
-        return route
+        
+        return {
+            "success": True,
+            "route_id": route_id,
+            "message": "工艺路线已创建",
+            "route": route
+        }
     
-    def add_operation_to_route(
+    def create_operation(
         self,
-        route_id: str,
         operation_id: str,
-        operation_name: str,
-        sequence: int,
-        work_center: str,
-        standard_time: float,  # 标准工时（分钟）
-        setup_time: float = 0,  # 准备时间（分钟）
-        description: str = "",
-        parameters: Dict[str, Any] = None,
-        quality_requirements: List[Dict[str, Any]] = None,
-        tools_required: List[str] = None
+        name: str,
+        description: str,
+        equipment_required: str,
+        standard_time_minutes: float,
+        quality_standards: List[Dict[str, Any]],
+        safety_requirements: List[str] = None
     ) -> Dict[str, Any]:
         """
-        添加工序到工艺路线
+        创建工序
         
         Args:
-            route_id: 工艺路线ID
             operation_id: 工序ID
-            operation_name: 工序名称
-            sequence: 工序顺序号
-            work_center: 工作中心
-            standard_time: 标准工时（分钟）
-            setup_time: 准备时间（分钟）
+            name: 工序名称
             description: 工序描述
-            parameters: 工艺参数
-            quality_requirements: 质量要求
-            tools_required: 所需工具
+            equipment_required: 所需设备
+            standard_time_minutes: 标准工时（分钟）
+            quality_standards: 质量标准 [{"item": "", "specification": "", "tolerance": ""}]
+            safety_requirements: 安全要求
         
         Returns:
             工序信息
         """
-        if route_id not in self.process_routes:
-            raise ValueError(f"工艺路线 {route_id} 不存在")
-        
         operation = {
             "operation_id": operation_id,
-            "route_id": route_id,
-            "operation_name": operation_name,
-            "sequence": sequence,
-            "work_center": work_center,
-            "standard_time": standard_time,
-            "setup_time": setup_time,
+            "name": name,
             "description": description,
-            "parameters": parameters or {},
-            "quality_requirements": quality_requirements or [],
-            "tools_required": tools_required or [],
-            "created_at": datetime.now().isoformat()
+            "equipment_required": equipment_required,
+            "standard_time_minutes": standard_time_minutes,
+            "quality_standards": quality_standards,
+            "safety_requirements": safety_requirements or [],
+            "created_at": datetime.now().isoformat(),
+            "active": True
         }
         
         self.operations[operation_id] = operation
         
-        # 添加到路线
-        route = self.process_routes[route_id]
-        route["operations"].append(operation)
+        return {
+            "success": True,
+            "operation_id": operation_id,
+            "message": "工序已创建",
+            "operation": operation
+        }
+    
+    def define_process_parameters(
+        self,
+        route_id: str,
+        operation_id: str,
+        parameters: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        定义工艺参数
         
-        # 按序号排序
-        route["operations"].sort(key=lambda x: x["sequence"])
+        Args:
+            route_id: 路线ID
+            operation_id: 工序ID
+            parameters: 参数列表 [{"name": "", "value": 0, "unit": "", "tolerance": ""}]
         
-        return operation
+        Returns:
+            参数定义信息
+        """
+        if route_id not in self.process_routes:
+            return {"success": False, "error": "工艺路线不存在"}
+        
+        param_id = f"PP{route_id}{operation_id}"
+        
+        param_def = {
+            "param_id": param_id,
+            "route_id": route_id,
+            "operation_id": operation_id,
+            "parameters": parameters,
+            "defined_at": datetime.now().isoformat(),
+            "version": 1
+        }
+        
+        self.process_parameters[param_id] = param_def
+        
+        return {
+            "success": True,
+            "param_id": param_id,
+            "message": "工艺参数已定义",
+            "parameters": param_def
+        }
     
     def approve_process_route(
         self,
         route_id: str,
-        approved_by: str,
-        effective_date: Optional[str] = None
+        approver: str,
+        effective_date: str
     ) -> Dict[str, Any]:
         """
         批准工艺路线
         
         Args:
-            route_id: 工艺路线ID
-            approved_by: 批准人
+            route_id: 路线ID
+            approver: 批准人
             effective_date: 生效日期
         
         Returns:
-            更新后的工艺路线
+            批准结果
         """
         if route_id not in self.process_routes:
-            raise ValueError(f"工艺路线 {route_id} 不存在")
+            return {"success": False, "error": "工艺路线不存在"}
         
         route = self.process_routes[route_id]
         
-        if effective_date is None:
-            effective_date = datetime.now().date().isoformat()
-        
         route["status"] = ProcessStatus.APPROVED.value
-        route["approved_by"] = approved_by
+        route["approved_by"] = approver
         route["approved_at"] = datetime.now().isoformat()
         route["effective_date"] = effective_date
         
-        # 记录变更
-        self._record_process_change(
-            route_id=route_id,
-            change_type="approval",
-            description=f"工艺路线由 {approved_by} 批准，生效日期：{effective_date}",
-            changed_by=approved_by
-        )
+        # 如果生效日期是今天或之前，立即激活
+        if effective_date <= datetime.now().isoformat()[:10]:
+            route["status"] = ProcessStatus.ACTIVE.value
         
-        return route
-    
-    def activate_process_route(
-        self,
-        route_id: str,
-        activated_by: str
-    ) -> Dict[str, Any]:
-        """
-        激活工艺路线
-        
-        Args:
-            route_id: 工艺路线ID
-            activated_by: 激活人
-        
-        Returns:
-            更新后的工艺路线
-        """
-        if route_id not in self.process_routes:
-            raise ValueError(f"工艺路线 {route_id} 不存在")
-        
-        route = self.process_routes[route_id]
-        
-        if route["status"] != ProcessStatus.APPROVED.value:
-            raise ValueError("只有已批准的工艺路线才能激活")
-        
-        route["status"] = ProcessStatus.ACTIVE.value
-        route["activated_by"] = activated_by
-        route["activated_at"] = datetime.now().isoformat()
-        
-        # 记录变更
-        self._record_process_change(
-            route_id=route_id,
-            change_type="activation",
-            description=f"工艺路线由 {activated_by} 激活",
-            changed_by=activated_by
-        )
-        
-        return route
-    
-    # ==================== 工艺参数管理 ====================
-    
-    def update_operation_parameters(
-        self,
-        operation_id: str,
-        parameters: Dict[str, Any],
-        updated_by: str,
-        reason: str = ""
-    ) -> Dict[str, Any]:
-        """
-        更新工序参数
-        
-        Args:
-            operation_id: 工序ID
-            parameters: 新参数
-            updated_by: 更新人
-            reason: 更新原因
-        
-        Returns:
-            更新后的工序信息
-        """
-        if operation_id not in self.operations:
-            raise ValueError(f"工序 {operation_id} 不存在")
-        
-        operation = self.operations[operation_id]
-        old_parameters = operation["parameters"].copy()
-        
-        operation["parameters"].update(parameters)
-        operation["updated_at"] = datetime.now().isoformat()
-        operation["updated_by"] = updated_by
-        
-        # 记录变更
-        route_id = operation["route_id"]
-        self._record_process_change(
-            route_id=route_id,
-            change_type="parameter_update",
-            description=f"工序 {operation['operation_name']} 参数更新: {reason}",
-            changed_by=updated_by,
-            old_value=old_parameters,
-            new_value=operation["parameters"]
-        )
-        
-        return operation
-    
-    def get_operation_parameters(
-        self,
-        operation_id: str
-    ) -> Dict[str, Any]:
-        """
-        获取工序参数
-        
-        Args:
-            operation_id: 工序ID
-        
-        Returns:
-            工序参数
-        """
-        if operation_id not in self.operations:
-            raise ValueError(f"工序 {operation_id} 不存在")
-        
-        return self.operations[operation_id]["parameters"]
-    
-    # ==================== 工艺文件管理 ====================
-    
-    def add_process_document(
-        self,
-        doc_id: str,
-        route_id: str,
-        doc_type: str,  # sop/drawing/spec/instruction
-        title: str,
-        file_path: str,
-        version: str = "1.0",
-        uploaded_by: str = "system",
-        notes: str = ""
-    ) -> Dict[str, Any]:
-        """
-        添加工艺文件
-        
-        Args:
-            doc_id: 文档ID
-            route_id: 工艺路线ID
-            doc_type: 文档类型
-            title: 文档标题
-            file_path: 文件路径
-            version: 版本号
-            uploaded_by: 上传人
-            notes: 备注
-        
-        Returns:
-            文档信息
-        """
-        if route_id not in self.process_routes:
-            raise ValueError(f"工艺路线 {route_id} 不存在")
-        
-        document = {
-            "doc_id": doc_id,
-            "route_id": route_id,
-            "doc_type": doc_type,
-            "title": title,
-            "file_path": file_path,
-            "version": version,
-            "uploaded_by": uploaded_by,
-            "uploaded_at": datetime.now().isoformat(),
-            "notes": notes,
-            "status": "active"
+        return {
+            "success": True,
+            "message": "工艺路线已批准",
+            "route": route
         }
-        
-        self.process_documents[doc_id] = document
-        
-        # 添加到工艺路线
-        route = self.process_routes[route_id]
-        if "documents" not in route:
-            route["documents"] = []
-        route["documents"].append(doc_id)
-        
-        return document
     
-    def get_route_documents(
-        self,
-        route_id: str,
-        doc_type: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        获取工艺路线的文档列表
-        
-        Args:
-            route_id: 工艺路线ID
-            doc_type: 文档类型筛选
-        
-        Returns:
-            文档列表
-        """
-        if route_id not in self.process_routes:
-            raise ValueError(f"工艺路线 {route_id} 不存在")
-        
-        documents = [
-            self.process_documents[doc_id]
-            for doc_id in self.process_routes[route_id].get("documents", [])
-            if doc_id in self.process_documents
-        ]
-        
-        if doc_type:
-            documents = [d for d in documents if d["doc_type"] == doc_type]
-        
-        return documents
-    
-    # ==================== 工艺变更管理 ====================
-    
-    def _record_process_change(
+    def create_change_request(
         self,
         route_id: str,
         change_type: str,
-        description: str,
-        changed_by: str,
-        old_value: Any = None,
-        new_value: Any = None
-    ):
+        change_description: str,
+        reason: str,
+        requestor: str,
+        proposed_changes: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
-        记录工艺变更
+        创建变更请求
         
         Args:
-            route_id: 工艺路线ID
+            route_id: 路线ID
             change_type: 变更类型
-            description: 变更描述
-            changed_by: 变更人
-            old_value: 旧值
-            new_value: 新值
+            change_description: 变更描述
+            reason: 变更原因
+            requestor: 申请人
+            proposed_changes: 拟议变更内容
+        
+        Returns:
+            变更请求信息
         """
-        change = {
-            "change_id": f"CHG-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        if route_id not in self.process_routes:
+            return {"success": False, "error": "工艺路线不存在"}
+        
+        change_id = f"CR{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        change_request = {
+            "change_id": change_id,
             "route_id": route_id,
             "change_type": change_type,
-            "description": description,
-            "changed_by": changed_by,
-            "changed_at": datetime.now().isoformat(),
-            "old_value": old_value,
-            "new_value": new_value
+            "change_description": change_description,
+            "reason": reason,
+            "requestor": requestor,
+            "proposed_changes": proposed_changes,
+            "status": "pending",
+            "created_at": datetime.now().isoformat(),
+            "reviewed_by": None,
+            "review_decision": None,
+            "implemented_at": None
         }
         
-        self.process_changes.append(change)
+        self.change_requests.append(change_request)
+        
+        return {
+            "success": True,
+            "change_id": change_id,
+            "message": "变更请求已创建",
+            "change_request": change_request
+        }
     
-    def get_process_change_history(
+    def review_change_request(
         self,
-        route_id: str,
-        limit: int = 50
-    ) -> List[Dict[str, Any]]:
+        change_id: str,
+        reviewer: str,
+        decision: str,
+        comments: str = ""
+    ) -> Dict[str, Any]:
         """
-        获取工艺变更历史
+        评审变更请求
         
         Args:
-            route_id: 工艺路线ID
-            limit: 返回记录数
+            change_id: 变更ID
+            reviewer: 评审人
+            decision: 决定 (approved/rejected)
+            comments: 评审意见
         
         Returns:
-            变更历史列表
+            评审结果
         """
-        changes = [
-            c for c in self.process_changes
-            if c["route_id"] == route_id
+        change_request = next((cr for cr in self.change_requests if cr["change_id"] == change_id), None)
+        
+        if not change_request:
+            return {"success": False, "error": "变更请求不存在"}
+        
+        change_request["reviewed_by"] = reviewer
+        change_request["review_decision"] = decision
+        change_request["review_comments"] = comments
+        change_request["reviewed_at"] = datetime.now().isoformat()
+        
+        if decision == "approved":
+            change_request["status"] = "approved"
+            # 实施变更
+            self._implement_change(change_request)
+        else:
+            change_request["status"] = "rejected"
+        
+        return {
+            "success": True,
+            "message": f"变更请求已{decision}",
+            "change_request": change_request
+        }
+    
+    def _implement_change(self, change_request: Dict[str, Any]):
+        """实施变更"""
+        route_id = change_request["route_id"]
+        route = self.process_routes.get(route_id)
+        
+        if not route:
+            return
+        
+        # 根据变更类型实施变更
+        change_type = change_request["change_type"]
+        proposed_changes = change_request["proposed_changes"]
+        
+        if change_type == ChangeType.PARAMETER.value:
+            # 更新参数
+            for param_id, param_def in self.process_parameters.items():
+                if param_def["route_id"] == route_id:
+                    param_def["parameters"] = proposed_changes.get("parameters", param_def["parameters"])
+                    param_def["version"] += 1
+        
+        elif change_type == ChangeType.OPERATION.value:
+            # 更新工序
+            route["operations"] = proposed_changes.get("operations", route["operations"])
+        
+        # 更新路线版本
+        current_version = route["version"]
+        route["version"] = f"{current_version}.1"
+        
+        change_request["implemented_at"] = datetime.now().isoformat()
+        change_request["status"] = "implemented"
+    
+    def create_work_instruction(
+        self,
+        instruction_id: str,
+        operation_id: str,
+        title: str,
+        steps: List[Dict[str, Any]],
+        photos: List[str] = None,
+        videos: List[str] = None
+    ) -> Dict[str, Any]:
+        """
+        创建作业指导书
+        
+        Args:
+            instruction_id: 指导书ID
+            operation_id: 工序ID
+            title: 标题
+            steps: 步骤列表 [{"step": 1, "description": "", "key_points": []}]
+            photos: 图片列表
+            videos: 视频列表
+        
+        Returns:
+            作业指导书信息
+        """
+        if operation_id not in self.operations:
+            return {"success": False, "error": "工序不存在"}
+        
+        instruction = {
+            "instruction_id": instruction_id,
+            "operation_id": operation_id,
+            "title": title,
+            "steps": steps,
+            "photos": photos or [],
+            "videos": videos or [],
+            "version": "1.0",
+            "created_at": datetime.now().isoformat(),
+            "status": "active"
+        }
+        
+        self.work_instructions[instruction_id] = instruction
+        
+        return {
+            "success": True,
+            "instruction_id": instruction_id,
+            "message": "作业指导书已创建",
+            "instruction": instruction
+        }
+    
+    def create_bom(
+        self,
+        bom_id: str,
+        product_id: str,
+        materials: List[Dict[str, Any]],
+        version: str = "1.0"
+    ) -> Dict[str, Any]:
+        """
+        创建物料清单(BOM)
+        
+        Args:
+            bom_id: BOM ID
+            product_id: 产品ID
+            materials: 物料列表 [{"material_id": "", "quantity": 0, "unit": "", "level": 0}]
+            version: 版本
+        
+        Returns:
+            BOM信息
+        """
+        bom = {
+            "bom_id": bom_id,
+            "product_id": product_id,
+            "materials": materials,
+            "version": version,
+            "created_at": datetime.now().isoformat(),
+            "status": "active"
+        }
+        
+        self.bom_structures[bom_id] = bom
+        
+        return {
+            "success": True,
+            "bom_id": bom_id,
+            "message": "BOM已创建",
+            "bom": bom
+        }
+    
+    def calculate_material_requirements(
+        self,
+        product_id: str,
+        required_quantity: int
+    ) -> Dict[str, Any]:
+        """
+        计算物料需求
+        
+        Args:
+            product_id: 产品ID
+            required_quantity: 需求数量
+        
+        Returns:
+            物料需求清单
+        """
+        # 查找产品的BOM
+        bom = next((b for b in self.bom_structures.values() 
+                   if b["product_id"] == product_id and b["status"] == "active"), None)
+        
+        if not bom:
+            return {"success": False, "error": "未找到产品的有效BOM"}
+        
+        # 计算物料需求
+        requirements = []
+        for material in bom["materials"]:
+            required_qty = material["quantity"] * required_quantity
+            requirements.append({
+                "material_id": material["material_id"],
+                "unit_quantity": material["quantity"],
+                "total_required": required_qty,
+                "unit": material["unit"],
+                "level": material["level"]
+            })
+        
+        return {
+            "success": True,
+            "product_id": product_id,
+            "required_quantity": required_quantity,
+            "bom_version": bom["version"],
+            "material_requirements": requirements
+        }
+    
+    def get_process_statistics(
+        self,
+        start_date: str,
+        end_date: str
+    ) -> Dict[str, Any]:
+        """
+        获取工艺统计
+        
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+        
+        Returns:
+            统计报告
+        """
+        # 工艺路线统计
+        total_routes = len(self.process_routes)
+        active_routes = len([r for r in self.process_routes.values() 
+                            if r["status"] == ProcessStatus.ACTIVE.value])
+        
+        # 变更请求统计
+        changes_in_range = [
+            cr for cr in self.change_requests
+            if start_date <= cr["created_at"][:10] <= end_date
         ]
         
-        # 按时间倒序
-        changes.sort(key=lambda x: x["changed_at"], reverse=True)
+        total_changes = len(changes_in_range)
+        approved_changes = len([cr for cr in changes_in_range if cr["status"] in ["approved", "implemented"]])
         
-        return changes[:limit]
-    
-    # ==================== 查询和分析 ====================
-    
-    def get_process_route(
-        self,
-        route_id: str
-    ) -> Optional[Dict[str, Any]]:
-        """
-        获取工艺路线详情
-        
-        Args:
-            route_id: 工艺路线ID
-        
-        Returns:
-            工艺路线信息
-        """
-        return self.process_routes.get(route_id)
-    
-    def list_process_routes(
-        self,
-        product_id: Optional[str] = None,
-        status: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        获取工艺路线列表
-        
-        Args:
-            product_id: 产品ID筛选
-            status: 状态筛选
-        
-        Returns:
-            工艺路线列表
-        """
-        routes = list(self.process_routes.values())
-        
-        if product_id:
-            routes = [r for r in routes if r["product_id"] == product_id]
-        
-        if status:
-            routes = [r for r in routes if r["status"] == status]
-        
-        return routes
-    
-    def calculate_total_time(
-        self,
-        route_id: str,
-        quantity: int = 1
-    ) -> Dict[str, Any]:
-        """
-        计算工艺总工时
-        
-        Args:
-            route_id: 工艺路线ID
-            quantity: 生产数量
-        
-        Returns:
-            工时统计
-        """
-        if route_id not in self.process_routes:
-            raise ValueError(f"工艺路线 {route_id} 不存在")
-        
-        route = self.process_routes[route_id]
-        operations = route["operations"]
-        
-        total_setup_time = sum(op["setup_time"] for op in operations)
-        total_standard_time = sum(op["standard_time"] for op in operations)
-        total_time_per_unit = total_standard_time
-        total_time_for_quantity = total_setup_time + (total_standard_time * quantity)
+        # 按变更类型统计
+        by_type = {}
+        for cr in changes_in_range:
+            ctype = cr["change_type"]
+            by_type[ctype] = by_type.get(ctype, 0) + 1
         
         return {
-            "route_id": route_id,
-            "product_name": route["product_name"],
-            "quantity": quantity,
-            "total_setup_time": total_setup_time,
-            "total_standard_time_per_unit": total_standard_time,
-            "total_time_for_quantity": total_time_for_quantity,
-            "operations_count": len(operations),
-            "operations_breakdown": [
-                {
-                    "sequence": op["sequence"],
-                    "operation_name": op["operation_name"],
-                    "setup_time": op["setup_time"],
-                    "standard_time": op["standard_time"],
-                    "total_time": op["setup_time"] + (op["standard_time"] * quantity)
-                }
-                for op in operations
-            ]
-        }
-    
-    def analyze_bottleneck(
-        self,
-        route_id: str
-    ) -> Dict[str, Any]:
-        """
-        瓶颈工序分析
-        
-        Args:
-            route_id: 工艺路线ID
-        
-        Returns:
-            瓶颈分析结果
-        """
-        if route_id not in self.process_routes:
-            raise ValueError(f"工艺路线 {route_id} 不存在")
-        
-        route = self.process_routes[route_id]
-        operations = route["operations"]
-        
-        if not operations:
-            return {"message": "该工艺路线没有工序"}
-        
-        # 找出耗时最长的工序
-        bottleneck = max(operations, key=lambda x: x["standard_time"])
-        
-        total_time = sum(op["standard_time"] for op in operations)
-        bottleneck_percentage = (bottleneck["standard_time"] / total_time) * 100 if total_time > 0 else 0
-        
-        return {
-            "route_id": route_id,
-            "product_name": route["product_name"],
-            "bottleneck_operation": {
-                "sequence": bottleneck["sequence"],
-                "operation_name": bottleneck["operation_name"],
-                "standard_time": bottleneck["standard_time"],
-                "work_center": bottleneck["work_center"],
-                "percentage_of_total": bottleneck_percentage
+            "period": {"start": start_date, "end": end_date},
+            "routes": {
+                "total": total_routes,
+                "active": active_routes,
+                "draft": len([r for r in self.process_routes.values() 
+                             if r["status"] == ProcessStatus.DRAFT.value])
             },
-            "total_operations": len(operations),
-            "total_time": total_time
+            "changes": {
+                "total": total_changes,
+                "approved": approved_changes,
+                "rejected": len([cr for cr in changes_in_range if cr["status"] == "rejected"]),
+                "pending": len([cr for cr in changes_in_range if cr["status"] == "pending"]),
+                "by_type": by_type
+            },
+            "operations": {
+                "total": len(self.operations),
+                "active": len([o for o in self.operations.values() if o["active"]])
+            },
+            "boms": {
+                "total": len(self.bom_structures),
+                "active": len([b for b in self.bom_structures.values() if b["status"] == "active"])
+            }
         }
 
 
-# 创建全局实例
+# 创建默认实例
 default_process_manager = ProcessManager()
-
