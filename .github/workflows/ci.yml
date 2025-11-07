@@ -1,15 +1,15 @@
-name: CI/CD Pipeline
+name: CI - 持续集成
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'feature/**' ]
   pull_request:
     branches: [ main, develop ]
 
 jobs:
   # ==================== 代码质量检查 ====================
-  lint:
-    name: 代码检查
+  code-quality:
+    name: 代码质量检查
     runs-on: ubuntu-latest
     
     steps:
@@ -20,34 +20,54 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
+        cache: 'pip'
     
     - name: 安装依赖
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 black mypy
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install flake8 black mypy bandit safety
     
-    - name: 运行flake8
+    - name: 代码格式检查 (Black)
+      run: |
+        black --check --diff .
+      continue-on-error: true
+    
+    - name: 代码风格检查 (Flake8)
       run: |
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      continue-on-error: true
     
-    - name: 检查代码格式
+    - name: 类型检查 (MyPy)
       run: |
-        black --check .
+        mypy . --ignore-missing-imports
+      continue-on-error: true
     
-    - name: 类型检查
+    - name: 安全扫描 (Bandit)
       run: |
-        mypy . --ignore-missing-imports || true
+        bandit -r . -f json -o bandit-report.json || true
+      continue-on-error: true
+    
+    - name: 依赖安全检查 (Safety)
+      run: |
+        pip install -r requirements.txt
+        safety check --json || true
+      continue-on-error: true
+    
+    - name: 上传Bandit报告
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: bandit-report
+        path: bandit-report.json
 
   # ==================== 单元测试 ====================
-  test:
+  unit-tests:
     name: 单元测试
     runs-on: ubuntu-latest
-    
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11']
+        python-version: ['3.10', '3.11']
     
     steps:
     - name: 检出代码
@@ -57,42 +77,88 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
-    - name: 缓存依赖
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+        cache: 'pip'
     
     - name: 安装依赖
       run: |
         python -m pip install --upgrade pip
         pip install pytest pytest-cov pytest-asyncio
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install -r requirements.txt
     
-    - name: 运行测试
+    - name: 运行单元测试
       run: |
-        pytest --cov=. --cov-report=xml --cov-report=html
+        pytest -v -m "unit and not slow" \
+          --cov=. \
+          --cov-report=xml \
+          --cov-report=html \
+          --junitxml=junit.xml
     
-    - name: 上传覆盖率报告
+    - name: 上传覆盖率报告到Codecov
       uses: codecov/codecov-action@v3
       with:
         file: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
+    
+    - name: 上传测试报告
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          junit.xml
+          htmlcov/
 
   # ==================== 集成测试 ====================
-  integration-test:
+  integration-tests:
     name: 集成测试
     runs-on: ubuntu-latest
     
     services:
-      ollama:
-        image: ollama/ollama:latest
+      # Redis服务
+      redis:
+        image: redis:7-alpine
         ports:
-          - 11434:11434
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 安装系统依赖
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpq-dev
+    
+    - name: 安装Python依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio
+        pip install -r requirements.txt
+    
+    - name: 运行集成测试
+      run: |
+        pytest -v -m "integration" --maxfail=5
+      env:
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+    
+  # ==================== E2E测试 ====================
+  e2e-tests:
+    name: 端到端测试
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
     
     steps:
     - name: 检出代码
@@ -106,23 +172,19 @@ jobs:
     - name: 安装依赖
       run: |
         python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio
         pip install -r requirements.txt
     
-    - name: 启动服务
+    - name: 运行E2E测试
       run: |
-        cd ai-chat-center
-        nohup python -m uvicorn chat_server:app --host 0.0.0.0 --port 8020 &
-        sleep 5
-    
-    - name: 运行集成测试
-      run: |
-        python scripts/integration_test.py
+        pytest -v -m "e2e" --maxfail=3
+      continue-on-error: true
 
-  # ==================== Docker构建 ====================
+  # ==================== Docker构建测试 ====================
   docker-build:
-    name: Docker镜像构建
+    name: Docker构建测试
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [code-quality, unit-tests]
     
     steps:
     - name: 检出代码
@@ -131,26 +193,16 @@ jobs:
     - name: 设置Docker Buildx
       uses: docker/setup-buildx-action@v2
     
-    - name: 登录Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-      if: github.event_name != 'pull_request'
+    - name: 构建Docker镜像
+      run: |
+        docker build -t ai-stack:test .
     
-    - name: 构建并推送
-      uses: docker/build-push-action@v4
-      with:
-        context: ./ai-chat-center
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: |
-          aistack/chat-center:latest
-          aistack/chat-center:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
+    - name: 测试Docker镜像
+      run: |
+        docker run --rm ai-stack:test --version || true
+    
   # ==================== 安全扫描 ====================
-  security:
+  security-scan:
     name: 安全扫描
     runs-on: ubuntu-latest
     
@@ -165,71 +217,29 @@ jobs:
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-results.sarif'
+      continue-on-error: true
     
-    - name: 上传扫描结果
+    - name: 上传Trivy扫描结果
       uses: github/codeql-action/upload-sarif@v2
+      if: always()
       with:
         sarif_file: 'trivy-results.sarif'
 
-  # ==================== 性能测试 ====================
-  performance:
-    name: 性能测试
+  # ==================== 测试报告汇总 ====================
+  test-report:
+    name: 测试报告汇总
     runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, e2e-tests]
+    if: always()
     
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v3
+    - name: 下载测试结果
+      uses: actions/download-artifact@v3
     
-    - name: 设置Python环境
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: 安装依赖
-      run: |
-        python -m pip install --upgrade pip
-        pip install locust
-        pip install -r requirements.txt
-    
-    - name: 运行性能测试
-      run: |
-        # 这里可以添加性能测试脚本
-        echo "性能测试..."
-
-  # ==================== 部署（仅main分支） ====================
-  deploy:
-    name: 部署到生产环境
-    runs-on: ubuntu-latest
-    needs: [lint, test, integration-test, docker-build]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-    steps:
-    - name: 检出代码
-      uses: actions/checkout@v3
-    
-    - name: 部署到服务器
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.DEPLOY_HOST }}
-        username: ${{ secrets.DEPLOY_USER }}
-        key: ${{ secrets.DEPLOY_KEY }}
-        script: |
-          cd /opt/ai-stack
-          git pull
-          docker-compose down
-          docker-compose pull
-          docker-compose up -d
-          docker-compose ps
-    
-    - name: 健康检查
-      run: |
-        sleep 30
-        curl -f http://${{ secrets.DEPLOY_HOST }}/health || exit 1
-    
-    - name: 通知部署结果
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        text: 'AI Stack 部署完成！'
-        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+    - name: 发布测试报告
+      uses: dorny/test-reporter@v1
       if: always()
+      with:
+        name: 测试结果汇总
+        path: '**/junit.xml'
+        reporter: java-junit

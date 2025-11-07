@@ -1,0 +1,105 @@
+# AlertManager配置文件
+
+global:
+  resolve_timeout: 5m
+  # SMTP配置（邮件通知）
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alerts@aistack.com'
+  smtp_auth_username: 'alerts@aistack.com'
+  smtp_auth_password: 'your-password'
+
+# 模板配置
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# 路由配置
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # 关键告警 - 立即通知
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 0s
+      repeat_interval: 5m
+    
+    # 警告告警 - 延迟通知
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 1m
+      repeat_interval: 1h
+    
+    # 信息告警 - 汇总通知
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+      group_wait: 5m
+      repeat_interval: 24h
+
+# 接收器配置
+receivers:
+  # 默认接收器
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://alertmanager-webhook:5000/alerts'
+
+  # 关键告警接收器
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'ops-team@example.com'
+        headers:
+          Subject: '🚨 [CRITICAL] AI Stack告警'
+    
+    # 钉钉通知
+    webhook_configs:
+      - url: 'https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN'
+        send_resolved: true
+    
+    # 企业微信通知
+    # wechat_configs:
+    #   - corp_id: 'your-corp-id'
+    #     to_user: '@all'
+    #     agent_id: 'your-agent-id'
+    #     api_secret: 'your-secret'
+
+  # 警告告警接收器
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'dev-team@example.com'
+        headers:
+          Subject: '⚠️ [WARNING] AI Stack告警'
+    
+    webhook_configs:
+      - url: 'https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN'
+        send_resolved: true
+
+  # 信息告警接收器
+  - name: 'info-alerts'
+    email_configs:
+      - to: 'monitor@example.com'
+        headers:
+          Subject: 'ℹ️ [INFO] AI Stack通知'
+
+# 抑制规则（避免告警风暴）
+inhibit_rules:
+  # 服务宕机时抑制其他告警
+  - source_match:
+      severity: 'critical'
+      alertname: 'ServiceDown'
+    target_match:
+      severity: 'warning'
+    equal: ['instance']
+  
+  # 高错误率时抑制响应时间告警
+  - source_match:
+      alertname: 'ServiceHighErrorRate'
+    target_match:
+      alertname: 'HighResponseTime'
+    equal: ['instance']
+

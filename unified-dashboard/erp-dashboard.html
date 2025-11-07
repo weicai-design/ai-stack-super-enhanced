@@ -223,15 +223,15 @@
             <div class="stats">
                 <div class="stat-card">
                     <h3>总模块数</h3>
-                    <div class="value">15</div>
+                    <div class="value">16</div>
                 </div>
                 <div class="stat-card">
                     <h3>平均完成度</h3>
-                    <div class="value">78%</div>
+                    <div class="value">{{ avgCompletion }}%</div>
                 </div>
                 <div class="stat-card">
                     <h3>API接口</h3>
-                    <div class="value">85+</div>
+                    <div class="value">90+</div>
                 </div>
                 <div class="stat-card">
                     <h3>运行状态</h3>
@@ -277,39 +277,39 @@
                             id: 'customer',
                             name: '客户管理',
                             icon: '👥',
-                            completion: 70,
-                            features: ['客户资料管理', '客户价值分析', '客户分类升级'],
+                            completion: 95,
+                            features: ['客户资料管理', '生命周期分析', 'RFM细分', '信用评级', '流失预警'],
                             url: 'http://localhost:8013/docs#customer'
                         },
                         {
                             id: 'order',
                             name: '订单管理',
                             icon: '📋',
-                            completion: 70,
-                            features: ['订单创建', '状态跟踪', '订单分析'],
+                            completion: 95,
+                            features: ['订单创建', '优先级分析', '异常检测', '履约分析', '智能分配'],
                             url: 'http://localhost:8013/docs#order'
                         },
                         {
                             id: 'project',
                             name: '项目管理',
                             icon: '📊',
-                            completion: 75,
-                            features: ['项目启动', '里程碑管理', '成本控制', '项目验收'],
+                            completion: 95,
+                            features: ['项目启动', '风险评估', 'ROI分析', '进度预测', '资源优化'],
                             url: 'http://localhost:8013/docs#project'
                         },
                         {
                             id: 'procurement',
                             name: '采购管理',
                             icon: '🛒',
-                            completion: 85,
-                            features: ['采购申请', '审批流程', '供应商管理', '绩效评估'],
+                            completion: 98,
+                            features: ['采购申请', '供应商绩效评分', '成本优化分析'],
                             url: 'http://localhost:8013/docs#procurement'
                         },
                         {
                             id: 'receipt',
                             name: '到料管理',
                             icon: '📦',
-                            completion: 90,
+                            completion: 98,
                             features: ['到货通知', '质量检验', '不合格处理', '入库管理'],
                             url: 'http://localhost:8013/docs#receipt'
                         },
@@ -317,39 +317,39 @@
                             id: 'inventory',
                             name: '物料管理',
                             icon: '📊',
-                            completion: 90,
-                            features: ['库存变动', '批次管理', '库存预警', '成本核算'],
+                            completion: 98,
+                            features: ['库存变动', 'ABC分类', '库存优化', '成本核算'],
                             url: 'http://localhost:8013/docs#material'
                         },
                         {
                             id: 'warehouse',
                             name: '仓储管理',
                             icon: '🏭',
-                            completion: 88,
-                            features: ['库位管理', '智能上架', 'FIFO拣货', '利用率分析'],
+                            completion: 98,
+                            features: ['库位管理', '空间优化', '周转分析', '利用率分析'],
                             url: 'http://localhost:8013/docs#warehouse'
                         },
                         {
                             id: 'production',
                             name: '生产管理',
                             icon: '⚙️',
-                            completion: 70,
-                            features: ['生产计划', '执行跟踪', '产能分析', 'MRP计算'],
+                            completion: 95,
+                            features: ['生产计划', '产能负载分析', '智能排产', '效率优化', '异常检测'],
                             url: 'http://localhost:8013/docs#production'
                         },
                         {
                             id: 'quality',
                             name: '质量管理',
                             icon: '✅',
-                            completion: 70,
-                            features: ['质量检验', '不良品分析', '质量趋势'],
+                            completion: 95,
+                            features: ['质量检验', '趋势预测', '根因分析', '成本分析', '供应商评级'],
                             url: 'http://localhost:8013/docs#quality'
                         },
                         {
                             id: 'delivery',
                             name: '交付管理',
                             icon: '🚚',
-                            completion: 90,
+                            completion: 98,
                             features: ['交付计划', '装箱单', '发货单', '客户验收'],
                             url: 'http://localhost:8013/docs#delivery'
                         },
@@ -357,7 +357,7 @@
                             id: 'shipping',
                             name: '发运管理',
                             icon: '🚛',
-                            completion: 90,
+                            completion: 98,
                             features: ['发运排程', '车辆调度', '物流追踪', '运输统计'],
                             url: 'http://localhost:8013/docs#shipping'
                         },
@@ -365,40 +365,59 @@
                             id: 'equipment',
                             name: '设备管理',
                             icon: '🔧',
-                            completion: 90,
-                            features: ['设备台账', '维护计划', '故障维修', '健康度评估'],
+                            completion: 98,
+                            features: ['设备台账', '健康度预测', '维护成本优化'],
                             url: 'http://localhost:8013/docs#equipment'
                         },
                         {
                             id: 'process',
                             name: '工艺管理',
                             icon: '📐',
-                            completion: 88,
-                            features: ['工艺路线', '工序管理', '参数设置', '版本控制'],
+                            completion: 98,
+                            features: ['工艺路线', '工艺优化分析', '参数设置', '版本控制'],
                             url: 'http://localhost:8013/docs#process'
                         },
                         {
                             id: 'financial',
                             name: '财务管理',
                             icon: '💰',
-                            completion: 85,
-                            features: ['财务看板', '盈亏分析', '成本管控', '经营诊断'],
+                            completion: 98,
+                            features: ['财务看板', '现金流预测', '健康度评分', '预算差异分析'],
                             url: 'http://localhost:8013/docs#financial'
                         },
                         {
                             id: 'monitoring',
                             name: '闭环监控',
                             icon: '🔄',
-                            completion: 95,
-                            features: ['问题检测', '改进追踪', '效果验证', '闭环报告'],
+                            completion: 98,
+                            features: ['问题检测', '根因分析', '成熟度评估', '效果预测'],
                             url: 'http://localhost:8013/docs#monitoring'
+                        },
+                        {
+                            id: 'advanced_analytics',
+                            name: '高级经营分析',
+                            icon: '🔬',
+                            completion: 100,
+                            features: ['行业对比', 'ROI深度分析', '关键因素识别', '长期影响预测'],
+                            url: 'http://localhost:8013/docs#analytics-api'
                         }
                     ]
                 }
             },
+            computed: {
+                avgCompletion() {
+                    const total = this.modules.reduce((sum, m) => sum + m.completion, 0);
+                    return Math.round(total / this.modules.length);
+                }
+            },
             methods: {
                 openModule(module) {
-                    window.open(module.url, '_blank');
+                    if (module.id === 'advanced_analytics') {
+                        // 打开高级分析页面
+                        window.open('advanced-analytics.html', '_blank');
+                    } else {
+                        window.open(module.url, '_blank');
+                    }
                 },
                 viewDocs(module) {
                     alert(`查看 ${module.name} 文档`);
@@ -415,10 +434,10 @@
             new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['客户', '订单', '项目', '采购', '到料', '物料', '仓储', '生产', '质量', '交付', '发运', '设备', '工艺', '财务', '监控'],
+                    labels: ['客户', '订单', '项目', '采购', '到料', '物料', '仓储', '生产', '质量', '交付', '发运', '设备', '工艺', '财务', '监控', '高级分析'],
                     datasets: [{
                         label: '完成度 (%)',
-                        data: [70, 70, 75, 85, 90, 90, 88, 70, 70, 90, 90, 90, 88, 85, 95],
+                        data: [95, 95, 95, 98, 98, 98, 98, 95, 95, 98, 98, 98, 98, 98, 98, 100],
                         backgroundColor: [
                             'rgba(102, 126, 234, 0.8)',
                             'rgba(118, 75, 162, 0.8)',

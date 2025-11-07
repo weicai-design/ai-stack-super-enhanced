@@ -1,0 +1,130 @@
+name: Release - 发布管理
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  # ==================== 创建Release ====================
+  create-release:
+    name: 创建GitHub Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: 生成变更日志
+      id: changelog
+      run: |
+        # 获取上一个tag
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        CURRENT_TAG=${GITHUB_REF#refs/tags/}
+        
+        echo "从 $PREVIOUS_TAG 到 $CURRENT_TAG 的变更:"
+        
+        if [ -n "$PREVIOUS_TAG" ]; then
+          git log $PREVIOUS_TAG..$CURRENT_TAG --pretty=format:"- %s (%h)" > CHANGELOG_TEMP.md
+        else
+          git log --pretty=format:"- %s (%h)" > CHANGELOG_TEMP.md
+        fi
+        
+        echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+        cat CHANGELOG_TEMP.md >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: 创建Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: |
+          ## 🎉 AI Stack ${{ github.ref }} 发布！
+          
+          ### 📝 变更日志
+          ${{ steps.changelog.outputs.CHANGELOG }}
+          
+          ### 📦 安装方式
+          
+          **Docker方式**:
+          ```bash
+          docker pull aistack/ai-stack:${{ github.ref }}
+          docker-compose up -d
+          ```
+          
+          **K8s方式**:
+          ```bash
+          kubectl apply -f https://raw.githubusercontent.com/your-org/ai-stack/${{ github.ref }}/infra/k8s/
+          ```
+          
+          ### 📚 文档
+          - [用户手册](https://github.com/your-org/ai-stack/blob/${{ github.ref }}/USER_MANUAL.md)
+          - [API文档](https://github.com/your-org/ai-stack/blob/${{ github.ref }}/API_ENDPOINTS.md)
+          - [部署指南](https://github.com/your-org/ai-stack/blob/${{ github.ref }}/QUICK_START.md)
+        draft: false
+        prerelease: false
+    
+  # ==================== 发布到PyPI ====================
+  publish-pypi:
+    name: 发布到PyPI
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: 安装构建工具
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: 构建包
+      run: |
+        python -m build
+    
+    - name: 发布到PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        twine upload dist/*
+    
+  # ==================== 更新文档 ====================
+  update-docs:
+    name: 更新文档站点
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: 安装MkDocs
+      run: |
+        pip install mkdocs mkdocs-material
+    
+    - name: 构建文档
+      run: |
+        mkdocs build
+    
+    - name: 部署到GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./site
+

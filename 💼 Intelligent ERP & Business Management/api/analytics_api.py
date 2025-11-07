@@ -7,7 +7,16 @@ Analytics API
 1. 开源分析（需求2.1.2.1）
 2. 成本分析（需求2.1.2.2）
 3. 产出效益分析（需求2.1.2.3）
+4. 行业对比分析（高级）
+5. ROI深度分析（高级）
+6. 关键因素识别（高级）
+7. 长期影响预测（高级）
 """
+
+import sys
+from pathlib import Path
+# 添加analytics目录到路径
+sys.path.append(str(Path(__file__).parent.parent / "analytics"))
 
 from datetime import date, timedelta
 from typing import Dict, List, Optional, Any
@@ -25,6 +34,17 @@ from core.database_models import (
     CostCategory,
     PeriodType,
 )
+
+# 导入高级分析模块
+try:
+    from analytics.industry_comparator import industry_comparator
+    from analytics.roi_deep_analyzer import roi_deep_analyzer
+    from analytics.key_factor_identifier import key_factor_identifier
+    from analytics.long_term_predictor import long_term_predictor
+    ADVANCED_ANALYTICS_AVAILABLE = True
+except ImportError as e:
+    print(f"警告：高级分析模块导入失败: {e}")
+    ADVANCED_ANALYTICS_AVAILABLE = False
 
 router = APIRouter(prefix="/analytics", tags=["Analytics API"])
 
@@ -437,4 +457,243 @@ def _get_output_breakdown(output_data: List[FinancialData]) -> Dict[str, float]:
         subcat = item.subcategory or "其他"
         breakdown[subcat] = breakdown.get(subcat, 0.0) + float(item.amount)
     return breakdown
+
+
+# ============ 高级分析API ============
+
+@router.post("/industry-comparison")
+async def compare_with_industry(
+    company_data: Dict[str, Any],
+    industry: str = Query("制造业", description="行业名称"),
+):
+    """
+    行业对比分析
+    
+    将公司数据与行业基准对比
+    
+    Args:
+        company_data: 公司数据，格式：{
+            "revenue_growth": 0.15,  # 营收增长率
+            "profit_margin": 0.12,   # 利润率
+            "asset_turnover": 1.5,   # 资产周转率
+            "roe": 0.18,             # 股东权益回报率
+            "current_ratio": 1.8,    # 流动比率
+            "debt_ratio": 0.45       # 负债率
+        }
+        industry: 行业名称
+        
+    Returns:
+        行业对比分析结果
+    """
+    if not ADVANCED_ANALYTICS_AVAILABLE:
+        raise HTTPException(
+            status_code=503, 
+            detail="高级分析模块不可用，请检查analytics目录是否完整"
+        )
+    
+    try:
+        result = industry_comparator.compare_with_industry(
+            company_data=company_data,
+            industry=industry
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"行业对比分析失败: {str(e)}")
+
+
+@router.post("/competitive-position")
+async def analyze_competitive_position(
+    company_data: Dict[str, Any],
+    competitors_data: List[Dict[str, Any]],
+    industry: str = Query("制造业", description="行业名称"),
+):
+    """
+    竞争地位分析
+    
+    分析公司在竞争对手中的地位
+    
+    Args:
+        company_data: 公司数据
+        competitors_data: 竞争对手数据列表
+        industry: 行业名称
+        
+    Returns:
+        竞争地位分析结果
+    """
+    if not ADVANCED_ANALYTICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="高级分析模块不可用")
+    
+    try:
+        result = industry_comparator.analyze_competitive_position(
+            company_data=company_data,
+            competitors_data=competitors_data,
+            industry=industry
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"竞争地位分析失败: {str(e)}")
+
+
+@router.post("/roi-analysis")
+async def analyze_roi(
+    investment_data: Dict[str, Any]
+):
+    """
+    ROI深度分析
+    
+    对投资项目进行全面的ROI分析，包括NPV、IRR、回报周期等
+    
+    Args:
+        investment_data: 投资数据，格式：{
+            "investment_amount": 1000000,
+            "returns": [100000, 120000, 150000, 180000, 200000],
+            "costs": [20000, 25000, 30000, 32000, 35000],
+            "time_periods": ["Year1", "Year2", "Year3", "Year4", "Year5"],
+            "investment_type": "设备投资",
+            "risk_level": "中",
+            "efficiency_improvement": 15,  # 可选
+            "quality_improvement": 10,     # 可选
+            "market_expansion": 8          # 可选
+        }
+        
+    Returns:
+        ROI深度分析结果，包括：
+        - 基础ROI
+        - NPV（净现值）
+        - IRR（内部收益率）
+        - 回报周期
+        - 多维度ROI
+        - 风险调整ROI
+        - 基准对比
+        - 投资建议
+    """
+    if not ADVANCED_ANALYTICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="高级分析模块不可用")
+    
+    try:
+        result = roi_deep_analyzer.analyze_roi_comprehensive(
+            investment_data=investment_data
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ROI分析失败: {str(e)}")
+
+
+@router.post("/key-factors")
+async def identify_key_factors(
+    business_data: Dict[str, Any],
+    analysis_period: str = Query("年度", description="分析周期")
+):
+    """
+    关键因素识别
+    
+    智能识别对"利润=产出-投入"的关键影响因素
+    
+    Args:
+        business_data: 业务数据，格式：{
+            "revenue": 10000000,
+            "costs": {
+                "material": 4000000,
+                "labor": 2000000,
+                "manufacturing": 1000000,
+                "sales_expense": 500000,
+                "admin_expense": 300000,
+                "financial_expense": 200000
+            },
+            "profit": 2000000,
+            "historical_data": []  # 可选：历史数据
+        }
+        analysis_period: 分析周期
+        
+    Returns:
+        关键因素分析结果，包括：
+        - 成本结构分析
+        - 敏感性分析
+        - 因素重要性排名
+        - 关键因素识别
+        - 优化建议
+        - 趋势分析（如果提供历史数据）
+    """
+    if not ADVANCED_ANALYTICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="高级分析模块不可用")
+    
+    try:
+        result = key_factor_identifier.identify_key_factors(
+            business_data=business_data,
+            analysis_period=analysis_period
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"关键因素识别失败: {str(e)}")
+
+
+@router.post("/long-term-prediction")
+async def predict_long_term_impact(
+    project_data: Dict[str, Any],
+    prediction_years: int = Query(5, description="预测年数", ge=1, le=10)
+):
+    """
+    长期影响预测
+    
+    预测项目对未来3年、5年销售额的影响
+    
+    Args:
+        project_data: 项目数据，格式：{
+            "project_id": "PRJ001",
+            "estimated_order_value": 5000000,
+            "recurrence_probability": 0.7,
+            "growth_rate": 0.1,
+            "market_expansion": 0.05,
+            "competitive_factor": 0.9
+        }
+        prediction_years: 预测年数（1-10年）
+        
+    Returns:
+        长期预测结果，包括：
+        - 月度预测（第一年）
+        - 季度预测（第一年）
+        - 年度预测（1-5年）
+        - 三年累计影响
+        - 五年累计影响
+        - 战略影响分析
+        - 置信度评估
+    """
+    if not ADVANCED_ANALYTICS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="高级分析模块不可用")
+    
+    try:
+        result = long_term_predictor.predict_project_impact(
+            project_data=project_data,
+            prediction_years=prediction_years
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"长期预测失败: {str(e)}")
+
+
+@router.get("/advanced-analytics-status")
+async def get_advanced_analytics_status():
+    """
+    获取高级分析模块状态
+    
+    Returns:
+        模块可用性状态
+    """
+    return {
+        "success": True,
+        "advanced_analytics_available": ADVANCED_ANALYTICS_AVAILABLE,
+        "modules": {
+            "industry_comparator": ADVANCED_ANALYTICS_AVAILABLE,
+            "roi_deep_analyzer": ADVANCED_ANALYTICS_AVAILABLE,
+            "key_factor_identifier": ADVANCED_ANALYTICS_AVAILABLE,
+            "long_term_predictor": ADVANCED_ANALYTICS_AVAILABLE
+        },
+        "endpoints": [
+            "/analytics/industry-comparison",
+            "/analytics/competitive-position",
+            "/analytics/roi-analysis",
+            "/analytics/key-factors",
+            "/analytics/long-term-prediction"
+        ]
+    }
 

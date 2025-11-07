@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # ERP API服务
+  erp-api:
+    build: .
+    container_name: ai-stack-erp-api
+    ports:
+      - "8013:8013"
+    volumes:
+      # 持久化数据库
+      - ./erp_data.db:/app/erp_data.db
+      # 持久化日志
+      - ./logs:/app/logs
+      # 持久化备份
+      - ./backups:/app/backups
+      # 环境配置
+      - ./.env:/app/.env
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8013/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - erp-network
+
+  # 控制台服务（可选）
+  erp-dashboard:
+    image: python:3.9-slim
+    container_name: ai-stack-erp-dashboard
+    working_dir: /app
+    command: python -m http.server 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../unified-dashboard:/app
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    networks:
+      - erp-network
+
+  # Nginx反向代理（生产环境推荐）
+  nginx:
+    image: nginx:alpine
+    container_name: ai-stack-erp-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - erp-api
+      - erp-dashboard
+    restart: unless-stopped
+    networks:
+      - erp-network
+
+networks:
+  erp-network:
+    driver: bridge
+
+volumes:
+  erp-data:
+    driver: local
+  erp-logs:
+    driver: local
+  erp-backups:
+    driver: local
+

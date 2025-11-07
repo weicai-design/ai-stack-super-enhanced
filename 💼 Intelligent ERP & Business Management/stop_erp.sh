@@ -1,43 +1,83 @@
 #!/bin/bash
 
-echo "🛑 正在停止ERP系统..."
+################################################################################
+# AI-Stack ERP 停止脚本
+# 
+# 功能：
+# - 优雅停止服务
+# - 清理资源
+# - 保存日志
+################################################################################
+
+# 配置
+API_PORT=8013
+PID_FILE="/tmp/erp-api.pid"
+
+# 颜色
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+log_info() {
+    echo -e "ℹ️  $1"
+}
+
+log_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+echo ""
+echo "🛑 停止ERP系统..."
 echo ""
 
-# 方法1：使用保存的PID
-if [ -f /tmp/erp-backend.pid ]; then
-    BACKEND_PID=$(cat /tmp/erp-backend.pid)
-    echo "停止后端服务 (PID: $BACKEND_PID)..."
-    kill $BACKEND_PID 2>/dev/null
-    rm /tmp/erp-backend.pid
+# 方式1: 从PID文件停止
+if [ -f "$PID_FILE" ]; then
+    PID=$(cat "$PID_FILE")
+    if ps -p "$PID" > /dev/null 2>&1; then
+        log_info "终止进程 (PID: $PID)..."
+        kill -15 "$PID" 2>/dev/null || true
+        sleep 2
+        
+        # 检查是否还在运行
+        if ps -p "$PID" > /dev/null 2>&1; then
+            log_warning "进程未响应，强制终止..."
+            kill -9 "$PID" 2>/dev/null || true
+        fi
+        
+        log_success "进程已终止"
+    else
+        log_warning "PID文件存在但进程不存在"
+    fi
+    
+    rm -f "$PID_FILE"
+else
+    log_info "PID文件不存在，尝试通过端口查找..."
 fi
 
-if [ -f /tmp/erp-frontend.pid ]; then
-    FRONTEND_PID=$(cat /tmp/erp-frontend.pid)
-    echo "停止前端服务 (PID: $FRONTEND_PID)..."
-    kill $FRONTEND_PID 2>/dev/null
-    rm /tmp/erp-frontend.pid
+# 方式2: 通过端口停止
+if lsof -ti :$API_PORT > /dev/null 2>&1; then
+    log_info "清理端口${API_PORT}上的进程..."
+    lsof -ti :$API_PORT | xargs kill -15 2>/dev/null || true
+    sleep 2
+    
+    # 强制清理
+    if lsof -ti :$API_PORT > /dev/null 2>&1; then
+        lsof -ti :$API_PORT | xargs kill -9 2>/dev/null || true
+    fi
+    
+    log_success "端口已清理"
 fi
-
-# 方法2：通过端口查找并停止
-echo "清理端口占用..."
-lsof -ti :8012 | xargs kill -9 2>/dev/null
-lsof -ti :8013 | xargs kill -9 2>/dev/null
-
-sleep 1
 
 # 验证
-if lsof -i :8012 > /dev/null 2>&1; then
-    echo "❌ 端口8012仍被占用"
+if lsof -ti :$API_PORT > /dev/null 2>&1; then
+    log_warning "端口仍被占用，请手动检查"
 else
-    echo "✅ 前端服务已停止（端口8012）"
-fi
-
-if lsof -i :8013 > /dev/null 2>&1; then
-    echo "❌ 端口8013仍被占用"
-else
-    echo "✅ 后端服务已停止（端口8013）"
+    log_success "ERP系统已完全停止"
 fi
 
 echo ""
-echo "🎉 ERP系统已停止！"
-

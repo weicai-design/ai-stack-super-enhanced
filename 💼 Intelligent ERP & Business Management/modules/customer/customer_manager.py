@@ -489,6 +489,348 @@ class CustomerManager:
         ]
         
         return result
+    
+    # ============ 高级功能（新增）============
+    
+    def customer_lifecycle_analysis(self, customer_id: int) -> Dict[str, Any]:
+        """
+        客户生命周期分析
+        - 新客户阶段
+        - 成长阶段
+        - 成熟阶段
+        - 流失风险阶段
+        """
+        try:
+            customer = self.db.query(Customer).filter(
+                Customer.id == customer_id
+            ).first()
+            
+            if not customer:
+                return {"success": False, "error": "客户不存在"}
+            
+            # 获取客户订单
+            orders = self.db.query(Order).filter(
+                Order.customer_id == customer_id
+            ).order_by(Order.order_date).all()
+            
+            if not orders:
+                return {
+                    "success": True,
+                    "lifecycle_stage": "新客户",
+                    "days_since_first_order": 0,
+                    "total_orders": 0,
+                    "recommendation": "尚未产生订单，建议主动跟进"
+                }
+            
+            # 计算关键指标
+            first_order_date = orders[0].order_date
+            last_order_date = orders[-1].order_date
+            days_since_first = (datetime.now().date() - first_order_date).days
+            days_since_last = (datetime.now().date() - last_order_date).days
+            total_orders = len(orders)
+            total_amount = sum(o.order_amount or 0 for o in orders)
+            
+            # 判断生命周期阶段
+            if days_since_first < 90:
+                stage = "新客户"
+                recommendation = "积极培养，建立良好关系"
+            elif days_since_first < 365 and total_orders >= 3:
+                stage = "成长阶段"
+                recommendation = "持续跟进，提供优质服务"
+            elif total_orders >= 10:
+                stage = "成熟阶段"
+                recommendation = "维护忠诚度，提供增值服务"
+            elif days_since_last > 180:
+                stage = "流失风险"
+                recommendation = "紧急关注，主动联系挽回"
+            else:
+                stage = "稳定阶段"
+                recommendation = "定期回访，维护关系"
+            
+            return {
+                "success": True,
+                "customer_name": customer.name,
+                "lifecycle_stage": stage,
+                "days_since_first_order": days_since_first,
+                "days_since_last_order": days_since_last,
+                "total_orders": total_orders,
+                "total_amount": float(total_amount),
+                "average_days_between_orders": days_since_first / max(total_orders - 1, 1),
+                "recommendation": recommendation
+            }
+        
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def customer_churn_risk_analysis(self) -> Dict[str, Any]:
+        """
+        客户流失风险分析
+        识别有流失风险的客户
+        """
+        try:
+            # 获取所有客户
+            customers = self.db.query(Customer).all()
+            
+            high_risk = []
+            medium_risk = []
+            low_risk = []
+            
+            for customer in customers:
+                # 获取最近订单
+                last_order = self.db.query(Order).filter(
+                    Order.customer_id == customer.id
+                ).order_by(Order.order_date.desc()).first()
+                
+                if not last_order:
+                    high_risk.append({
+                        "customer_id": customer.id,
+                        "customer_name": customer.name,
+                        "risk_level": "高",
+                        "reason": "从未下单",
+                        "days_inactive": None
+                    })
+                    continue
+                
+                # 计算不活跃天数
+                days_inactive = (datetime.now().date() - last_order.order_date).days
+                
+                # 风险等级判断
+                if days_inactive > 180:
+                    high_risk.append({
+                        "customer_id": customer.id,
+                        "customer_name": customer.name,
+                        "risk_level": "高",
+                        "reason": f"{days_inactive}天未下单",
+                        "days_inactive": days_inactive,
+                        "last_order_date": last_order.order_date.isoformat()
+                    })
+                elif days_inactive > 90:
+                    medium_risk.append({
+                        "customer_id": customer.id,
+                        "customer_name": customer.name,
+                        "risk_level": "中",
+                        "reason": f"{days_inactive}天未下单",
+                        "days_inactive": days_inactive,
+                        "last_order_date": last_order.order_date.isoformat()
+                    })
+                else:
+                    low_risk.append({
+                        "customer_id": customer.id,
+                        "customer_name": customer.name,
+                        "risk_level": "低",
+                        "days_inactive": days_inactive
+                    })
+            
+            return {
+                "success": True,
+                "high_risk_customers": high_risk,
+                "medium_risk_customers": medium_risk,
+                "low_risk_customers": low_risk,
+                "statistics": {
+                    "total_customers": len(customers),
+                    "high_risk_count": len(high_risk),
+                    "medium_risk_count": len(medium_risk),
+                    "low_risk_count": len(low_risk),
+                    "high_risk_percentage": (len(high_risk) / len(customers) * 100) if customers else 0
+                }
+            }
+        
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def customer_segmentation(self) -> Dict[str, Any]:
+        """
+        客户细分分析（RFM模型）
+        R: Recency（最近一次购买）
+        F: Frequency（购买频率）
+        M: Monetary（购买金额）
+        """
+        try:
+            customers = self.db.query(Customer).all()
+            
+            customer_segments = []
+            
+            for customer in customers:
+                orders = self.db.query(Order).filter(
+                    Order.customer_id == customer.id
+                ).order_by(Order.order_date.desc()).all()
+                
+                if not orders:
+                    continue
+                
+                # R: 最近一次购买距今天数
+                recency = (datetime.now().date() - orders[0].order_date).days
+                
+                # F: 购买频率
+                frequency = len(orders)
+                
+                # M: 购买总金额
+                monetary = sum(o.order_amount or 0 for o in orders)
+                
+                # RFM评分（简化版：1-5分）
+                r_score = 5 if recency < 30 else 4 if recency < 90 else 3 if recency < 180 else 2 if recency < 365 else 1
+                f_score = 5 if frequency >= 20 else 4 if frequency >= 10 else 3 if frequency >= 5 else 2 if frequency >= 2 else 1
+                m_score = 5 if monetary >= 1000000 else 4 if monetary >= 500000 else 3 if monetary >= 100000 else 2 if monetary >= 50000 else 1
+                
+                # 综合得分
+                total_score = r_score + f_score + m_score
+                
+                # 客户分群
+                if total_score >= 13:
+                    segment = "VIP客户"
+                elif total_score >= 10:
+                    segment = "重要客户"
+                elif total_score >= 7:
+                    segment = "一般客户"
+                else:
+                    segment = "低价值客户"
+                
+                customer_segments.append({
+                    "customer_id": customer.id,
+                    "customer_name": customer.name,
+                    "recency_days": recency,
+                    "frequency": frequency,
+                    "monetary": float(monetary),
+                    "r_score": r_score,
+                    "f_score": f_score,
+                    "m_score": m_score,
+                    "total_score": total_score,
+                    "segment": segment
+                })
+            
+            # 按分群统计
+            from collections import Counter
+            segment_counts = Counter(c["segment"] for c in customer_segments)
+            
+            return {
+                "success": True,
+                "customer_segments": customer_segments,
+                "segment_distribution": dict(segment_counts),
+                "total_analyzed": len(customer_segments)
+            }
+        
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def customer_credit_rating(self, customer_id: int) -> Dict[str, Any]:
+        """
+        客户信用评级
+        基于历史订单、付款记录等
+        """
+        try:
+            customer = self.db.query(Customer).filter(
+                Customer.id == customer_id
+            ).first()
+            
+            if not customer:
+                return {"success": False, "error": "客户不存在"}
+            
+            orders = self.db.query(Order).filter(
+                Order.customer_id == customer_id
+            ).all()
+            
+            if not orders:
+                return {
+                    "success": True,
+                    "credit_rating": "未评级",
+                    "credit_score": 0,
+                    "reason": "暂无订单记录"
+                }
+            
+            # 评分因素
+            total_orders = len(orders)
+            total_amount = sum(o.order_amount or 0 for o in orders)
+            avg_amount = total_amount / total_orders
+            
+            # 客户历史长度
+            first_order_date = min(o.order_date for o in orders)
+            customer_age_days = (datetime.now().date() - first_order_date).days
+            
+            # 计算信用分数（满分100）
+            score = 0
+            
+            # 1. 订单数量（30分）
+            if total_orders >= 50:
+                score += 30
+            elif total_orders >= 20:
+                score += 25
+            elif total_orders >= 10:
+                score += 20
+            elif total_orders >= 5:
+                score += 15
+            else:
+                score += total_orders * 3
+            
+            # 2. 订单总额（30分）
+            if total_amount >= 5000000:
+                score += 30
+            elif total_amount >= 2000000:
+                score += 25
+            elif total_amount >= 1000000:
+                score += 20
+            elif total_amount >= 500000:
+                score += 15
+            else:
+                score += min(total_amount / 50000 * 3, 15)
+            
+            # 3. 客户历史（20分）
+            if customer_age_days >= 730:  # 2年
+                score += 20
+            elif customer_age_days >= 365:  # 1年
+                score += 15
+            elif customer_age_days >= 180:  # 半年
+                score += 10
+            else:
+                score += customer_age_days / 18
+            
+            # 4. 活跃度（20分）
+            last_order = max(o.order_date for o in orders)
+            days_since_last = (datetime.now().date() - last_order).days
+            if days_since_last < 30:
+                score += 20
+            elif days_since_last < 90:
+                score += 15
+            elif days_since_last < 180:
+                score += 10
+            else:
+                score += max(20 - days_since_last / 36, 0)
+            
+            # 信用等级
+            if score >= 90:
+                rating = "AAA级"
+                description = "优质客户，信用极好"
+            elif score >= 80:
+                rating = "AA级"
+                description = "优秀客户，信用良好"
+            elif score >= 70:
+                rating = "A级"
+                description = "良好客户，信用可靠"
+            elif score >= 60:
+                rating = "BBB级"
+                description = "一般客户，信用尚可"
+            elif score >= 50:
+                rating = "BB级"
+                description = "普通客户，需关注"
+            else:
+                rating = "B级"
+                description = "新客户或低活跃客户"
+            
+            return {
+                "success": True,
+                "customer_name": customer.name,
+                "credit_rating": rating,
+                "credit_score": round(score, 2),
+                "description": description,
+                "factors": {
+                    "total_orders": total_orders,
+                    "total_amount": float(total_amount),
+                    "customer_age_days": customer_age_days,
+                    "days_since_last_order": days_since_last
+                }
+            }
+        
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
 
 # 工具函数

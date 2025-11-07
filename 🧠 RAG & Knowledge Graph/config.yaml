@@ -1,0 +1,253 @@
+# RAG & Knowledge Graph 配置文件
+# 版本: v1.0.0
+
+# ========== RAG核心配置 ==========
+rag:
+  # 嵌入模型
+  embedding_model: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+  embedding_dimension: 384
+  
+  # 分块策略
+  chunk_size: 512
+  chunk_overlap: 50
+  chunk_method: "semantic"  # semantic, fixed, sentence
+  
+  # 检索配置
+  top_k: 5
+  similarity_threshold: 0.7
+  rerank: true
+  
+  # 缓存
+  enable_cache: true
+  cache_ttl: 3600  # 秒
+
+# ========== 向量数据库配置 ==========
+vector_store:
+  # 数据库类型: chroma, faiss, qdrant
+  type: "chroma"
+  
+  # Chroma配置
+  chroma:
+    persist_directory: "./data/chroma"
+    collection_name: "ai_stack_knowledge"
+    distance_function: "cosine"  # cosine, l2, ip
+    
+  # FAISS配置（备选）
+  faiss:
+    index_type: "IVFFlat"
+    nlist: 100
+    
+  # Qdrant配置（备选）
+  qdrant:
+    host: "localhost"
+    port: 6333
+    collection_name: "ai_stack"
+
+# ========== 知识图谱配置 ==========
+knowledge_graph:
+  # 是否启用
+  enabled: true
+  
+  # Neo4j配置
+  neo4j:
+    uri: "bolt://localhost:7687"
+    user: "neo4j"
+    password: "password"
+    database: "ai_stack"
+    
+  # 实体识别
+  entity_extraction:
+    model: "spacy"  # spacy, custom
+    min_confidence: 0.7
+    
+  # 关系抽取
+  relation_extraction:
+    model: "custom"
+    max_relations: 10
+
+# ========== 文件处理配置 ==========
+file_processing:
+  # 上传限制
+  max_file_size: 104857600  # 100MB
+  allowed_extensions:
+    documents: [".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md"]
+    code: [".py", ".js", ".java", ".cpp", ".go", ".rs", ".ts"]
+    images: [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"]
+    audio: [".mp3", ".wav", ".m4a", ".flac"]
+    video: [".mp4", ".avi", ".mkv", ".mov"]
+    data: [".json", ".xml", ".csv", ".sql", ".yaml"]
+    
+  # 临时文件目录
+  temp_dir: "./data/temp"
+  
+  # 存储目录
+  storage_dir: "./data/files"
+  
+  # OCR配置
+  ocr:
+    enabled: true
+    language: "chi_sim+eng"  # 中文+英文
+    
+  # 音频转文本
+  speech_to_text:
+    enabled: true
+    model: "whisper-base"
+
+# ========== 预处理配置 ==========
+preprocessing:
+  # 数据清洗
+  cleaning:
+    enabled: true
+    remove_html: true
+    remove_urls: true
+    remove_emails: true
+    remove_special_chars: true
+    normalize_whitespace: true
+    
+  # 标准化
+  normalization:
+    enabled: true
+    lowercase: false  # 保留大小写
+    remove_stopwords: false  # 保留停用词
+    lemmatization: false
+    
+  # 去重
+  deduplication:
+    enabled: true
+    similarity_threshold: 0.95
+    method: "hash"  # hash, embedding
+    
+  # 验证
+  validation:
+    enabled: true
+    min_length: 10
+    max_length: 10000
+    check_language: true
+    allowed_languages: ["zh", "en"]
+
+# ========== API配置 ==========
+api:
+  host: "0.0.0.0"
+  port: 8014
+  reload: false
+  workers: 4
+  
+  # CORS
+  cors:
+    enabled: true
+    origins: ["*"]
+    methods: ["*"]
+    headers: ["*"]
+    
+  # 限流
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+    
+  # 认证
+  auth:
+    enabled: false
+    api_key: ""
+
+# ========== 数据库配置 ==========
+database:
+  # SQLite配置
+  sqlite:
+    path: "./data/rag.db"
+    
+  # 表结构
+  tables:
+    documents: true
+    chunks: true
+    metadata: true
+    queries: true
+
+# ========== 日志配置 ==========
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "./logs/rag.log"
+  rotation: "100 MB"
+  retention: "30 days"
+
+# ========== 性能配置 ==========
+performance:
+  # 批处理
+  batch_size: 32
+  
+  # 并发
+  max_workers: 4
+  
+  # 内存限制
+  max_memory_mb: 2048
+
+# ========== 集成配置 ==========
+integration:
+  # ERP集成
+  erp:
+    enabled: true
+    auto_sync: true
+    sync_interval: 3600  # 秒
+    
+  # 交互中心集成
+  chat:
+    enabled: true
+    
+  # 其他模块
+  modules:
+    stock: false
+    content: false
+    trend: false
+
+# ========== 高级功能 ==========
+advanced:
+  # 自主分组
+  auto_clustering:
+    enabled: true
+    algorithm: "kmeans"  # kmeans, hierarchical, dbscan
+    n_clusters: 10
+    
+  # 主题建模
+  topic_modeling:
+    enabled: true
+    model: "lda"  # lda, nmf
+    n_topics: 20
+    
+  # 摘要生成
+  summarization:
+    enabled: true
+    max_length: 200
+    
+  # 问答增强
+  qa_enhancement:
+    enabled: true
+    use_rerank: true
+    use_knowledge_graph: true
+
+# ========== 安全配置 ==========
+security:
+  # 数据加密
+  encryption:
+    enabled: false
+    algorithm: "AES-256"
+    
+  # 访问控制
+  access_control:
+    enabled: false
+    
+  # 审计日志
+  audit:
+    enabled: true
+    log_file: "./logs/audit.log"
+
+
+
+
+
+
+
+
+
+
+
+

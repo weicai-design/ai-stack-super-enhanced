@@ -1,0 +1,12 @@
+这是一个测试文本文件。
+        
+它包含多个段落。用于测试文件处理器的功能。
+
+This is a test text file.
+It contains multiple paragraphs. For testing the file processor.
+
+测试内容包括：
+1. 中文文本
+2. English text
+3. 数字 123456
+4. 标点符号！？。，

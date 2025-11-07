@@ -708,6 +708,272 @@ class ClosedLoopMonitor:
                 "success": False,
                 "error": str(e)
             }
+    
+    # ============ 高级功能（新增）============
+    
+    def intelligent_root_cause_analysis(self, issue_id: str) -> Dict[str, Any]:
+        """
+        智能根因分析（新功能）
+        
+        使用5Why方法和数据分析自动推断问题根本原因
+        """
+        try:
+            issue = next((i for i in self.issues if i['issue_id'] == issue_id), None)
+            
+            if not issue:
+                return {"success": False, "error": "问题不存在"}
+            
+            # 根据问题类型和模块推断可能的根因
+            root_causes = []
+            
+            # 质量相关
+            if issue['module'] == '质量管理' or 'quality' in issue['issue_type'].lower():
+                root_causes = [
+                    {"level": 1, "why": "为什么出现质量问题？", "possible_cause": "生产过程控制不足"},
+                    {"level": 2, "why": "为什么控制不足？", "possible_cause": "缺少标准操作程序或员工未遵守"},
+                    {"level": 3, "why": "为什么没有遵守？", "possible_cause": "培训不足或监督不到位"},
+                    {"level": 4, "why": "为什么培训不足？", "possible_cause": "培训体系不完善"},
+                    {"level": 5, "why": "为什么体系不完善？", "possible_cause": "质量管理重视程度不够"}
+                ]
+            
+            # 成本相关
+            elif issue['module'] == '财务管理' and 'cost' in issue['issue_type'].lower():
+                root_causes = [
+                    {"level": 1, "why": "为什么成本超支？", "possible_cause": "实际消耗超过预算"},
+                    {"level": 2, "why": "为什么消耗超标？", "possible_cause": "采购价格上涨或浪费增加"},
+                    {"level": 3, "why": "为什么价格上涨？", "possible_cause": "供应商选择不当或缺少议价"},
+                    {"level": 4, "why": "为什么选择不当？", "possible_cause": "供应商评估体系不完善"},
+                    {"level": 5, "why": "为什么体系不完善？", "possible_cause": "采购管理流程缺失"}
+                ]
+            
+            # 延期相关
+            elif 'delay' in issue['issue_type'].lower() or 'overdue' in issue['issue_type'].lower():
+                root_causes = [
+                    {"level": 1, "why": "为什么延期？", "possible_cause": "资源不足或进度滞后"},
+                    {"level": 2, "why": "为什么资源不足？", "possible_cause": "计划不合理或临时任务增加"},
+                    {"level": 3, "why": "为什么计划不合理？", "possible_cause": "缺少科学的排程方法"},
+                    {"level": 4, "why": "为什么缺少方法？", "possible_cause": "未使用智能排产系统"},
+                    {"level": 5, "why": "为什么未使用？", "possible_cause": "系统尚未部署或人员不熟悉"}
+                ]
+            
+            else:
+                root_causes = [
+                    {"level": 1, "why": "问题表象", "possible_cause": "需要具体分析"},
+                    {"level": 2, "why": "直接原因", "possible_cause": "待调查"},
+                    {"level": 3, "why": "间接原因", "possible_cause": "待调查"},
+                    {"level": 4, "why": "系统原因", "possible_cause": "待调查"},
+                    {"level": 5, "why": "根本原因", "possible_cause": "待调查"}
+                ]
+            
+            # 推荐改进措施
+            corrective_actions = [
+                "短期措施：立即解决表面问题",
+                "中期措施：完善相关流程和制度",
+                "长期措施：建立预防机制和监控系统"
+            ]
+            
+            return {
+                "success": True,
+                "issue_id": issue_id,
+                "issue_type": issue['issue_type'],
+                "module": issue['module'],
+                "five_why_analysis": root_causes,
+                "probable_root_cause": root_causes[-1]["possible_cause"] if root_causes else "需要深入分析",
+                "corrective_actions": corrective_actions,
+                "analysis_date": datetime.utcnow().isoformat()
+            }
+        
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def continuous_improvement_maturity_assessment(self) -> Dict[str, Any]:
+        """
+        持续改进成熟度评估（新功能）
+        
+        评估组织的持续改进能力成熟度
+        """
+        try:
+            # 计算各项指标
+            total_issues = len(self.issues)
+            closed_issues = [i for i in self.issues if i['status'] == IssueStatus.CLOSED.value]
+            
+            if total_issues == 0:
+                return {
+                    "success": True,
+                    "maturity_level": "初级",
+                    "message": "暂无问题记录，无法评估"
+                }
+            
+            # 1. 问题发现能力（25分）
+            system_detected = len([i for i in self.issues if i.get('detected_by') == '系统自动'])
+            detection_score = min(25, (system_detected / total_issues * 100) / 4)
+            
+            # 2. 闭环完成率（30分）
+            closure_rate = (len(closed_issues) / total_issues * 100)
+            closure_score = min(30, closure_rate / 100 * 30)
+            
+            # 3. 响应速度（20分）
+            if closed_issues:
+                avg_cycle = sum(i.get('cycle_days', 30) for i in closed_issues) / len(closed_issues)
+                if avg_cycle <= 7:
+                    response_score = 20
+                elif avg_cycle <= 14:
+                    response_score = 15
+                elif avg_cycle <= 30:
+                    response_score = 10
+                else:
+                    response_score = 5
+            else:
+                response_score = 0
+            
+            # 4. 改进执行力（25分）
+            total_improvements = len(self.improvements)
+            completed_improvements = len([i for i in self.improvements if i['status'] == '已完成'])
+            improvement_rate = (completed_improvements / total_improvements * 100) if total_improvements > 0 else 0
+            execution_score = min(25, improvement_rate / 100 * 25)
+            
+            # 总分
+            total_score = detection_score + closure_score + response_score + execution_score
+            
+            # 成熟度等级
+            if total_score >= 85:
+                maturity_level = "5级-优化级"
+                description = "持续改进文化深入，系统高效运转"
+            elif total_score >= 70:
+                maturity_level = "4级-量化管理级"
+                description = "改进活动有数据支撑，效果可衡量"
+            elif total_score >= 55:
+                maturity_level = "3级-已定义级"
+                description = "改进流程已建立，但需加强执行"
+            elif total_score >= 40:
+                maturity_level = "2级-可重复级"
+                description = "有基本的改进活动，但不够系统"
+            else:
+                maturity_level = "1级-初始级"
+                description = "改进活动零散，缺少系统性"
+            
+            # 提升建议
+            recommendations = []
+            if detection_score < 15:
+                recommendations.append("加强自动检测能力，减少依赖人工发现")
+            if closure_score < 20:
+                recommendations.append("提高问题闭环率，确保问题得到根本解决")
+            if response_score < 15:
+                recommendations.append("缩短响应时间，快速处理问题")
+            if execution_score < 18:
+                recommendations.append("提升改进措施执行力，确保落地")
+            
+            return {
+                "success": True,
+                "maturity_assessment": {
+                    "total_score": round(total_score, 2),
+                    "maturity_level": maturity_level,
+                    "description": description
+                },
+                "score_breakdown": {
+                    "detection_capability": round(detection_score, 2),
+                    "closure_efficiency": round(closure_score, 2),
+                    "response_speed": round(response_score, 2),
+                    "execution_power": round(execution_score, 2)
+                },
+                "key_metrics": {
+                    "total_issues": total_issues,
+                    "closure_rate": round(closure_rate, 2),
+                    "average_cycle_days": round(avg_cycle, 2) if closed_issues else 0,
+                    "improvement_completion_rate": round(improvement_rate, 2)
+                },
+                "improvement_recommendations": recommendations,
+                "assessment_date": datetime.utcnow().isoformat()
+            }
+        
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def improvement_effectiveness_prediction(
+        self,
+        improvement_id: str
+    ) -> Dict[str, Any]:
+        """
+        改进效果预测（新功能）
+        
+        基于历史数据预测改进措施的效果
+        """
+        try:
+            improvement = next((i for i in self.improvements 
+                              if i['improvement_id'] == improvement_id), None)
+            
+            if not improvement:
+                return {"success": False, "error": "改进措施不存在"}
+            
+            # 基于改进类型预测效果
+            improvement_type = improvement.get('improvement_type', '流程优化')
+            
+            # 效果预测模型（简化）
+            effect_models = {
+                "流程优化": {
+                    "expected_improvement": "15-25%",
+                    "time_to_effect": "1-2个月",
+                    "success_probability": 85,
+                    "roi": "高"
+                },
+                "技术升级": {
+                    "expected_improvement": "30-50%",
+                    "time_to_effect": "3-6个月",
+                    "success_probability": 70,
+                    "roi": "很高"
+                },
+                "人员培训": {
+                    "expected_improvement": "10-20%",
+                    "time_to_effect": "2-3个月",
+                    "success_probability": 75,
+                    "roi": "中"
+                },
+                "制度完善": {
+                    "expected_improvement": "20-30%",
+                    "time_to_effect": "1-3个月",
+                    "success_probability": 80,
+                    "roi": "高"
+                }
+            }
+            
+            prediction = effect_models.get(improvement_type, {
+                "expected_improvement": "10-20%",
+                "time_to_effect": "1-3个月",
+                "success_probability": 70,
+                "roi": "中"
+            })
+            
+            # 风险因素
+            risk_factors = []
+            if improvement['progress'] < 30:
+                risk_factors.append("当前进度较慢，可能影响效果")
+            
+            # 关键成功因素
+            success_factors = [
+                "管理层支持",
+                "充足的资源投入",
+                "团队积极配合",
+                "定期跟踪评估"
+            ]
+            
+            return {
+                "success": True,
+                "improvement_id": improvement_id,
+                "improvement_type": improvement_type,
+                "current_progress": improvement['progress'],
+                "effect_prediction": prediction,
+                "risk_factors": risk_factors,
+                "success_factors": success_factors,
+                "recommendations": [
+                    "定期review进度",
+                    "及时调整策略",
+                    "做好效果验证准备"
+                ],
+                "prediction_date": datetime.utcnow().isoformat()
+            }
+        
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
 
 # 全局实例

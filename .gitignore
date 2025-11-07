@@ -95,3 +95,7 @@ ai-chat-center/server.log
 ai-chat-center/static/audio/*.mp3
 performance_report.json
 audit_report.json
+node_modules/
+__pycache__/
+*.pyc
+.cache/
