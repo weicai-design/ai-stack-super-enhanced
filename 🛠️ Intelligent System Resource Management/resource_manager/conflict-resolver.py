@@ -574,8 +574,47 @@ class ConflictResolver:
                 },
                 {"source": "conflict_resolver"},
             )
+        
+        # 如果有用户交互管理器，直接调用
+        interaction_manager = self.core_services.get("user_interaction_manager")
+        if interaction_manager:
+            try:
+                response = await interaction_manager.request_user_confirmation(
+                    title=f"资源冲突 - {conflict.severity.upper()}",
+                    message=(
+                        f"检测到资源冲突：\n\n"
+                        f"类型: {conflict.conflict_type.value}\n"
+                        f"严重程度: {conflict.severity}\n"
+                        f"描述: {conflict.description}\n\n"
+                        f"建议操作: {resolution.resolution_action.value}\n"
+                        f"涉及模块: {', '.join(resolution.target_modules)}\n"
+                        f"预期影响: {resolution.expected_impact}\n\n"
+                        f"是否执行建议的操作？"
+                    ),
+                    options=["执行", "取消", "稍后处理"],
+                    default_option="执行",
+                    priority=conflict.severity,
+                    timeout_seconds=60,
+                    callback=lambda r: self._handle_user_confirmation_response(
+                        conflict.conflict_id, resolution, r
+                    )
+                )
+                logger.info(f"用户对冲突 {conflict.conflict_id} 的响应: {response}")
+            except Exception as e:
+                logger.error(f"用户交互失败: {str(e)}")
 
         logger.info(f"已请求用户确认冲突解决方案: {conflict.conflict_id}")
+    
+    async def _handle_user_confirmation_response(
+        self, conflict_id: str, resolution: ConflictResolution, user_response: str
+    ):
+        """处理用户确认响应"""
+        if user_response == "执行":
+            # 执行解决方案
+            await self.resolve_conflict(conflict_id, resolution)
+        elif user_response == "稍后处理":
+            # 标记为稍后处理
+            logger.info(f"用户选择稍后处理冲突: {conflict_id}")
 
     async def _handle_resource_alert(self, event_data: Dict, metadata: Dict):
         """处理资源预警事件"""

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>趋势分析 V5.0 - AI-STACK</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --primary: #2563eb; --bg: #0f172a; --surface: #1e293b; --text: #f1f5f9; --border: #334155; }
+        body { font-family: Inter, sans-serif; background: var(--bg); color: var(--text); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .top-nav { background: var(--surface); padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+        .nav-title { font-size: 1.5rem; font-weight: 600; }
+        .btn { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; cursor: pointer; background: var(--primary); color: white; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+        .card { background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); }
+        .trend-item { background: #334155; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; }
+        .hot-badge { background: #ef4444; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+        .chart-container { background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); margin-top: 1.5rem; }
+        .chart-wrapper { height: 300px; }
+    </style>
+</head>
+<body>
+    <div class="top-nav">
+        <div class="nav-title">📈 趋势分析 V5.0</div>
+        <button class="btn" onclick="window.history.back()">← 返回</button>
+    </div>
+    <div class="container">
+        <div class="card-grid">
+            <div class="card"><h3>🔥 热点话题</h3><div style="margin-top: 1rem;">
+                <div class="trend-item"><span class="hot-badge">HOT</span> AI技术发展 <span style="float:right; color: #10b981;">↑ 235%</span></div>
+                <div class="trend-item">新能源汽车 <span style="float:right; color: #10b981;">↑ 128%</span></div>
+                <div class="trend-item">元宇宙应用 <span style="float:right; color: #10b981;">↑ 89%</span></div>
+            </div></div>
+            <div class="card"><h3>📊 数据采集</h3><div style="margin-top: 1rem;">
+                <p>数据源: <strong>15个</strong></p>
+                <p>今日采集: <strong>12,345条</strong></p>
+                <p>处理状态: <strong>运行中</strong></p>
+                <button class="btn" style="margin-top: 1rem;">配置数据源</button>
+            </div></div>
+            <div class="card"><h3>🤖 AI分析</h3><div style="margin-top: 1rem;">
+                <p>关键词提取: <strong>完成</strong></p>
+                <p>情感分析: <strong>完成</strong></p>
+                <p>趋势预测: <strong>进行中</strong></p>
+                <button class="btn" style="margin-top: 1rem;">生成报告</button>
+            </div></div>
+        </div>
+        <div class="chart-container">
+            <h3>📈 趋势变化曲线</h3>
+            <div class="chart-wrapper"><canvas id="trendChart"></canvas></div>
+        </div>
+    </div>
+    <script>
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: { labels: ['1日','2日','3日','4日','5日','6日','7日'], datasets: [
+                { label: 'AI技术', data: [100,120,145,180,210,250,335], borderColor: '#2563eb', tension: 0.4 },
+                { label: '新能源', data: [80,85,95,110,125,145,182], borderColor: '#10b981', tension: 0.4 }
+            ]},
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#f1f5f9' }}},
+                scales: { y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }}, x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }}}
+            }
+        });
+        
+        // ==================== 后端API连接（V5.6）====================
+        
+        async function loadTrendData() {
+            try {
+                console.log('📡 加载趋势数据...');
+                const response = await fetch('/api/trend/discover');
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ 趋势数据加载成功', data);
+                    
+                    // 更新热点话题（如果API返回）
+                    if (data.topics && data.topics.length > 0) {
+                        const container = document.querySelector('.card:first-child');
+                        if (container) {
+                            let html = '<h3>🔥 热点话题</h3><div style="margin-top: 1rem;">';
+                            data.topics.slice(0, 3).forEach((topic, idx) => {
+                                const badge = idx === 0 ? '<span class="hot-badge">HOT</span> ' : '';
+                                html += `<div class="trend-item">${badge}${topic.name} <span style="float:right; color: #10b981;">↑ ${topic.growth}%</span></div>`;
+                            });
+                            html += '</div>';
+                            container.innerHTML = html;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('⚠️  趋势API未就绪，使用演示数据:', error.message);
+            }
+        }
+        
+        // 生成报告功能
+        document.querySelectorAll('.btn').forEach(btn => {
+            if (btn.textContent.includes('生成报告')) {
+                btn.addEventListener('click', async () => {
+                    try {
+                        const response = await fetch('/api/trend/report', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ period: 'week', format: 'pdf' })
+                        });
+                        
+                        if (response.ok) {
+                            alert('✅ 报告生成任务已提交！');
+                        } else {
+                            alert('⚠️  报告生成功能开发中...');
+                        }
+                    } catch (error) {
+                        alert('⚠️  功能开发中...');
+                    }
+                });
+            }
+        });
+        
+        window.addEventListener('load', loadTrendData);
+        
+        console.log('✅ 趋势分析V5界面已加载（V5.6后端连接版）');
+    </script>
+</body>
+</html>

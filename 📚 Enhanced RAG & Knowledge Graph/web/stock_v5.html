@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票交易 V5.0 - AI-STACK</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --primary: #2563eb; --success: #10b981; --error: #ef4444; --bg: #0f172a; --surface: #1e293b; --text: #f1f5f9; --border: #334155; }
+        body { font-family: Inter, sans-serif; background: var(--bg); color: var(--text); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .top-nav { background: var(--surface); padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+        .nav-title { font-size: 1.5rem; font-weight: 600; }
+        .btn { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; cursor: pointer; background: var(--primary); color: white; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+        .card { background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); }
+        .stock-price { font-size: 2.5rem; font-weight: 700; }
+        .price-up { color: var(--success); }
+        .price-down { color: var(--error); }
+        .chart-wrapper { height: 300px; margin-top: 1rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+    <div class="top-nav">
+        <div class="nav-title">💰 股票交易 V5.0</div>
+        <button class="btn" onclick="window.history.back()">← 返回</button>
+    </div>
+    <div class="container">
+        <div class="grid">
+            <div class="card">
+                <h3>📊 实时行情</h3>
+                <div style="margin-top: 1rem;">
+                    <div>上证指数</div>
+                    <div class="stock-price price-up">3,245.67 <span style="font-size: 1rem;">+1.25%</span></div>
+                </div>
+                <div class="chart-wrapper"><canvas id="priceChart"></canvas></div>
+            </div>
+            <div class="card">
+                <h3>💼 我的持仓</h3>
+                <table>
+                    <thead><tr><th>代码</th><th>名称</th><th>持仓</th><th>盈亏</th></tr></thead>
+                    <tbody>
+                        <tr><td>600519</td><td>贵州茅台</td><td>100股</td><td class="price-up">+12.5%</td></tr>
+                        <tr><td>000001</td><td>平安银行</td><td>500股</td><td class="price-up">+5.3%</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card" style="margin-top: 1.5rem;">
+            <h3>🤖 策略回测</h3>
+            <div style="margin-top: 1rem;">
+                <button class="btn">新建策略</button>
+                <button class="btn" style="margin-left: 0.5rem;">开始回测</button>
+                <div style="margin-top: 1rem;">
+                    <p>策略名称: <strong>趋势跟踪策略</strong></p>
+                    <p>回测周期: <strong>2024-01-01 至 2025-11-09</strong></p>
+                    <p>年化收益: <strong class="price-up">+28.5%</strong></p>
+                    <p>最大回撤: <strong>-12.3%</strong></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const ctx = document.getElementById('priceChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: { labels: ['09:30','10:00','10:30','11:00','11:30','13:00','13:30','14:00','14:30','15:00'], 
+                datasets: [{ label: '价格', data: [3200,3210,3205,3215,3220,3230,3235,3240,3242,3245.67], 
+                borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#f1f5f9' }}},
+                scales: { y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }}, x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }}}
+            }
+        });
+        
+        // ==================== 后端API连接（V5.6）====================
+        
+        async function loadStockData() {
+            try {
+                console.log('📡 加载股票数据...');
+                const response = await fetch('/api/v5/stock/real/quotes?symbol=000001.SZ');
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ 股票数据加载成功', data);
+                    
+                    // 更新股价显示
+                    if (data.price) {
+                        document.querySelector('.stock-price').textContent = 
+                            data.price + ' ' + (data.change_percent > 0 ? '+' : '') + data.change_percent + '%';
+                    }
+                }
+            } catch (error) {
+                console.warn('⚠️  股票API未就绪，使用演示数据:', error.message);
+            }
+        }
+        
+        // 策略回测功能
+        document.querySelectorAll('.btn').forEach(btn => {
+            if (btn.textContent.includes('回测')) {
+                btn.addEventListener('click', async () => {
+                    try {
+                        const response = await fetch('/api/v5/stock/real/backtest', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                strategy_name: '趋势跟踪策略',
+                                start_date: '2024-01-01',
+                                end_date: '2025-11-09'
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            alert(`✅ 回测完成！\n年化收益: ${result.annual_return}%\n最大回撤: ${result.max_drawdown}%`);
+                        } else {
+                            alert('⚠️  回测功能使用演示数据');
+                        }
+                    } catch (error) {
+                        alert('⚠️  回测功能开发中...');
+                    }
+                });
+            }
+        });
+        
+        window.addEventListener('load', loadStockData);
+        
+        console.log('✅ 股票交易V5界面已加载（V5.6后端连接版）');
+    </script>
+</body>
+</html>

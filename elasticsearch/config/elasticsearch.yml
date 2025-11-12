@@ -1,0 +1,58 @@
+# Elasticsearch配置文件
+
+# 集群名称
+cluster.name: "ai-stack-cluster"
+
+# 节点名称
+node.name: "ai-stack-node-1"
+
+# 网络设置
+network.host: 0.0.0.0
+
+# HTTP端口
+http.port: 9200
+
+# 发现设置（单节点模式）
+discovery.type: single-node
+
+# 禁用安全特性（开发环境）
+xpack.security.enabled: false
+xpack.security.enrollment.enabled: false
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
+
+# 内存锁定（生产环境推荐）
+bootstrap.memory_lock: false
+
+# 数据和日志路径
+path.data: /usr/share/elasticsearch/data
+path.logs: /usr/share/elasticsearch/logs
+
+# 索引设置
+action.destructive_requires_name: true
+
+# 跨域设置（允许Head访问）
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+http.cors.allow-headers: "X-Requested-With,Content-Type,Content-Length,Authorization"
+
+# 中文分词插件配置（如果安装了IK分词器）
+# 需要先安装: elasticsearch-plugin install https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v8.11.0/elasticsearch-analysis-ik-8.11.0.zip
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

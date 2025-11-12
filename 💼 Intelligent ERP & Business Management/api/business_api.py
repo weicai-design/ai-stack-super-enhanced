@@ -14,6 +14,7 @@ from core.database import get_db
 from modules.customer.customer_manager import CustomerManager
 from modules.order.order_manager import OrderManager
 from modules.project.project_manager import ProjectManager
+from api.data_listener_api import data_listener
 
 
 router = APIRouter(prefix="/business", tags=["business"])
@@ -171,11 +172,13 @@ async def get_orders(
     db: Session = Depends(get_db)
 ):
     """获取订单列表"""
-    # TODO: 实现订单管理器
-    return {
-        "success": True,
-        "message": "订单管理功能开发中"
-    }
+    manager = OrderManager(db, data_listener=data_listener)
+    result = manager.list_orders(customer_id, status, None, None, page, page_size)
+    
+    if not result['success']:
+        raise HTTPException(status_code=400, detail=result.get('error', '获取订单列表失败'))
+    
+    return result
 
 
 # ============ 项目管理API（待实现） ============

@@ -1,486 +1,329 @@
 """
-Truth Verification Pipeline
 真实性验证管道
-
-功能概述：
-1. 多源信息交叉验证
-2. 可信度评分和评估
-3. 矛盾检测和解决
-4. 事实一致性检查
-
-版本: 1.0.0
-依赖: Knowledge Graph, Core Engine
+用于验证RAG检索结果的真实性和可信度
 """
-
-import asyncio
-import logging
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List
-
-from ..core import cross_document_analyzer
-from ..knowledge_graph.knowledge_inference_engine import KnowledgeInferenceEngine
-from . import PipelineConfig, PipelineType, register_pipeline
-
-logger = logging.getLogger(__name__)
-
-
-class VerificationStatus(Enum):
-    """验证状态枚举"""
-
-    VERIFIED = "verified"
-    PARTIALLY_VERIFIED = "partially_verified"
-    CONFLICTING = "conflicting"
-    UNVERIFIED = "unverified"
-    INCONCLUSIVE = "inconclusive"
-
-
-class EvidenceSource(Enum):
-    """证据来源枚举"""
-
-    KNOWLEDGE_GRAPH = "knowledge_graph"
-    EXTERNAL_SOURCES = "external_sources"
-    CROSS_DOCUMENT = "cross_document"
-    HISTORICAL_DATA = "historical_data"
-    EXPERT_CONSENSUS = "expert_consensus"
-
-
-@dataclass
-class Evidence:
-    """证据数据类"""
-
-    source: EvidenceSource
-    content: str
-    confidence: float
-    timestamp: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class VerificationResult:
-    """验证结果数据类"""
-
-    claim_id: str
-    original_claim: str
-    status: VerificationStatus
-    confidence_score: float
-    supporting_evidence: List[Evidence] = field(default_factory=list)
-    conflicting_evidence: List[Evidence] = field(default_factory=list)
-    verification_methods: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class VerificationMetrics:
-    """验证指标数据类"""
-
-    total_claims_verified: int = 0
-    verification_success_rate: float = 0.0
-    average_confidence: float = 0.0
-    source_reliability: Dict[EvidenceSource, float] = field(default_factory=dict)
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+import re
 
 
 class TruthVerificationPipeline:
-    """
-    真实性验证管道
-
-    核心功能：
-    1. 多维度信息真实性验证
-    2. 可信度综合评估
-    3. 矛盾信息检测和解决
-    4. 验证结果可信度评分
-    """
-
-    def __init__(self, config: PipelineConfig):
-        self.config = config
-
-        # 初始化验证组件
-        self.inference_engine = KnowledgeInferenceEngine.KnowledgeInferenceEngine()
-        self.cross_doc_analyzer = cross_document_analyzer.CrossDocumentAnalyzer()
-
-        # 验证状态
-        self._is_verifying = False
-        self.metrics = VerificationMetrics()
-
-        # 验证方法配置
-        self.verification_methods = {
-            "knowledge_graph_lookup": {
-                "enabled": True,
-                "weight": 0.4,
-                "min_confidence": 0.7,
-            },
-            "cross_document_analysis": {
-                "enabled": True,
-                "weight": 0.3,
-                "min_confidence": 0.6,
-            },
-            "temporal_consistency": {
-                "enabled": True,
-                "weight": 0.2,
-                "min_confidence": 0.5,
-            },
-            "source_reliability": {
-                "enabled": True,
-                "weight": 0.1,
-                "min_confidence": 0.8,
-            },
+    """真实性验证管道"""
+    
+    def __init__(self, llm_client=None):
+        """
+        初始化真实性验证管道
+        
+        Args:
+            llm_client: LLM客户端（可选，用于AI验证）
+        """
+        self.llm_client = llm_client
+        self.verification_cache = {}
+    
+    def verify(self, text: str, sources: List[Dict] = None) -> Dict[str, Any]:
+        """
+        验证文本的真实性
+        
+        Args:
+            text: 要验证的文本
+            sources: 来源信息列表
+        
+        Returns:
+            验证结果字典
+        """
+        result = {
+            "text": text,
+            "verified": False,
+            "confidence_score": 0.0,
+            "verification_details": {},
+            "sources": sources or [],
+            "timestamp": datetime.now().isoformat()
         }
-
-        # 证据源可靠性评分
-        self.source_reliability = {
-            EvidenceSource.KNOWLEDGE_GRAPH: 0.9,
-            EvidenceSource.EXPERT_CONSENSUS: 0.85,
-            EvidenceSource.HISTORICAL_DATA: 0.8,
-            EvidenceSource.CROSS_DOCUMENT: 0.75,
-            EvidenceSource.EXTERNAL_SOURCES: 0.6,
-        }
-
-        logger.info(f"TruthVerificationPipeline initialized with config: {config}")
-
-    async def initialize(self):
-        """初始化验证管道"""
-        try:
-            # 初始化推理引擎
-            await self.inference_engine.initialize()
-
-            # 初始化跨文档分析器
-            await self.cross_doc_analyzer.initialize()
-
-            logger.info("TruthVerificationPipeline initialized successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to initialize TruthVerificationPipeline: {e}")
-            raise
-
-    async def verify_claim(
-        self, claim: str, context: Dict[str, Any] = None
-    ) -> VerificationResult:
-        """验证单个声明"""
-        claim_id = self._generate_claim_id(claim, context)
-        result = VerificationResult(
-            claim_id=claim_id,
-            original_claim=claim,
-            status=VerificationStatus.UNVERIFIED,
-            confidence_score=0.0,
-            metadata=context or {},
-        )
-
-        self._is_verifying = True
-
-        try:
-            # 收集证据
-            all_evidence = await self._collect_evidence(claim, context)
-
-            # 分析证据
-            analysis_result = await self._analyze_evidence(claim, all_evidence, context)
-
-            # 确定验证状态
-            status, confidence = await self._determine_verification_status(
-                analysis_result
-            )
-
-            result.status = status
-            result.confidence_score = confidence
-            result.supporting_evidence = analysis_result.supporting_evidence
-            result.conflicting_evidence = analysis_result.conflicting_evidence
-            result.verification_methods = analysis_result.methods_used
-
-            # 更新指标
-            self._update_metrics(result)
-
-            logger.info(
-                f"Claim {claim_id} verification completed. "
-                f"Status: {status.value}, Confidence: {confidence:.2f}"
-            )
-
-        except Exception as e:
-            result.status = VerificationStatus.INCONCLUSIVE
-            result.confidence_score = 0.0
-            logger.error(f"Claim verification failed for {claim_id}: {e}")
-
-        finally:
-            self._is_verifying = False
-
-        return result
-
-    async def verify_batch(
-        self, claims: List[Tuple[str, Dict[str, Any]]]
-    ) -> List[VerificationResult]:
-        """批量验证声明"""
-        logger.info(f"Starting batch verification for {len(claims)} claims")
-
-        tasks = []
-        for claim, context in claims:
-            task = self.verify_claim(claim, context)
-            tasks.append(task)
-
-        # 限制并发验证
-        semaphore = asyncio.Semaphore(8)  # 最大并发数
-
-        async def verify_with_semaphore(task):
-            async with semaphore:
-                return await task
-
-        batch_tasks = [verify_with_semaphore(task) for task in tasks]
-        results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-
-        # 处理异常结果
-        processed_results = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                claim, context = claims[i]
-                claim_id = self._generate_claim_id(claim, context)
-                error_result = VerificationResult(
-                    claim_id=claim_id,
-                    original_claim=claim,
-                    status=VerificationStatus.INCONCLUSIVE,
-                    confidence_score=0.0,
-                    metadata=context,
-                )
-                processed_results.append(error_result)
-            else:
-                processed_results.append(result)
-
-        logger.info(
-            f"Batch verification completed. "
-            f"Verified: {sum(1 for r in processed_results if r.status == VerificationStatus.VERIFIED)}/{len(processed_results)}"
-        )
-
-        return processed_results
-
-    async def _collect_evidence(
-        self, claim: str, context: Dict[str, Any]
-    ) -> List[Evidence]:
-        """收集证据"""
-        evidence_list = []
-
-        # 知识图谱查询
-        if self.verification_methods["knowledge_graph_lookup"]["enabled"]:
-            kg_evidence = await self._query_knowledge_graph(claim, context)
-            evidence_list.extend(kg_evidence)
-
-        # 跨文档分析
-        if self.verification_methods["cross_document_analysis"]["enabled"]:
-            cross_doc_evidence = await self._analyze_cross_documents(claim, context)
-            evidence_list.extend(cross_doc_evidence)
-
-        # 时间一致性检查
-        if self.verification_methods["temporal_consistency"]["enabled"]:
-            temporal_evidence = await self._check_temporal_consistency(claim, context)
-            evidence_list.extend(temporal_evidence)
-
-        # 源可靠性分析
-        if self.verification_methods["source_reliability"]["enabled"]:
-            source_evidence = await self._analyze_source_reliability(claim, context)
-            evidence_list.extend(source_evidence)
-
-        return evidence_list
-
-    async def _query_knowledge_graph(
-        self, claim: str, context: Dict[str, Any]
-    ) -> List[Evidence]:
-        """查询知识图谱获取证据"""
-        try:
-            kg_results = await self.inference_engine.query_knowledge_graph(
-                claim, context
-            )
-
-            evidence_list = []
-            for result in kg_results:
-                evidence = Evidence(
-                    source=EvidenceSource.KNOWLEDGE_GRAPH,
-                    content=result.get("content", ""),
-                    confidence=result.get("confidence", 0.0),
-                    timestamp=result.get("timestamp", ""),
-                    metadata=result.get("metadata", {}),
-                )
-                evidence_list.append(evidence)
-
-            return evidence_list
-
-        except Exception as e:
-            logger.error(f"Knowledge graph query failed: {e}")
-            return []
-
-    async def _analyze_cross_documents(
-        self, claim: str, context: Dict[str, Any]
-    ) -> List[Evidence]:
-        """跨文档分析获取证据"""
-        try:
-            analysis_results = await self.cross_doc_analyzer.analyze_claim(
-                claim, context
-            )
-
-            evidence_list = []
-            for result in analysis_results:
-                evidence = Evidence(
-                    source=EvidenceSource.CROSS_DOCUMENT,
-                    content=result.get("content", ""),
-                    confidence=result.get("confidence", 0.0),
-                    timestamp=result.get("timestamp", ""),
-                    metadata=result.get("metadata", {}),
-                )
-                evidence_list.append(evidence)
-
-            return evidence_list
-
-        except Exception as e:
-            logger.error(f"Cross-document analysis failed: {e}")
-            return []
-
-    async def _check_temporal_consistency(
-        self, claim: str, context: Dict[str, Any]
-    ) -> List[Evidence]:
-        """检查时间一致性"""
-        try:
-            # 这里实现时间一致性检查逻辑
-            # 暂时返回空列表，实际实现需要集成时间序列分析
-            return []
-
-        except Exception as e:
-            logger.error(f"Temporal consistency check failed: {e}")
-            return []
-
-    async def _analyze_source_reliability(
-        self, claim: str, context: Dict[str, Any]
-    ) -> List[Evidence]:
-        """分析源可靠性"""
-        try:
-            # 这里实现源可靠性分析逻辑
-            # 暂时返回空列表，实际实现需要集成源可信度评估
-            return []
-
-        except Exception as e:
-            logger.error(f"Source reliability analysis failed: {e}")
-            return []
-
-    async def _analyze_evidence(
-        self, claim: str, evidence_list: List[Evidence], context: Dict[str, Any]
-    ) -> Any:
-        """分析收集到的证据"""
-
-        @dataclass
-        class EvidenceAnalysis:
-            supporting_evidence: List[Evidence]
-            conflicting_evidence: List[Evidence]
-            methods_used: List[str]
-            overall_confidence: float
-
-        supporting = []
-        conflicting = []
-        methods_used = set()
-
-        for evidence in evidence_list:
-            # 根据证据置信度和源可靠性评估证据
-            source_reliability = self.source_reliability.get(evidence.source, 0.5)
-            weighted_confidence = evidence.confidence * source_reliability
-
-            # 根据阈值分类证据
-            if weighted_confidence >= 0.7:
-                supporting.append(evidence)
-            elif weighted_confidence <= 0.3:
-                conflicting.append(evidence)
-
-            methods_used.add(evidence.source.value)
-
-        # 计算总体置信度
-        total_confidence = sum(ev.confidence for ev in supporting)
-        conflicting_penalty = sum(ev.confidence for ev in conflicting) * 0.5
-        overall_confidence = max(
-            0.0, (total_confidence - conflicting_penalty) / max(1, len(supporting))
-        )
-
-        return EvidenceAnalysis(
-            supporting_evidence=supporting,
-            conflicting_evidence=conflicting,
-            methods_used=list(methods_used),
-            overall_confidence=overall_confidence,
-        )
-
-    async def _determine_verification_status(
-        self, analysis_result: Any
-    ) -> Tuple[VerificationStatus, float]:
-        """确定验证状态"""
-        supporting_count = len(analysis_result.supporting_evidence)
-        conflicting_count = len(analysis_result.conflicting_evidence)
-        confidence = analysis_result.overall_confidence
-
-        if supporting_count >= 2 and conflicting_count == 0 and confidence >= 0.8:
-            return VerificationStatus.VERIFIED, confidence
-        elif supporting_count >= 1 and conflicting_count == 0 and confidence >= 0.6:
-            return VerificationStatus.PARTIALLY_VERIFIED, confidence
-        elif conflicting_count > 0 and supporting_count == 0:
-            return VerificationStatus.CONFLICTING, confidence
-        elif supporting_count == 0 and conflicting_count == 0:
-            return VerificationStatus.UNVERIFIED, confidence
+        
+        # 1. 基础验证
+        basic_score = self._basic_verification(text)
+        result["verification_details"]["basic"] = basic_score
+        
+        # 2. 来源验证
+        if sources:
+            source_score = self._verify_sources(sources)
+            result["verification_details"]["sources"] = source_score
         else:
-            return VerificationStatus.INCONCLUSIVE, confidence
-
-    def _generate_claim_id(self, claim: str, context: Dict[str, Any]) -> str:
-        """生成声明ID"""
-        import hashlib
-
-        claim_hash = hashlib.md5(claim.encode("utf-8")).hexdigest()[:12]
-        source = context.get("source", "unknown") if context else "unknown"
-        return f"{source}_{claim_hash}"
-
-    def _update_metrics(self, result: VerificationResult):
-        """更新验证指标"""
-        self.metrics.total_claims_verified += 1
-
-        # 更新验证成功率
-        success_count = sum(
-            1
-            for _ in range(self.metrics.total_claims_verified)
-            if result.status
-            in [VerificationStatus.VERIFIED, VerificationStatus.PARTIALLY_VERIFIED]
+            source_score = 0.5  # 无来源时中等可信度
+        
+        # 3. 一致性验证
+        consistency_score = self._check_consistency(text, sources)
+        result["verification_details"]["consistency"] = consistency_score
+        
+        # 4. 事实核查
+        fact_score = self._fact_check(text)
+        result["verification_details"]["facts"] = fact_score
+        
+        # 5. 时效性验证
+        timeliness_score = self._check_timeliness(text, sources)
+        result["verification_details"]["timeliness"] = timeliness_score
+        
+        # 计算综合置信度
+        weights = {
+            "basic": 0.2,
+            "sources": 0.25,
+            "consistency": 0.25,
+            "facts": 0.2,
+            "timeliness": 0.1
+        }
+        
+        confidence = (
+            basic_score * weights["basic"] +
+            source_score * weights["sources"] +
+            consistency_score * weights["consistency"] +
+            fact_score * weights["facts"] +
+            timeliness_score * weights["timeliness"]
         )
-        self.metrics.verification_success_rate = (
-            success_count / self.metrics.total_claims_verified
-        )
-
-        # 更新平均置信度
-        current_total = self.metrics.average_confidence * (
-            self.metrics.total_claims_verified - 1
-        )
-        self.metrics.average_confidence = (
-            current_total + result.confidence_score
-        ) / self.metrics.total_claims_verified
-
-    async def get_status(self) -> Dict[str, Any]:
-        """获取验证管道状态"""
+        
+        result["confidence_score"] = round(confidence, 3)
+        result["verified"] = confidence >= 0.7  # 70%以上认为可信
+        
+        # 生成验证建议
+        result["suggestions"] = self._generate_suggestions(result)
+        
+        return result
+    
+    def _basic_verification(self, text: str) -> float:
+        """基础验证：检查文本质量"""
+        score = 1.0
+        
+        # 检查长度（太短或太长都降低可信度）
+        length = len(text)
+        if length < 10:
+            score -= 0.3
+        elif length > 10000:
+            score -= 0.1
+        
+        # 检查是否包含可疑模式
+        suspicious_patterns = [
+            r'\b(假的|虚假|谣言|不实)\b',
+            r'\b(据说|听说|可能)\b',
+            r'\?\?\?',
+            r'!!!+'
+        ]
+        
+        for pattern in suspicious_patterns:
+            if re.search(pattern, text):
+                score -= 0.1
+        
+        return max(0.0, min(1.0, score))
+    
+    def _verify_sources(self, sources: List[Dict]) -> float:
+        """验证来源可信度"""
+        if not sources:
+            return 0.5
+        
+        total_score = 0.0
+        
+        for source in sources:
+            source_score = 1.0
+            
+            # 检查来源类型
+            source_type = source.get("type", "unknown")
+            if source_type in ["academic", "official", "verified"]:
+                source_score = 1.0
+            elif source_type in ["news", "media"]:
+                source_score = 0.8
+            elif source_type in ["blog", "forum"]:
+                source_score = 0.6
+            else:
+                source_score = 0.5
+            
+            # 检查是否有URL
+            if source.get("url"):
+                source_score += 0.1
+            
+            # 检查是否有作者
+            if source.get("author"):
+                source_score += 0.1
+            
+            # 检查是否有发布日期
+            if source.get("published_date"):
+                source_score += 0.1
+            
+            total_score += min(1.0, source_score)
+        
+        return total_score / len(sources)
+    
+    def _check_consistency(self, text: str, sources: List[Dict]) -> float:
+        """检查文本与来源的一致性"""
+        if not sources:
+            return 0.7  # 无来源时假设中等一致性
+        
+        # 简化实现：检查关键词匹配
+        text_keywords = set(self._extract_keywords(text))
+        
+        consistency_scores = []
+        for source in sources:
+            source_text = source.get("content", "")
+            source_keywords = set(self._extract_keywords(source_text))
+            
+            if not source_keywords:
+                continue
+            
+            # 计算关键词重叠率
+            overlap = len(text_keywords & source_keywords)
+            total = len(text_keywords | source_keywords)
+            
+            if total > 0:
+                consistency = overlap / total
+                consistency_scores.append(consistency)
+        
+        if not consistency_scores:
+            return 0.7
+        
+        return sum(consistency_scores) / len(consistency_scores)
+    
+    def _fact_check(self, text: str) -> float:
+        """事实核查"""
+        score = 1.0
+        
+        # 检查是否包含数字和日期（可验证的事实）
+        has_numbers = bool(re.search(r'\d+', text))
+        has_dates = bool(re.search(r'\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日]?', text))
+        
+        if has_numbers or has_dates:
+            score += 0.1  # 有具体数据，提高可信度
+        
+        # 检查是否包含不确定性词汇
+        uncertain_words = ['可能', '也许', '大概', '估计', '听说', '据说']
+        for word in uncertain_words:
+            if word in text:
+                score -= 0.05
+        
+        return max(0.0, min(1.0, score))
+    
+    def _check_timeliness(self, text: str, sources: List[Dict]) -> float:
+        """检查时效性"""
+        if not sources:
+            return 0.7
+        
+        now = datetime.now()
+        timeliness_scores = []
+        
+        for source in sources:
+            published_date = source.get("published_date")
+            if not published_date:
+                continue
+            
+            try:
+                if isinstance(published_date, str):
+                    pub_date = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                else:
+                    pub_date = published_date
+                
+                # 计算时间差（天）
+                days_diff = (now - pub_date).days
+                
+                # 越新越好
+                if days_diff < 7:
+                    timeliness = 1.0
+                elif days_diff < 30:
+                    timeliness = 0.9
+                elif days_diff < 90:
+                    timeliness = 0.8
+                elif days_diff < 365:
+                    timeliness = 0.7
+                else:
+                    timeliness = 0.6
+                
+                timeliness_scores.append(timeliness)
+            except:
+                continue
+        
+        if not timeliness_scores:
+            return 0.7
+        
+        return sum(timeliness_scores) / len(timeliness_scores)
+    
+    def _extract_keywords(self, text: str, top_k: int = 20) -> List[str]:
+        """提取关键词（简单实现）"""
+        # 移除标点和特殊字符
+        text_clean = re.sub(r'[^\w\s]', ' ', text)
+        
+        # 分词（简单按空格分）
+        words = text_clean.split()
+        
+        # 过滤停用词和短词
+        stop_words = {'的', '了', '在', '是', '和', '与', '等', '及', 'the', 'a', 'an', 'and', 'or', 'but'}
+        keywords = [w for w in words if len(w) > 1 and w.lower() not in stop_words]
+        
+        # 统计频率
+        word_freq = {}
+        for word in keywords:
+            word_freq[word] = word_freq.get(word, 0) + 1
+        
+        # 返回高频词
+        sorted_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
+        return [word for word, freq in sorted_words[:top_k]]
+    
+    def _generate_suggestions(self, result: Dict) -> List[str]:
+        """生成验证建议"""
+        suggestions = []
+        
+        confidence = result["confidence_score"]
+        details = result["verification_details"]
+        
+        if confidence < 0.5:
+            suggestions.append("⚠️ 可信度较低，建议进一步核实")
+        
+        if details.get("sources", 0) < 0.6:
+            suggestions.append("💡 建议添加更多权威来源")
+        
+        if details.get("consistency", 0) < 0.6:
+            suggestions.append("⚠️ 文本与来源一致性较低，请仔细核对")
+        
+        if details.get("timeliness", 0) < 0.6:
+            suggestions.append("📅 信息可能较旧，建议查找最新资料")
+        
+        if not result.get("sources"):
+            suggestions.append("📚 建议添加来源信息以提高可信度")
+        
+        if confidence >= 0.9:
+            suggestions.append("✅ 信息可信度很高")
+        
+        return suggestions
+    
+    def batch_verify(self, texts: List[str], sources_list: List[List[Dict]] = None) -> List[Dict]:
+        """批量验证"""
+        results = []
+        
+        for i, text in enumerate(texts):
+            sources = sources_list[i] if sources_list and i < len(sources_list) else None
+            result = self.verify(text, sources)
+            results.append(result)
+        
+        return results
+    
+    def get_verification_report(self, results: List[Dict]) -> Dict[str, Any]:
+        """生成验证报告"""
+        total = len(results)
+        if total == 0:
+            return {
+                "total": 0,
+                "verified": 0,
+                "average_confidence": 0.0
+            }
+        
+        verified_count = sum(1 for r in results if r["verified"])
+        avg_confidence = sum(r["confidence_score"] for r in results) / total
+        
         return {
-            "is_verifying": self._is_verifying,
-            "metrics": {
-                "total_claims_verified": self.metrics.total_claims_verified,
-                "verification_success_rate": self.metrics.verification_success_rate,
-                "average_confidence": self.metrics.average_confidence,
-                "source_reliability": {
-                    k.value: v for k, v in self.metrics.source_reliability.items()
-                },
-            },
+            "total": total,
+            "verified": verified_count,
+            "unverified": total - verified_count,
+            "verification_rate": round(verified_count / total, 3),
+            "average_confidence": round(avg_confidence, 3),
+            "high_confidence": sum(1 for r in results if r["confidence_score"] >= 0.9),
+            "medium_confidence": sum(1 for r in results if 0.7 <= r["confidence_score"] < 0.9),
+            "low_confidence": sum(1 for r in results if r["confidence_score"] < 0.7)
         }
 
-    async def stop(self):
-        """停止验证管道"""
-        self._is_verifying = False
-        logger.info("TruthVerificationPipeline stopped")
 
-
-# 注册管道
-pipeline_config = PipelineConfig(
-    name="truth_verification_pipeline",
-    pipeline_type=PipelineType.TRUTH_VERIFICATION,
-    enabled=True,
-    priority=3,
-    timeout=180,
-    max_retries=2,
-    batch_size=50,
-)
-
-
-@register_pipeline("truth_verification", pipeline_config)
-class RegisteredTruthVerificationPipeline(TruthVerificationPipeline):
-    """注册的真实性验证管道"""
-
-    pass
+# 全局实例
+truth_verifier = TruthVerificationPipeline()

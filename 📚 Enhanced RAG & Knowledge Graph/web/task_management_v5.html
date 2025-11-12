@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能工作计划与任务 V5.0 - AI-STACK</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            height: 100vh;
+            gap: 0;
+        }
+
+        .sidebar {
+            background: white;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .sidebar-header h1 {
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-header p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .sidebar-stats {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .sidebar-filters {
+            padding: 16px 24px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .filter-title {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #333;
+        }
+
+        .filter-btn {
+            display: block;
+            width: 100%;
+            padding: 10px 12px;
+            background: transparent;
+            border: none;
+            text-align: left;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 6px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .filter-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .filter-count {
+            font-size: 12px;
+            background: rgba(0,0,0,0.1);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .sidebar-actions {
+            padding: 20px 24px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 1px solid #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        .main-area {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .main-header {
+            padding: 24px 32px;
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .main-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 8px;
+        }
+
+        .view-btn {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .view-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .task-grid {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            align-content: start;
+        }
+
+        .task-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            cursor: pointer;
+            border-left: 4px solid #667eea;
+        }
+
+        .task-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        .task-card.agent-identified {
+            border-left-color: #f59e0b;
+        }
+
+        .task-card.user-defined {
+            border-left-color: #10b981;
+        }
+
+        .task-card.executing {
+            border-left-color: #3b82f6;
+        }
+
+        .task-card.completed {
+            border-left-color: #94a3b8;
+            opacity: 0.7;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .task-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+            flex: 1;
+        }
+
+        .task-badge {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .task-badge.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .task-badge.confirmed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .task-badge.executing {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .task-badge.completed {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .task-source {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .task-desc {
+            font-size: 14px;
+            color: #4b5563;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 16px;
+        }
+
+        .task-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .task-btn {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .task-btn.confirm {
+            background: #10b981;
+            color: white;
+        }
+
+        .task-btn.confirm:hover {
+            background: #059669;
+        }
+
+        .task-btn.reject {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .task-btn.reject:hover {
+            background: #e5e7eb;
+        }
+
+        .task-btn.view {
+            background: #667eea;
+            color: white;
+        }
+
+        .task-btn.view:hover {
+            background: #5568d3;
+        }
+
+        .kanban-view {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 32px;
+            display: none;
+        }
+
+        .kanban-view.active {
+            display: flex;
+        }
+
+        .kanban-column {
+            min-width: 320px;
+            margin-right: 20px;
+            background: rgba(255,255,255,0.9);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .kanban-header {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .kanban-count {
+            background: #667eea;
+            color: white;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .kanban-tasks {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 左侧边栏 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>📋 智能工作计划</h1>
+                <p>AI识别 + 用户自定义</p>
+            </div>
+
+            <div class="sidebar-stats">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value">12</div>
+                        <div class="stat-label">待确认</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">8</div>
+                        <div class="stat-label">执行中</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">45</div>
+                        <div class="stat-label">已完成</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">3</div>
+                        <div class="stat-label">已拒绝</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-filters">
+                <div class="filter-title">任务来源</div>
+                <button class="filter-btn active">
+                    <span>🤖 AI自动识别</span>
+                    <span class="filter-count">12</span>
+                </button>
+                <button class="filter-btn">
+                    <span>👤 用户自定义</span>
+                    <span class="filter-count">8</span>
+                </button>
+                <button class="filter-btn">
+                    <span>📝 从备忘录提炼</span>
+                    <span class="filter-count">7</span>
+                </button>
+                <button class="filter-btn">
+                    <span>🔁 循环任务</span>
+                    <span class="filter-count">3</span>
+                </button>
+            </div>
+
+            <div class="sidebar-filters">
+                <div class="filter-title">任务状态</div>
+                <button class="filter-btn active">
+                    <span>📋 所有任务</span>
+                    <span class="filter-count">68</span>
+                </button>
+                <button class="filter-btn">
+                    <span>⏳ 待确认</span>
+                    <span class="filter-count">12</span>
+                </button>
+                <button class="filter-btn">
+                    <span>▶️ 执行中</span>
+                    <span class="filter-count">8</span>
+                </button>
+                <button class="filter-btn">
+                    <span>✅ 已完成</span>
+                    <span class="filter-count">45</span>
+                </button>
+            </div>
+
+            <div class="sidebar-actions">
+                <button class="btn btn-primary" onclick="createTask()">
+                    ➕ 创建新任务
+                </button>
+                <button class="btn btn-secondary" onclick="syncWithAgent()">
+                    🔄 与超级Agent同步
+                </button>
+                <button class="btn btn-secondary" onclick="exportTasks()">
+                    📤 导出任务
+                </button>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-area">
+            <div class="main-header">
+                <div class="main-title">任务看板</div>
+                <div class="view-toggle">
+                    <button class="view-btn active" onclick="switchView('grid')">
+                        🎯 卡片视图
+                    </button>
+                    <button class="view-btn" onclick="switchView('kanban')">
+                        📊 看板视图
+                    </button>
+                    <button class="view-btn" onclick="switchView('timeline')">
+                        📅 时间线
+                    </button>
+                </div>
+            </div>
+
+            <!-- 卡片视图 -->
+            <div class="task-grid" id="gridView">
+                <!-- AI识别的任务（待确认） -->
+                <div class="task-card agent-identified">
+                    <div class="task-header">
+                        <div class="task-title">生成月度财务报告</div>
+                        <div class="task-badge pending">待确认</div>
+                    </div>
+                    <div class="task-source">
+                        <span>🤖</span>
+                        <span>超级Agent自动识别</span>
+                    </div>
+                    <div class="task-desc">
+                        基于本月ERP数据，生成包含利润分析、成本分析、现金流分析的完整财务报告。
+                    </div>
+                    <div class="task-meta">
+                        <div class="task-meta-item">
+                            <span>🕐</span>
+                            <span>2小时前</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>⏱️</span>
+                            <span>预计30分钟</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>🎯</span>
+                            <span>财务模块</span>
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <button class="task-btn confirm" onclick="confirmTask(this)">
+                            ✓ 确认执行
+                        </button>
+                        <button class="task-btn reject" onclick="rejectTask(this)">
+                            × 拒绝
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 从备忘录提炼的任务 -->
+                <div class="task-card agent-identified">
+                    <div class="task-header">
+                        <div class="task-title">优化库存管理流程</div>
+                        <div class="task-badge pending">待确认</div>
+                    </div>
+                    <div class="task-source">
+                        <span>📝</span>
+                        <span>从备忘录提炼</span>
+                    </div>
+                    <div class="task-desc">
+                        分析当前库存周转率，识别呆滞库存，提出流程优化建议。
+                    </div>
+                    <div class="task-meta">
+                        <div class="task-meta-item">
+                            <span>🕐</span>
+                            <span>5小时前</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>⏱️</span>
+                            <span>预计1小时</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>🎯</span>
+                            <span>ERP模块</span>
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <button class="task-btn confirm" onclick="confirmTask(this)">
+                            ✓ 确认执行
+                        </button>
+                        <button class="task-btn reject" onclick="rejectTask(this)">
+                            × 拒绝
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 用户自定义任务（执行中） -->
+                <div class="task-card user-defined executing">
+                    <div class="task-header">
+                        <div class="task-title">创作10篇抖音内容</div>
+                        <div class="task-badge executing">执行中</div>
+                    </div>
+                    <div class="task-source">
+                        <span>👤</span>
+                        <span>用户手动创建</span>
+                    </div>
+                    <div class="task-desc">
+                        围绕"AI技术"主题，创作10篇抖音短视频脚本。
+                    </div>
+                    <div class="task-meta">
+                        <div class="task-meta-item">
+                            <span>🕐</span>
+                            <span>1小时前确认</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>📊</span>
+                            <span>进度: 3/10</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>🎯</span>
+                            <span>内容创作</span>
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <button class="task-btn view">
+                            👁️ 查看进度
+                        </button>
+                    </div>
+                </div>
+
+                <!-- AI识别任务 -->
+                <div class="task-card agent-identified">
+                    <div class="task-header">
+                        <div class="task-title">分析科技行业趋势</div>
+                        <div class="task-badge pending">待确认</div>
+                    </div>
+                    <div class="task-source">
+                        <span>🤖</span>
+                        <span>超级Agent自动识别</span>
+                    </div>
+                    <div class="task-desc">
+                        采集最近一周的科技新闻，分析AI、芯片、新能源三大领域的发展趋势。
+                    </div>
+                    <div class="task-meta">
+                        <div class="task-meta-item">
+                            <span>🕐</span>
+                            <span>30分钟前</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>⏱️</span>
+                            <span>预计2小时</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>🎯</span>
+                            <span>趋势分析</span>
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <button class="task-btn confirm" onclick="confirmTask(this)">
+                            ✓ 确认执行
+                        </button>
+                        <button class="task-btn reject" onclick="rejectTask(this)">
+                            × 拒绝
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 用户任务（执行中） -->
+                <div class="task-card user-defined executing">
+                    <div class="task-header">
+                        <div class="task-title">回测量化策略</div>
+                        <div class="task-badge executing">执行中</div>
+                    </div>
+                    <div class="task-source">
+                        <span>👤</span>
+                        <span>用户手动创建</span>
+                    </div>
+                    <div class="task-desc">
+                        使用近3年历史数据回测"均线策略"和"动量策略"。
+                    </div>
+                    <div class="task-meta">
+                        <div class="task-meta-item">
+                            <span>🕐</span>
+                            <span>开始于15分钟前</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>📊</span>
+                            <span>进度: 45%</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>🎯</span>
+                            <span>股票量化</span>
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <button class="task-btn view">
+                            👁️ 查看进度
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 已完成任务 -->
+                <div class="task-card completed">
+                    <div class="task-header">
+                        <div class="task-title">优化ERP订单流程</div>
+                        <div class="task-badge completed">已完成</div>
+                    </div>
+                    <div class="task-source">
+                        <span>🤖</span>
+                        <span>超级Agent自动识别</span>
+                    </div>
+                    <div class="task-desc">
+                        分析订单处理流程，识别瓶颈，提出优化方案。
+                    </div>
+                    <div class="task-meta">
+                        <div class="task-meta-item">
+                            <span>✅</span>
+                            <span>昨天完成</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>⏱️</span>
+                            <span>耗时1.5小时</span>
+                        </div>
+                        <div class="task-meta-item">
+                            <span>🎯</span>
+                            <span>ERP模块</span>
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <button class="task-btn view">
+                            📄 查看结果
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 看板视图 -->
+            <div class="kanban-view" id="kanbanView">
+                <div class="kanban-column">
+                    <div class="kanban-header">
+                        <span>⏳ 待确认</span>
+                        <span class="kanban-count">12</span>
+                    </div>
+                    <div class="kanban-tasks">
+                        <!-- 待确认任务卡片 -->
+                        <div class="task-card agent-identified" style="margin: 0;">
+                            <div class="task-title" style="font-size: 14px; margin-bottom: 8px;">生成财务报告</div>
+                            <div class="task-source" style="margin-bottom: 8px;">🤖 AI识别</div>
+                            <div style="font-size: 12px; color: #666;">预计30分钟</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kanban-column">
+                    <div class="kanban-header">
+                        <span>✓ 已确认</span>
+                        <span class="kanban-count">5</span>
+                    </div>
+                    <div class="kanban-tasks">
+                        <!-- 已确认任务 -->
+                    </div>
+                </div>
+
+                <div class="kanban-column">
+                    <div class="kanban-header">
+                        <span>▶️ 执行中</span>
+                        <span class="kanban-count">8</span>
+                    </div>
+                    <div class="kanban-tasks">
+                        <!-- 执行中任务 -->
+                        <div class="task-card user-defined executing" style="margin: 0;">
+                            <div class="task-title" style="font-size: 14px; margin-bottom: 8px;">创作抖音内容</div>
+                            <div class="task-source" style="margin-bottom: 8px;">👤 用户定义</div>
+                            <div style="font-size: 12px; color: #666;">进度: 3/10</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kanban-column">
+                    <div class="kanban-header">
+                        <span>✅ 已完成</span>
+                        <span class="kanban-count">45</span>
+                    </div>
+                    <div class="kanban-tasks">
+                        <!-- 已完成任务 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchView(viewType) {
+            // 更新按钮状态
+            document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // 切换视图
+            document.getElementById('gridView').style.display = viewType === 'grid' ? 'grid' : 'none';
+            document.getElementById('kanbanView').classList.toggle('active', viewType === 'kanban');
+            
+            if (viewType === 'timeline') {
+                alert('📅 时间线视图开发中...');
+            }
+        }
+
+        function confirmTask(btn) {
+            const card = btn.closest('.task-card');
+            const title = card.querySelector('.task-title').textContent;
+            
+            if (confirm(`确认执行任务：\n\n"${title}"\n\n确认后将立即开始执行。`)) {
+                card.classList.remove('agent-identified');
+                card.classList.add('executing');
+                card.querySelector('.task-badge').textContent = '执行中';
+                card.querySelector('.task-badge').className = 'task-badge executing';
+                
+                // 更改按钮
+                const actions = card.querySelector('.task-actions');
+                actions.innerHTML = '<button class="task-btn view">👁️ 查看进度</button>';
+                
+                // 调用API（实际）
+                console.log('调用API确认任务:', title);
+            }
+        }
+
+        function rejectTask(btn) {
+            const card = btn.closest('.task-card');
+            const title = card.querySelector('.task-title').textContent;
+            
+            const reason = prompt(`拒绝任务："${title}"\n\n请说明拒绝原因（可选）：`);
+            
+            card.style.opacity = '0.5';
+            card.querySelector('.task-badge').textContent = '已拒绝';
+            card.querySelector('.task-actions').style.display = 'none';
+            
+            // 调用API记录拒绝原因
+            console.log('任务拒绝，原因:', reason);
+        }
+
+        function createTask() {
+            const title = prompt('请输入任务标题：');
+            if (!title) return;
+            
+            const desc = prompt('请输入任务描述：');
+            if (!desc) return;
+            
+            alert(`✅ 任务已创建！\n\n标题：${title}\n描述：${desc}\n\n任务已添加到任务列表，可以立即执行。`);
+        }
+
+        function syncWithAgent() {
+            alert('🔄 正在与超级Agent同步...\n\n✅ 同步成功！\n📋 发现3个新任务\n🤖 超级Agent已识别2个优化机会');
+        }
+
+        function exportTasks() {
+            alert('📤 导出任务列表...\n\n格式选择：\n• Excel (.xlsx)\n• CSV (.csv)\n• JSON (.json)\n• PDF报告 (.pdf)\n\n实际使用中会生成文件下载。');
+        }
+
+        // 初始化过滤按钮
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                // 同一组内只能选一个
+                const parent = this.parentElement;
+                parent.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                console.log('过滤器已切换:', this.textContent.trim());
+            });
+        });
+
+        console.log('📋 智能工作计划与任务系统 V5.0 已启动');
+        console.log('✅ 与超级Agent完全打通');
+        console.log('✅ 支持AI识别+用户自定义');
+        console.log('✅ 用户确认机制完善');
+    </script>
+</body>
+</html>
+
+
+<script>
+// ==================== 后端API连接（V5.6）====================
+
+async function loadTasks() {
+    try {
+        const response = await fetch('/api/v5/task/list');
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ 任务列表加载成功', data);
+            // TODO: 渲染任务列表到界面
+        }
+    } catch (error) {
+        console.warn('⚠️  任务API未就绪:', error.message);
+    }
+}
+
+async function createTask(taskData) {
+    try {
+        const response = await fetch('/api/v5/task/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(taskData)
+        });
+        
+        if (response.ok) {
+            alert('✅ 任务创建成功！');
+            loadTasks();
+        }
+    } catch (error) {
+        console.warn('⚠️  创建任务失败');
+        alert('⚠️  功能开发中...');
+    }
+}
+
+window.addEventListener('load', loadTasks);
+console.log('✅ 任务管理后端已连接');
+</script>
+

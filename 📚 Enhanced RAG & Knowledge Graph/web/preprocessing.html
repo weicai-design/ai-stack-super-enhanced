@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG数据预处理 - AI-STACK</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { margin-bottom: 30px; color: #333; }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .section h2 {
+            margin-bottom: 15px;
+            color: #555;
+            font-size: 18px;
+        }
+        .config-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .config-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .config-item label {
+            font-size: 14px;
+            color: #666;
+        }
+        .config-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+        .config-item input[type="text"],
+        .config-item input[type="number"],
+        .config-item select {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .btn {
+            padding: 10px 20px;
+            background: #4caf50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        .btn:hover { background: #45a049; }
+        .btn-secondary {
+            background: #2196f3;
+        }
+        .btn-secondary:hover {
+            background: #1976d2;
+        }
+        .result-area {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 200px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 RAG数据预处理</h1>
+        
+        <!-- 清洗配置 -->
+        <div class="section">
+            <h2>1. 数据清洗配置</h2>
+            <div class="config-group">
+                <div class="config-item">
+                    <input type="checkbox" id="remove-invalid-chars" checked>
+                    <label for="remove-invalid-chars">移除无效字符</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="remove-whitespace" checked>
+                    <label for="remove-whitespace">移除多余空白</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="remove-html-tags" checked>
+                    <label for="remove-html-tags">移除HTML标签</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="remove-special-chars">
+                    <label for="remove-special-chars">移除特殊字符</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="remove-duplicate-lines" checked>
+                    <label for="remove-duplicate-lines">移除重复行</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="remove-empty-lines" checked>
+                    <label for="remove-empty-lines">移除空行</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- 标准化配置 -->
+        <div class="section">
+            <h2>2. 数据标准化配置</h2>
+            <div class="config-group">
+                <div class="config-item">
+                    <label>编码格式:</label>
+                    <select id="encoding">
+                        <option value="utf-8" selected>UTF-8</option>
+                        <option value="gbk">GBK</option>
+                        <option value="gb2312">GB2312</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>换行符:</label>
+                    <select id="line-ending">
+                        <option value="lf" selected>LF (\n)</option>
+                        <option value="crlf">CRLF (\r\n)</option>
+                        <option value="cr">CR (\r)</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>日期格式:</label>
+                    <select id="date-format">
+                        <option value="iso" selected>ISO (2025-11-12)</option>
+                        <option value="us">US (11/12/2025)</option>
+                        <option value="eu">EU (12/11/2025)</option>
+                        <option value="cn">CN (2025年11月12日)</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="normalize-case" checked>
+                    <label for="normalize-case">统一大小写</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="normalize-numbers" checked>
+                    <label for="normalize-numbers">统一数字格式</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="normalize-punctuation" checked>
+                    <label for="normalize-punctuation">统一标点符号</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- 去重配置 -->
+        <div class="section">
+            <h2>3. 数据去重配置</h2>
+            <div class="config-group">
+                <div class="config-item">
+                    <label>算法:</label>
+                    <select id="dedup-algorithm">
+                        <option value="cosine" selected>余弦相似度</option>
+                        <option value="jaccard">Jaccard相似度</option>
+                        <option value="hamming">汉明距离</option>
+                        <option value="levenshtein">编辑距离</option>
+                        <option value="simhash">SimHash</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>相似度阈值:</label>
+                    <input type="number" id="similarity-threshold" value="0.85" min="0" max="1" step="0.05">
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="exact-duplicate" checked>
+                    <label for="exact-duplicate">精确去重</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="fuzzy-duplicate" checked>
+                    <label for="fuzzy-duplicate">模糊去重</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="semantic-duplicate">
+                    <label for="semantic-duplicate">语义去重</label>
+                </div>
+                <div class="config-item">
+                    <label>去重策略:</label>
+                    <select id="dedup-strategy">
+                        <option value="keep-first" selected>保留第一个</option>
+                        <option value="keep-last">保留最后一个</option>
+                        <option value="keep-best">保留最佳</option>
+                        <option value="merge">合并</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 验证配置 -->
+        <div class="section">
+            <h2>4. 数据验证配置</h2>
+            <div class="config-group">
+                <div class="config-item">
+                    <input type="checkbox" id="validate-format" checked>
+                    <label for="validate-format">格式验证</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="validate-content" checked>
+                    <label for="validate-content">内容验证</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="validate-completeness" checked>
+                    <label for="validate-completeness">完整性验证</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="validate-consistency" checked>
+                    <label for="validate-consistency">一致性验证</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作区 -->
+        <div class="section">
+            <h2>5. 执行预处理</h2>
+            <div>
+                <button class="btn" onclick="startPreprocessing()">开始预处理</button>
+                <button class="btn btn-secondary" onclick="loadConfig()">加载配置</button>
+                <button class="btn btn-secondary" onclick="saveConfig()">保存配置</button>
+            </div>
+            <div id="status" class="status info" style="display: none;"></div>
+            <div class="result-area" id="result">等待执行预处理任务...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api/v5/rag/preprocessing';
+
+        // 页面加载时获取默认配置
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch(`${API_BASE}/config`);
+                const config = await response.json();
+                loadConfigToUI(config);
+            } catch (error) {
+                console.error('加载默认配置失败:', error);
+            }
+        });
+
+        async function startPreprocessing() {
+            const statusDiv = document.getElementById('status');
+            const resultDiv = document.getElementById('result');
+            
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status info';
+            statusDiv.textContent = '正在执行批量预处理...';
+            resultDiv.textContent = '处理中，请稍候...';
+
+            try {
+                // 收集配置
+                const batchConfig = {
+                    steps: ["cleaning", "standardization", "deduplication", "validation"],
+                    scope: "all",
+                    parallel: true,
+                    max_workers: 4
+                };
+
+                const response = await fetch(`${API_BASE}/batch`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(batchConfig)
+                });
+
+                const result = await response.json();
+
+                if (result.success_count !== undefined) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = `预处理完成！成功: ${result.success_count}, 失败: ${result.failed_count}`;
+                    
+                    // 格式化显示结果
+                    let resultText = `批量预处理结果:\n`;
+                    resultText += `总文档数: ${result.total_docs}\n`;
+                    resultText += `成功: ${result.success_count}\n`;
+                    resultText += `失败: ${result.failed_count}\n`;
+                    resultText += `总耗时: ${result.total_time}秒\n\n`;
+                    resultText += `步骤详情:\n`;
+                    result.steps.forEach(step => {
+                        resultText += `- ${step.step}: ${step.duration}秒\n`;
+                    });
+                    resultDiv.textContent = resultText;
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `预处理失败: ${result.error || '未知错误'}`;
+                    resultDiv.textContent = JSON.stringify(result, null, 2);
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `错误: ${error.message}`;
+                resultDiv.textContent = `连接错误: ${error.toString()}\n\n请确保RAG API服务正在运行 (http://localhost:8000)`;
+            }
+        }
+
+        async function loadConfig() {
+            try {
+                const response = await fetch(`${API_BASE}/config`);
+                const config = await response.json();
+                loadConfigToUI(config);
+                
+                const statusDiv = document.getElementById('status');
+                statusDiv.style.display = 'block';
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '配置加载成功！';
+            } catch (error) {
+                alert(`加载配置失败: ${error.message}`);
+            }
+        }
+
+        function loadConfigToUI(config) {
+            // 加载清洗配置
+            if (config.cleaning) {
+                document.getElementById('remove-invalid-chars').checked = config.cleaning.remove_invalid_chars ?? true;
+                document.getElementById('remove-whitespace').checked = config.cleaning.remove_whitespace ?? true;
+                document.getElementById('remove-html-tags').checked = config.cleaning.remove_html_tags ?? true;
+                document.getElementById('remove-special-chars').checked = config.cleaning.remove_special_chars ?? false;
+                document.getElementById('remove-duplicate-lines').checked = config.cleaning.remove_duplicate_lines ?? true;
+                document.getElementById('remove-empty-lines').checked = config.cleaning.remove_empty_lines ?? true;
+            }
+            
+            // 加载标准化配置
+            if (config.standardization) {
+                document.getElementById('encoding').value = config.standardization.encoding || 'utf-8';
+                document.getElementById('line-ending').value = config.standardization.line_ending || 'lf';
+                document.getElementById('date-format').value = config.standardization.date_format || 'iso';
+                document.getElementById('normalize-case').checked = config.standardization.normalize_case ?? true;
+                document.getElementById('normalize-numbers').checked = config.standardization.normalize_numbers ?? true;
+                document.getElementById('normalize-punctuation').checked = config.standardization.normalize_punctuation ?? true;
+            }
+            
+            // 加载去重配置
+            if (config.deduplication) {
+                document.getElementById('dedup-algorithm').value = config.deduplication.algorithm || 'cosine';
+                document.getElementById('similarity-threshold').value = config.deduplication.similarity_threshold || 0.85;
+                document.getElementById('exact-duplicate').checked = config.deduplication.exact_duplicate ?? true;
+                document.getElementById('fuzzy-duplicate').checked = config.deduplication.fuzzy_duplicate ?? true;
+                document.getElementById('semantic-duplicate').checked = config.deduplication.semantic_duplicate ?? true;
+                document.getElementById('dedup-strategy').value = config.deduplication.strategy || 'keep-first';
+            }
+            
+            // 加载验证配置
+            if (config.validation) {
+                document.getElementById('validate-format').checked = config.validation.validate_format ?? true;
+                document.getElementById('validate-content').checked = config.validation.validate_content ?? true;
+                document.getElementById('validate-completeness').checked = config.validation.validate_integrity ?? true;
+                document.getElementById('validate-consistency').checked = config.validation.validate_content ?? true;
+            }
+        }
+
+        async function saveConfig() {
+            try {
+                const config = {
+                    cleaning: {
+                        remove_invalid_chars: document.getElementById('remove-invalid-chars').checked,
+                        remove_whitespace: document.getElementById('remove-whitespace').checked,
+                        remove_html_tags: document.getElementById('remove-html-tags').checked,
+                        remove_special_chars: document.getElementById('remove-special-chars').checked,
+                        remove_duplicate_lines: document.getElementById('remove-duplicate-lines').checked,
+                        remove_empty_lines: document.getElementById('remove-empty-lines').checked
+                    },
+                    standardization: {
+                        encoding: document.getElementById('encoding').value,
+                        line_ending: document.getElementById('line-ending').value,
+                        date_format: document.getElementById('date-format').value,
+                        normalize_case: document.getElementById('normalize-case').checked,
+                        normalize_numbers: document.getElementById('normalize-numbers').checked,
+                        normalize_punctuation: document.getElementById('normalize-punctuation').checked
+                    },
+                    deduplication: {
+                        algorithm: document.getElementById('dedup-algorithm').value,
+                        similarity_threshold: parseFloat(document.getElementById('similarity-threshold').value),
+                        exact_duplicate: document.getElementById('exact-duplicate').checked,
+                        fuzzy_duplicate: document.getElementById('fuzzy-duplicate').checked,
+                        semantic_duplicate: document.getElementById('semantic-duplicate').checked,
+                        strategy: document.getElementById('dedup-strategy').value
+                    },
+                    validation: {
+                        validate_integrity: document.getElementById('validate-completeness').checked,
+                        validate_format: document.getElementById('validate-format').checked,
+                        validate_content: document.getElementById('validate-content').checked
+                    }
+                };
+
+                const response = await fetch(`${API_BASE}/config/save`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+
+                const result = await response.json();
+                
+                const statusDiv = document.getElementById('status');
+                statusDiv.style.display = 'block';
+                if (result.success) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '配置保存成功！';
+                    // 同时保存到本地存储
+                    localStorage.setItem('preprocessing_config', JSON.stringify(config));
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '配置保存失败';
+                }
+            } catch (error) {
+                alert(`保存配置失败: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
+

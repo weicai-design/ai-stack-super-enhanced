@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱可视化 - AI-STACK</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="static/css/kg-visualization.css">
+</head>
+<body>
+    <div class="kg-container">
+        <!-- 工具栏 -->
+        <div class="kg-toolbar">
+            <h2>📊 知识图谱可视化</h2>
+            <div class="toolbar-actions">
+                <button class="btn" onclick="resetView()">重置视图</button>
+                <button class="btn" onclick="exportGraph()">导出图谱</button>
+                <button class="btn" onclick="toggle2D3D()">切换2D/3D</button>
+                <button class="btn" onclick="refreshGraph()">刷新</button>
+            </div>
+        </div>
+
+        <div class="kg-main-layout">
+            <!-- 图谱可视化区域 -->
+            <div class="kg-visualization-area">
+                <div id="knowledge-graph" class="kg-canvas">
+                    <!-- 知识图谱将通过D3.js动态渲染 -->
+                </div>
+            </div>
+
+            <!-- 侧边信息面板 -->
+            <div class="kg-sidebar">
+                <div class="sidebar-section">
+                    <h3>图谱统计</h3>
+                    <div class="stat-item">
+                        <span>节点数:</span>
+                        <span id="node-count">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>关系数:</span>
+                        <span id="edge-count">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>实体类型:</span>
+                        <span id="entity-types">0</span>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>节点信息</h3>
+                    <div id="node-info" class="node-info">
+                        <p class="placeholder">点击节点查看详情</p>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>筛选选项</h3>
+                    <div class="filter-group">
+                        <label>
+                            <input type="checkbox" id="filter-person" checked>
+                            人物
+                        </label>
+                        <label>
+                            <input type="checkbox" id="filter-organization" checked>
+                            组织
+                        </label>
+                        <label>
+                            <input type="checkbox" id="filter-location" checked>
+                            地点
+                        </label>
+                        <label>
+                            <input type="checkbox" id="filter-concept" checked>
+                            概念
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/js/kg-visualizer.js"></script>
+    <script>
+        // 初始化知识图谱可视化器
+        let kgVisualizer = null;
+
+        async function initKnowledgeGraph() {
+            try {
+                // 从API获取图谱数据
+                const response = await fetch('/api/v5/rag/kg/visualization');
+                const data = await response.json();
+
+                // 初始化可视化器
+                kgVisualizer = new KnowledgeGraphVisualizer('knowledge-graph', {
+                    width: document.querySelector('.kg-visualization-area').clientWidth,
+                    height: document.querySelector('.kg-visualization-area').clientHeight
+                });
+
+                // 更新图谱数据
+                kgVisualizer.updateGraph(data);
+
+                // 更新统计信息
+                document.getElementById('node-count').textContent = data.nodes?.length || 0;
+                document.getElementById('edge-count').textContent = data.links?.length || 0;
+                
+                const entityTypes = new Set(data.nodes?.map(n => n.type) || []);
+                document.getElementById('entity-types').textContent = entityTypes.size;
+            } catch (error) {
+                console.error('加载知识图谱失败:', error);
+            }
+        }
+
+        function resetView() {
+            if (kgVisualizer) {
+                kgVisualizer.resetView();
+            }
+        }
+
+        function exportGraph() {
+            // TODO: 实现导出功能
+            alert('导出功能开发中...');
+        }
+
+        function toggle2D3D() {
+            // TODO: 实现2D/3D切换
+            alert('2D/3D切换功能开发中...');
+        }
+
+        function refreshGraph() {
+            initKnowledgeGraph();
+        }
+
+        // 页面加载时初始化
+        window.addEventListener('load', initKnowledgeGraph);
+    </script>
+</body>
+</html>
+

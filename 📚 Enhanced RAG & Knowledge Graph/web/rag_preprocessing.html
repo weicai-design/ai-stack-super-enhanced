@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG预处理管理 - AI-STACK V5.6</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #2563eb; --success: #10b981; --warning: #f59e0b; --error: #ef4444;
+            --bg: #0f172a; --surface: #1e293b; --text: #f1f5f9; --text-sec: #94a3b8; --border: #334155;
+        }
+        body { font-family: Inter, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .top-nav { background: var(--surface); padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-radius: 12px; }
+        .nav-title { font-size: 1.5rem; font-weight: 600; }
+        .btn { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; cursor: pointer; background: var(--primary); color: white; transition: all 0.2s; }
+        .btn:hover { background: #1d4ed8; }
+        .tabs { display: flex; gap: 0.5rem; background: var(--surface); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; }
+        .tab { padding: 0.75rem 1.5rem; background: transparent; border: none; color: var(--text-sec); cursor: pointer; border-radius: 8px; transition: all 0.2s; }
+        .tab.active { background: var(--primary); color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .upload-area { background: var(--surface); border: 2px dashed var(--border); border-radius: 12px; padding: 3rem; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .upload-area:hover { border-color: var(--primary); background: #1e293b; }
+        .upload-icon { font-size: 3rem; margin-bottom: 1rem; }
+        .file-list { background: var(--surface); border-radius: 12px; padding: 1.5rem; margin-top: 1.5rem; border: 1px solid var(--border); }
+        .file-item { background: #334155; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+        .file-info { display: flex; align-items: center; gap: 1rem; }
+        .file-name { font-weight: 500; }
+        .file-size { color: var(--text-sec); font-size: 0.9rem; }
+        .status-badge { padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.8rem; font-weight: 500; }
+        .status-success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .status-processing { background: rgba(37, 99, 235, 0.2); color: var(--primary); }
+        .status-error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+        .card { background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
+        .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
+        .progress-bar { background: #334155; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
+        .progress-fill { background: var(--primary); height: 100%; transition: width 0.3s; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+        .stat-card { background: #334155; padding: 1rem; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: 700; color: var(--primary); }
+        .stat-label { color: var(--text-sec); font-size: 0.9rem; margin-top: 0.25rem; }
+    </style>
+</head>
+<body>
+    <div class="top-nav">
+        <div class="nav-title">📚 RAG预处理管理 V5.6</div>
+        <button class="btn" onclick="window.history.back()">← 返回主界面</button>
+    </div>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" data-tab="upload">📤 文档上传</button>
+            <button class="tab" data-tab="preprocess">⚙️ 预处理</button>
+            <button class="tab" data-tab="verify">✅ 真实性验证</button>
+            <button class="tab" data-tab="stats">📊 统计数据</button>
+        </div>
+
+        <!-- 标签页1：文档上传 -->
+        <div class="tab-content active" id="upload">
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon">📁</div>
+                <h3>拖拽文件到这里或点击上传</h3>
+                <p style="color: var(--text-sec); margin-top: 0.5rem;">支持60+种文件格式</p>
+                <input type="file" id="fileInput" style="display: none;" multiple onchange="handleFileUpload(event)">
+            </div>
+
+            <div class="file-list">
+                <h3 class="card-title">📋 上传文件列表</h3>
+                <div id="fileListContainer">
+                    <div class="file-item">
+                        <div class="file-info">
+                            <span>📄</span>
+                            <div>
+                                <div class="file-name">AI技术白皮书.pdf</div>
+                                <div class="file-size">2.5 MB · 刚刚上传</div>
+                            </div>
+                        </div>
+                        <span class="status-badge status-success">已完成</span>
+                    </div>
+                    <div class="file-item">
+                        <div class="file-info">
+                            <span>📊</span>
+                            <div>
+                                <div class="file-name">数据分析报告.docx</div>
+                                <div class="file-size">1.2 MB · 2分钟前</div>
+                            </div>
+                        </div>
+                        <span class="status-badge status-processing">处理中</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 标签页2：预处理 -->
+        <div class="tab-content" id="preprocess">
+            <div class="card">
+                <h3 class="card-title">⚙️ 预处理任务</h3>
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span>文本清洗</span>
+                        <span>85%</span>
+                    </div>
+                    <div class="progress-bar"><div class="progress-fill" style="width: 85%"></div></div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span>语义分块</span>
+                        <span>60%</span>
+                    </div>
+                    <div class="progress-bar"><div class="progress-fill" style="width: 60%"></div></div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span>向量化嵌入</span>
+                        <span>40%</span>
+                    </div>
+                    <div class="progress-bar"><div class="progress-fill" style="width: 40%"></div></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="card-title">📋 预处理配置</h3>
+                <div style="display: grid; gap: 1rem; margin-top: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" checked> 去除重复内容
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" checked> 格式归一化
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" checked> 语义验证
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox"> 敏感信息过滤
+                    </label>
+                </div>
+                <button class="btn" style="margin-top: 1rem; width: 100%;">保存配置</button>
+            </div>
+        </div>
+
+        <!-- 标签页3：真实性验证 -->
+        <div class="tab-content" id="verify">
+            <div class="card">
+                <h3 class="card-title">✅ 真实性验证结果</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">98.5%</div>
+                        <div class="stat-label">内容可信度</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">234</div>
+                        <div class="stat-label">已验证文档</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">5</div>
+                        <div class="stat-label">异常文档</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="card-title">🔍 验证项目</h3>
+                <div style="display: grid; gap: 1rem; margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>来源验证</span>
+                        <span class="status-badge status-success">通过</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>内容一致性</span>
+                        <span class="status-badge status-success">通过</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>时效性检查</span>
+                        <span class="status-badge status-success">通过</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>格式规范</span>
+                        <span class="status-badge status-success">通过</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 标签页4：统计数据 -->
+        <div class="tab-content" id="stats">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">1,234</div>
+                    <div class="stat-label">总文档数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">60+</div>
+                    <div class="stat-label">支持格式</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">25.6 GB</div>
+                    <div class="stat-label">总数据量</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">99.2%</div>
+                    <div class="stat-label">成功率</div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 1.5rem;">
+                <h3 class="card-title">📈 处理趋势</h3>
+                <p style="color: var(--text-sec); margin-top: 1rem;">
+                    今日处理: 156个文档 · 平均处理时间: 2.3秒 · 成功率: 99.2%
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 标签页切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // 文件上传处理
+        function handleFileUpload(event) {
+            const files = event.target.files;
+            console.log('选择了', files.length, '个文件');
+            alert(`已选择 ${files.length} 个文件\n\n⚠️ 当前为UI演示版本\n后端API连接将在阶段5实现`);
+        }
+
+        // 拖拽上传
+        const uploadArea = document.querySelector('.upload-area');
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = 'var(--primary)';
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = 'var(--border)';
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = 'var(--border)';
+            const files = e.dataTransfer.files;
+            console.log('拖拽了', files.length, '个文件');
+            alert(`已拖拽 ${files.length} 个文件\n\n⚠️ 当前为UI演示版本\n后端API连接将在阶段5实现`);
+        });
+
+        
+        // ==================== 后端API连接（V5.6新增）====================
+        
+        // 文件上传到后端
+        async function uploadToBackend(files) {
+            for (const file of files) {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    const response = await fetch('/api/documents/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        console.log('✅ 文件上传成功:', file.name);
+                        addFileToList(file.name, file.size, 'success');
+                    } else {
+                        console.warn('⚠️  上传失败:', file.name);
+                        addFileToList(file.name, file.size, 'error');
+                    }
+                } catch (error) {
+                    console.warn('⚠️  API未就绪:', error.message);
+                    addFileToList(file.name, file.size, 'processing');
+                }
+            }
+        }
+        
+        function addFileToList(name, size, status) {
+            const container = document.getElementById('fileListContainer');
+            const statusClass = status === 'success' ? 'status-success' : 
+                               status === 'error' ? 'status-error' : 'status-processing';
+            const statusText = status === 'success' ? '已完成' : 
+                              status === 'error' ? '失败' : '处理中';
+            
+            const div = document.createElement('div');
+            div.className = 'file-item';
+            div.innerHTML = `
+                <div class="file-info">
+                    <span>📄</span>
+                    <div>
+                        <div class="file-name">${name}</div>
+                        <div class="file-size">${(size/1024/1024).toFixed(2)} MB · 刚刚上传</div>
+                    </div>
+                </div>
+                <span class="status-badge ${statusClass}">${statusText}</span>
+            `;
+            container.appendChild(div);
+        }
+        
+        // 重写文件上传处理
+        function handleFileUpload(event) {
+            const files = Array.from(event.target.files);
+            console.log('选择了', files.length, '个文件');
+            uploadToBackend(files);
+        }
+        
+        // 重写拖拽上传
+        const originalDrop = uploadArea.ondrop;
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = 'var(--border)';
+            const files = Array.from(e.dataTransfer.files);
+            uploadToBackend(files);
+        });
+        
+        console.log('✅ RAG预处理管理界面已加载（V5.6后端连接版）');
+    </script>
+</body>
+</html>

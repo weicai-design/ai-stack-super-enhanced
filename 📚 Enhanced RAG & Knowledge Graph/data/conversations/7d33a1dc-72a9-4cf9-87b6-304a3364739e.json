@@ -1,0 +1,50 @@
+{
+  "conversation_id": "7d33a1dc-72a9-4cf9-87b6-304a3364739e",
+  "history": [
+    {
+      "message_id": "e373e880-1b01-4398-b32d-aff8a5ef015d",
+      "role": "user",
+      "content": "什么是人工智能？",
+      "metadata": {},
+      "timestamp": "2025-11-08T11:22:59.476614+00:00"
+    },
+    {
+      "message_id": "8c885f89-6930-45d9-b95b-3307af5ddd17",
+      "role": "assistant",
+      "content": "关于'什么是人工智能？'的回答：这是一个智能生成的答案。基于我找到的相关文档，可以为您提供详细的解答。\n\n参考来源:\n--------------------------------------------------\n[1] AI Stack文档",
+      "metadata": {
+        "sources": [
+          {
+            "doc_id": "demo_001",
+            "title": "AI Stack文档",
+            "snippet": "AI Stack是一个智能对话系统...",
+            "relevance": 0.95
+          }
+        ],
+        "quality_score": {
+          "relevance": 1.0,
+          "completeness": 0.54,
+          "confidence": 0.85,
+          "clarity": 0.78,
+          "overall": 0.8145,
+          "grade": "良好",
+          "details": {
+            "question_length": 8,
+            "answer_length": 51,
+            "source_count": 1,
+            "has_citations": false
+          }
+        }
+      },
+      "timestamp": "2025-11-08T11:22:59.476740+00:00"
+    }
+  ],
+  "metadata": {
+    "created_at": "2025-11-08T11:22:59.476442+00:00",
+    "updated_at": "2025-11-08T11:22:59.476742+00:00",
+    "message_count": 2,
+    "user_id": null
+  },
+  "max_history": 20,
+  "max_tokens": 4000
+}

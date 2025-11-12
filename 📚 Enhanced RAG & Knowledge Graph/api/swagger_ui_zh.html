@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{title}}</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+    <style>
+        html {
+            box-sizing: border-box;
+            overflow: -moz-scrollbars-vertical;
+            overflow-y: scroll;
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+        
+        .swagger-ui .topbar {
+            background-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .swagger-ui .info .title {
+            font-size: 36px;
+            color: #3b4151;
+        }
+        
+        /* 使用CSS隐藏英文，显示中文 */
+        .swagger-ui .btn.try-out__btn:not(.cancel) { font-size: 0 !important; }
+        .swagger-ui .btn.try-out__btn:not(.cancel)::before { content: "试一试"; font-size: 14px; }
+        
+        .swagger-ui .btn.execute { font-size: 0 !important; }
+        .swagger-ui .btn.execute::before { content: "执行"; font-size: 14px; }
+        
+        .swagger-ui .btn.cancel { font-size: 0 !important; }
+        .swagger-ui .btn.cancel::before { content: "取消"; font-size: 14px; }
+        
+        .swagger-ui .btn.authorize { font-size: 0 !important; }
+        .swagger-ui .btn.authorize::before { content: "授权"; font-size: 14px; }
+        
+        .swagger-ui .btn-clear { font-size: 0 !important; }
+        .swagger-ui .btn-clear::before { content: "清除"; font-size: 14px; }
+        
+        .swagger-ui .dialog-ux .modal-ux-header h3 { font-size: 0 !important; }
+        .swagger-ui .dialog-ux .modal-ux-header h3::before { content: "可用的授权方式"; font-size: 20px; }
+        
+        .swagger-ui .auth-btn-wrapper .btn-done { font-size: 0 !important; }
+        .swagger-ui .auth-btn-wrapper .btn-done::before { content: "关闭"; font-size: 14px; }
+        
+        .swagger-ui .opblock-section-header h4:contains("Parameters") { font-size: 0; }
+        .swagger-ui .opblock-section-header h4:contains("Parameters")::before { content: "参数"; font-size: 14px; font-weight: 600; }
+        
+        /* 响应相关 */
+        .swagger-ui .responses-inner > div > h4:first-child { font-size: 0 !important; }
+        .swagger-ui .responses-inner > div > h4:first-child::before { content: "响应"; font-size: 14px; font-weight: 600; }
+        
+        /* Model/Schema标签 */
+        .swagger-ui .model-title { font-size: 0 !important; }
+        .swagger-ui .model-title:contains("Example Value")::before { content: "示例值"; font-size: 12px; }
+        .swagger-ui .model-title:contains("Schema")::before { content: "数据结构"; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+    <script>
+        // 简化的翻译字典 - 只翻译关键词
+        const translations = {
+            "Try it out": "试一试",
+            "Execute": "执行",
+            "Cancel": "取消",
+            "Clear": "清除",
+            "Authorize": "授权",
+            "Close": "关闭",
+            "Parameters": "参数",
+            "Responses": "响应",
+            "Response": "响应",
+            "Request body": "请求体",
+            "Response body": "响应体",
+            "Example Value": "示例值",
+            "Schema": "数据结构",
+            "Model": "数据模型",
+            "required": "必填",
+            "string": "字符串",
+            "integer": "整数",
+            "number": "数字",
+            "boolean": "布尔值",
+            "array": "数组",
+            "object": "对象",
+            "Name": "名称",
+            "Description": "描述",
+            "Type": "类型",
+            "Available authorizations": "可用的授权方式",
+            "Authorized": "已授权",
+            "Apply": "应用",
+            "Logout": "退出"
+        };
+        
+        // 轻量级翻译函数 - 只处理特定元素
+        function quickTranslate() {
+            // 翻译按钮
+            document.querySelectorAll('button').forEach(btn => {
+                const text = btn.textContent.trim();
+                if (translations[text] && !btn.classList.contains('translated')) {
+                    btn.textContent = translations[text];
+                    btn.classList.add('translated');
+                }
+            });
+            
+            // 翻译表头
+            document.querySelectorAll('th, .parameter__name, .parameter__type').forEach(el => {
+                const text = el.textContent.trim();
+                if (translations[text] && !el.classList.contains('translated')) {
+                    el.textContent = translations[text];
+                    el.classList.add('translated');
+                }
+            });
+            
+            // 翻译Model标题
+            document.querySelectorAll('.model-title').forEach(el => {
+                const text = el.textContent.trim();
+                if (translations[text] && !el.classList.contains('translated')) {
+                    el.textContent = translations[text];
+                    el.classList.add('translated');
+                }
+            });
+            
+            // 翻译required标签
+            document.querySelectorAll('.parameter__name.required span').forEach(el => {
+                if (el.textContent.includes('required')) {
+                    el.textContent = el.textContent.replace('required', '必填');
+                }
+            });
+        }
+        
+        // 初始化 Swagger UI
+        window.onload = function() {
+            const ui = SwaggerUIBundle({
+                url: "{{openapi_url}}",
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                displayRequestDuration: true,
+                filter: true,
+                showExtensions: true,
+                showCommonExtensions: true,
+                defaultModelsExpandDepth: 1,
+                defaultModelExpandDepth: 1,
+                displayOperationId: false,
+                docExpansion: "none",
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                onComplete: function() {
+                    // 初始翻译
+                    setTimeout(quickTranslate, 300);
+                    
+                    // 点击后翻译（只在点击时触发）
+                    document.addEventListener('click', function() {
+                        setTimeout(quickTranslate, 200);
+                    }, { passive: true });
+                }
+            });
+            
+            window.ui = ui;
+        };
+    </script>
+</body>
+</html>

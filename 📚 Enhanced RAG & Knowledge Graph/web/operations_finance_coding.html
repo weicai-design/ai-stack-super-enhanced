@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运营·财务·编程三合一系统 - AI-STACK V4.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+            background: linear-gradient(135deg, #2d3436 0%, #636e72 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .main-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 2px 0 20px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+        
+        .sidebar-header {
+            padding: 25px 20px;
+            background: linear-gradient(135deg, #2d3436 0%, #636e72 100%);
+            color: white;
+        }
+        
+        .sidebar-title {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .sidebar-subtitle {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        .nav-section {
+            padding: 20px 0;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .section-title {
+            padding: 0 20px 10px;
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        
+        .nav-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .nav-item:hover {
+            background: rgba(45, 52, 54, 0.1);
+        }
+        
+        .nav-item.active {
+            background: linear-gradient(135deg, #2d3436 0%, #636e72 100%);
+            color: white;
+        }
+        
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(255,255,255,0.95);
+        }
+        
+        .main-header {
+            background: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-title {
+            font-size: 24px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #2d3436 0%, #636e72 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #2d3436 0%, #636e72 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(45, 52, 54, 0.3);
+        }
+        
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .stat-icon {
+            font-size: 36px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .stat-trend {
+            font-size: 12px;
+            margin-top: 8px;
+            color: #4caf50;
+        }
+        
+        .expert-panel {
+            background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .expert-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .expert-suggestion {
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+        
+        .content-section {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        
+        .section-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">🎯 三合一管理</div>
+                <div class="sidebar-subtitle">V4.0 运营·财务·编程</div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="section-title">运营管理</div>
+                <div class="nav-item active" onclick="showSection('ops-analytics')">
+                    <span>📊</span>
+                    <span>数据分析</span>
+                </div>
+                <div class="nav-item" onclick="showSection('ops-user')">
+                    <span>👥</span>
+                    <span>用户管理</span>
+                </div>
+                <div class="nav-item" onclick="showSection('ops-activity')">
+                    <span>🎯</span>
+                    <span>活动管理</span>
+                </div>
+                <div class="nav-item" onclick="showSection('ops-channel')">
+                    <span>📱</span>
+                    <span>渠道管理</span>
+                </div>
+                <div class="nav-item" onclick="showSection('ops-effect')">
+                    <span>📈</span>
+                    <span>效果评估</span>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="section-title">财务管理</div>
+                <div class="nav-item" onclick="showSection('fin-accounting')">
+                    <span>💰</span>
+                    <span>财务核算</span>
+                </div>
+                <div class="nav-item" onclick="showSection('fin-cost')">
+                    <span>💵</span>
+                    <span>成本管理</span>
+                </div>
+                <div class="nav-item" onclick="showSection('fin-budget')">
+                    <span>📊</span>
+                    <span>预算管理</span>
+                </div>
+                <div class="nav-item" onclick="showSection('fin-report')">
+                    <span>📄</span>
+                    <span>报表分析</span>
+                </div>
+                <div class="nav-item" onclick="showSection('fin-tax')">
+                    <span>🏦</span>
+                    <span>税务管理</span>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="section-title">编程助手</div>
+                <div class="nav-item" onclick="showSection('code-gen')">
+                    <span>⚡</span>
+                    <span>代码生成</span>
+                </div>
+                <div class="nav-item" onclick="showSection('code-review')">
+                    <span>🔍</span>
+                    <span>代码审查</span>
+                </div>
+                <div class="nav-item" onclick="showSection('code-optimize')">
+                    <span>🚀</span>
+                    <span>代码优化</span>
+                </div>
+                <div class="nav-item" onclick="showSection('code-fix')">
+                    <span>🐛</span>
+                    <span>Bug修复</span>
+                </div>
+                <div class="nav-item" onclick="showSection('code-doc')">
+                    <span>📝</span>
+                    <span>文档生成</span>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="section-title">AI专家团队</div>
+                <div class="nav-item" onclick="chatWithExpert('ops')">
+                    <span>🤖</span>
+                    <span>运营专家（5位）</span>
+                </div>
+                <div class="nav-item" onclick="chatWithExpert('fin')">
+                    <span>🤖</span>
+                    <span>财务专家（5位）</span>
+                </div>
+                <div class="nav-item" onclick="chatWithExpert('code')">
+                    <span>🤖</span>
+                    <span>编程专家（5位）</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-area">
+            <div class="main-header">
+                <div>
+                    <div class="header-title" id="pageTitle">📊 数据分析系统</div>
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;" id="pageDesc">AI智能分析，实时洞察</p>
+                </div>
+                <button class="btn btn-primary" onclick="startAnalysis()">🚀 开始分析</button>
+            </div>
+            
+            <div class="main-content" id="mainContent">
+                <div class="expert-panel">
+                    <div class="expert-title">🤖 AI数据分析专家建议</div>
+                    <div class="expert-suggestion">
+                        💡 本月新增用户12,500人（↑35%），留存率82%（优秀）<br>
+                        💰 本月收入¥2.8M（↑28%），成本控制良好<br>
+                        ⚠️ 代码质量评分85分，建议加强单元测试覆盖
+                    </div>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-label">总用户数</div>
+                        <div class="stat-value">125K</div>
+                        <div class="stat-trend">↑ 35% 本月</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-label">本月收入</div>
+                        <div class="stat-value">¥2.8M</div>
+                        <div class="stat-trend">↑ 28% vs上月</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-label">活动转化率</div>
+                        <div class="stat-value">15.8%</div>
+                        <div class="stat-trend">↑ 12% vs上月</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💻</div>
+                        <div class="stat-label">代码质量</div>
+                        <div class="stat-value">85分</div>
+                        <div class="stat-trend">↑ 5分 vs上周</div>
+                    </div>
+                </div>
+                
+                <div class="content-section">
+                    <h3 class="section-header">🎯 核心功能概览</h3>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                        <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                            <h4 style="margin-bottom: 10px;">📊 运营管理（100功能）</h4>
+                            <ul style="line-height: 1.8; color: #666; font-size: 14px;">
+                                <li>数据分析（25功能）</li>
+                                <li>用户管理（20功能）</li>
+                                <li>活动管理（20功能）</li>
+                                <li>渠道管理（20功能）</li>
+                                <li>效果评估（15功能）</li>
+                            </ul>
+                        </div>
+                        <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                            <h4 style="margin-bottom: 10px;">💰 财务管理（100功能）</h4>
+                            <ul style="line-height: 1.8; color: #666; font-size: 14px;">
+                                <li>财务核算（30功能）</li>
+                                <li>成本管理（25功能）</li>
+                                <li>预算管理（20功能）</li>
+                                <li>报表分析（15功能）</li>
+                                <li>税务管理（10功能）</li>
+                            </ul>
+                        </div>
+                        <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                            <h4 style="margin-bottom: 10px;">💻 编程助手（80功能）</h4>
+                            <ul style="line-height: 1.8; color: #666; font-size: 14px;">
+                                <li>代码生成（25功能）</li>
+                                <li>代码审查（20功能）</li>
+                                <li>代码优化（15功能）</li>
+                                <li>Bug修复（10功能）</li>
+                                <li>文档生成（10功能）</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showSection(section) {
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            const titles = {
+                'ops-analytics': {title: '📊 数据分析系统', desc: 'AI智能分析，实时洞察'},
+                'ops-user': {title: '👥 用户管理系统', desc: '用户画像，精准运营'},
+                'ops-activity': {title: '🎯 活动管理系统', desc: '策划执行，效果追踪'},
+                'ops-channel': {title: '📱 渠道管理系统', desc: '多渠道整合，统一管理'},
+                'ops-effect': {title: '📈 效果评估系统', desc: '数据驱动，优化决策'},
+                'fin-accounting': {title: '💰 财务核算系统', desc: '账务处理，精准核算'},
+                'fin-cost': {title: '💵 成本管理系统', desc: '成本控制，利润优化'},
+                'fin-budget': {title: '📊 预算管理系统', desc: '预算编制，执行监控'},
+                'fin-report': {title: '📄 报表分析系统', desc: '财务报表，智能分析'},
+                'fin-tax': {title: '🏦 税务管理系统', desc: '税务筹划，合规申报'},
+                'code-gen': {title: '⚡ 代码生成系统', desc: 'AI生成代码，提效10倍'},
+                'code-review': {title: '🔍 代码审查系统', desc: '智能审查，质量保证'},
+                'code-optimize': {title: '🚀 代码优化系统', desc: '性能优化，最佳实践'},
+                'code-fix': {title: '🐛 Bug修复系统', desc: 'AI诊断，快速修复'},
+                'code-doc': {title: '📝 文档生成系统', desc: '自动文档，规范完整'}
+            };
+            
+            document.getElementById('pageTitle').textContent = titles[section].title;
+            document.getElementById('pageDesc').textContent = titles[section].desc;
+        }
+        
+        function chatWithExpert(type) {
+            alert('正在为您接通AI专家团队...请在超级Agent聊天界面与专家对话');
+            window.open('/super-agent', '_blank');
+        }
+        
+        function startAnalysis() {
+            alert('开始智能分析！AI将自动：\n✅ 采集多源数据\n✅ 智能深度分析\n✅ 生成洞察报告\n✅ 提供优化建议\n✅ 预测未来趋势');
+        }
+        
+        console.log('🎯 三合一管理系统已加载 - 运营·财务·编程');
+    </script>
+</body>
+</html>
+
+
+

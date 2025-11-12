@@ -41,6 +41,7 @@ try:
     from analytics.roi_deep_analyzer import roi_deep_analyzer
     from analytics.key_factor_identifier import key_factor_identifier
     from analytics.long_term_predictor import long_term_predictor
+    from analytics.erp_eight_dimensions_analyzer import erp_eight_dimensions_analyzer
     ADVANCED_ANALYTICS_AVAILABLE = True
 except ImportError as e:
     print(f"警告：高级分析模块导入失败: {e}")
@@ -671,6 +672,134 @@ async def predict_long_term_impact(
         raise HTTPException(status_code=500, detail=f"长期预测失败: {str(e)}")
 
 
+        @router.post("/eight-dimensions")
+        async def eight_dimensions_analysis(erp_data: Dict[str, Any]):
+            """
+            ERP业务流程8维度深度分析
+            
+            8个核心维度：
+            1. 质量 (Quality) - 产品质量、合格率、返工率
+            2. 成本 (Cost) - 生产成本、物料成本、人工成本
+            3. 交期 (Delivery) - 准时交付率、交期达成率
+            4. 安全 (Safety) - 安全事故、安全培训、合规性
+            5. 利润 (Profit) - 毛利率、净利率、利润率
+            6. 效率 (Efficiency) - 生产效率、设备利用率、人员效率
+            7. 管理 (Management) - 流程管理、异常处理、改进措施
+            8. 技术 (Technology) - 技术创新、工艺改进、自动化水平
+            
+            Args:
+                erp_data: ERP业务数据字典，包含各维度的指标数据
+            
+            Returns:
+                8维度分析结果
+            """
+            try:
+                if not ADVANCED_ANALYTICS_AVAILABLE:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="8维度分析模块不可用"
+                    )
+                
+                result = erp_eight_dimensions_analyzer.analyze(erp_data)
+                return {
+                    "success": True,
+                    "result": result
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"8维度分析失败: {str(e)}")
+        
+        @router.post("/eight-dimensions/trends")
+        async def eight_dimensions_trends(historical_data: List[Dict[str, Any]]):
+            """
+            分析8维度趋势
+            
+            Args:
+                historical_data: 历史数据列表
+            
+            Returns:
+                趋势分析结果
+            """
+            try:
+                if not ADVANCED_ANALYTICS_AVAILABLE:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="8维度分析模块不可用"
+                    )
+                
+                trends = erp_eight_dimensions_analyzer.get_dimension_trends(historical_data)
+                return {
+                    "success": True,
+                    "trends": trends
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"趋势分析失败: {str(e)}")
+        
+        @router.post("/eight-dimensions/comparison")
+        async def eight_dimensions_comparison(
+            current_data: Dict[str, Any] = Body(...),
+            historical_data: List[Dict[str, Any]] = Body(...)
+        ):
+            """
+            ERP业务流程8维度对比分析
+            
+            对比当前数据与历史数据，分析趋势和改进点
+            
+            Args:
+                current_data: 当前ERP业务数据
+                historical_data: 历史数据列表
+                
+            Returns:
+                对比分析结果
+            """
+            try:
+                if not ADVANCED_ANALYTICS_AVAILABLE:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="8维度分析模块不可用"
+                    )
+                
+                result = erp_eight_dimensions_analyzer.get_dimension_comparison(
+                    current_data, historical_data
+                )
+                return {
+                    "success": True,
+                    "result": result
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"对比分析失败: {str(e)}")
+
+        @router.post("/eight-dimensions/improvements")
+        async def eight_dimensions_improvements(erp_data: Dict[str, Any]):
+            """
+            获取8维度优先级改进建议
+            
+            Args:
+                erp_data: ERP业务数据字典
+            
+            Returns:
+                优先级改进建议列表
+            """
+            try:
+                if not ADVANCED_ANALYTICS_AVAILABLE:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="8维度分析模块不可用"
+                    )
+                
+                result = erp_eight_dimensions_analyzer.analyze(erp_data)
+                improvements = erp_eight_dimensions_analyzer.get_priority_improvements(
+                    result.get("dimensions", {})
+                )
+                
+                return {
+                    "success": True,
+                    "improvements": improvements,
+                    "overall_score": result.get("overall_score", 0)
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"获取改进建议失败: {str(e)}")
+
+
 @router.get("/advanced-analytics-status")
 async def get_advanced_analytics_status():
     """
@@ -686,14 +815,16 @@ async def get_advanced_analytics_status():
             "industry_comparator": ADVANCED_ANALYTICS_AVAILABLE,
             "roi_deep_analyzer": ADVANCED_ANALYTICS_AVAILABLE,
             "key_factor_identifier": ADVANCED_ANALYTICS_AVAILABLE,
-            "long_term_predictor": ADVANCED_ANALYTICS_AVAILABLE
+            "long_term_predictor": ADVANCED_ANALYTICS_AVAILABLE,
+            "erp_eight_dimensions_analyzer": ADVANCED_ANALYTICS_AVAILABLE
         },
         "endpoints": [
             "/analytics/industry-comparison",
             "/analytics/competitive-position",
             "/analytics/roi-analysis",
             "/analytics/key-factors",
-            "/analytics/long-term-prediction"
+            "/analytics/long-term-prediction",
+            "/analytics/eight-dimensions"
         ]
     }
 

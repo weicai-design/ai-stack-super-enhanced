@@ -120,6 +120,27 @@
                 <button class="btn" onclick="loadTemplate('procurement')">🛒 采购流程</button>
             </div>
             
+            <h3 style="margin-top: 30px;">📋 智能工作计划</h3>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button class="btn btn-primary" onclick="loadTasksFromPlanning()">✨ 从工作计划导入任务</button>
+                <button class="btn" onclick="showTaskPlanningPanel()">📋 查看工作计划</button>
+                <button class="btn" onclick="createTaskFromMemo()">📝 从备忘录创建任务</button>
+            </div>
+            <div id="task-planning-panel" style="margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 4px; display: none;">
+                <div id="tasks-list-container"></div>
+            </div>
+            
+            <h3 style="margin-top: 30px;">🧮 试算功能</h3>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button class="btn btn-primary" onclick="showTrialBalancePanel()">📊 打开试算面板</button>
+                <button class="btn" onclick="calculateDailyDelivery()">📈 每日交付量试算</button>
+                <button class="btn" onclick="calculateProductionCapacity()">🏭 产能试算</button>
+                <button class="btn" onclick="calculateCostBreakdown()">💰 成本分解试算</button>
+            </div>
+            <div id="trial-balance-panel" style="margin-top: 15px; padding: 15px; background: #f9f9f9; border-radius: 4px; display: none;">
+                <div id="trial-balance-content"></div>
+            </div>
+            
             <h3 style="margin-top: 30px;">节点属性</h3>
             <div id="node-properties" style="font-size: 12px; color: #666; padding: 10px; background: #f9f9f9; border-radius: 4px; margin-bottom: 15px; display: none;">
                 <div><strong>节点名称：</strong><span id="prop-label">-</span></div>
@@ -1182,6 +1203,346 @@
             if (template) {
                 loadWorkflowToCanvas({ nodes: template.nodes, edges: template.edges });
                 alert('模板加载成功！');
+            }
+        }
+        
+        // ==================== 智能工作计划集成 ====================
+        
+        async function loadTasksFromPlanning() {
+            try {
+                const response = await axios.get('/api/super-agent/task/statistics');
+                const tasks = response.data.pending_tasks || [];
+                
+                if (tasks.length === 0) {
+                    alert('暂无待处理的任务计划');
+                    return;
+                }
+                
+                // 显示任务选择对话框
+                const taskList = tasks.map((task, index) => 
+                    `${index + 1}. ${task.name || task.description || '未命名任务'}`
+                ).join('\n');
+                
+                const selectedIndex = prompt(`请选择要导入的任务（输入序号）:\n\n${taskList}`, '1');
+                if (selectedIndex === null) return;
+                
+                const taskIndex = parseInt(selectedIndex) - 1;
+                if (taskIndex < 0 || taskIndex >= tasks.length) {
+                    alert('无效的选择');
+                    return;
+                }
+                
+                const selectedTask = tasks[taskIndex];
+                
+                // 将任务转换为工作流节点
+                if (selectedTask.steps && selectedTask.steps.length > 0) {
+                    const nodes = [];
+                    const edges = [];
+                    
+                    // 创建开始节点
+                    const startId = `start_${Date.now()}`;
+                    nodes.push({
+                        id: startId,
+                        label: '开始',
+                        type: 'start',
+                        position: { x: 250, y: 50 }
+                    });
+                    
+                    // 创建任务步骤节点
+                    let prevId = startId;
+                    selectedTask.steps.forEach((step, index) => {
+                        const nodeId = `task_${Date.now()}_${index}`;
+                        nodes.push({
+                            id: nodeId,
+                            label: step.name || step.description || `步骤${index + 1}`,
+                            type: 'task',
+                            position: { x: 250, y: 150 + index * 100 }
+                        });
+                        
+                        edges.push({
+                            source: prevId,
+                            target: nodeId
+                        });
+                        
+                        prevId = nodeId;
+                    });
+                    
+                    // 创建结束节点
+                    const endId = `end_${Date.now()}`;
+                    nodes.push({
+                        id: endId,
+                        label: '结束',
+                        type: 'end',
+                        position: { x: 250, y: 150 + selectedTask.steps.length * 100 }
+                    });
+                    
+                    edges.push({
+                        source: prevId,
+                        target: endId
+                    });
+                    
+                    // 加载到画布
+                    loadWorkflowToCanvas({ nodes, edges });
+                    alert(`✅ 已导入任务: ${selectedTask.name || '未命名任务'}\n共${selectedTask.steps.length}个步骤`);
+                } else {
+                    // 单个任务节点
+                    const nodeId = `task_${Date.now()}`;
+                    cy.add({
+                        group: 'nodes',
+                        data: {
+                            id: nodeId,
+                            label: selectedTask.name || selectedTask.description || '任务',
+                            type: 'task'
+                        },
+                        position: { x: 250, y: 150 }
+                    });
+                    alert(`✅ 已添加任务节点: ${selectedTask.name || '未命名任务'}`);
+                }
+            } catch (error) {
+                console.error('加载任务失败:', error);
+                alert('加载任务失败: ' + (error.response?.data?.detail || error.message));
+            }
+        }
+        
+        async function showTaskPlanningPanel() {
+            const panel = document.getElementById('task-planning-panel');
+            const container = document.getElementById('tasks-list-container');
+            
+            if (panel.style.display === 'none') {
+                try {
+                    const response = await axios.get('/api/super-agent/task/statistics');
+                    const tasks = response.data.pending_tasks || [];
+                    
+                    if (tasks.length === 0) {
+                        container.innerHTML = '<p style="color: #999; font-size: 12px;">暂无待处理任务</p>';
+                    } else {
+                        container.innerHTML = tasks.map((task, index) => `
+                            <div style="padding: 8px; margin-bottom: 5px; background: #fff; border-radius: 4px; font-size: 12px;">
+                                <strong>${task.name || '未命名任务'}</strong><br>
+                                <span style="color: #666;">${task.description || ''}</span>
+                                <button onclick="importTaskToWorkflow(${index})" style="float: right; padding: 2px 8px; font-size: 11px;">导入</button>
+                            </div>
+                        `).join('');
+                    }
+                    
+                    panel.style.display = 'block';
+                } catch (error) {
+                    container.innerHTML = '<p style="color: #f44336; font-size: 12px;">加载失败: ' + error.message + '</p>';
+                    panel.style.display = 'block';
+                }
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+        
+        async function createTaskFromMemo() {
+            try {
+                // 获取备忘录列表
+                const response = await axios.get('/api/super-agent/memo/list');
+                const memos = response.data.memos || [];
+                
+                if (memos.length === 0) {
+                    alert('暂无备忘录');
+                    return;
+                }
+                
+                // 显示备忘录选择对话框
+                const memoList = memos.map((memo, index) => 
+                    `${index + 1}. ${memo.content?.substring(0, 50) || '空备忘录'}...`
+                ).join('\n');
+                
+                const selectedIndex = prompt(`请选择要创建任务的备忘录（输入序号）:\n\n${memoList}`, '1');
+                if (selectedIndex === null) return;
+                
+                const memoIndex = parseInt(selectedIndex) - 1;
+                if (memoIndex < 0 || memoIndex >= memos.length) {
+                    alert('无效的选择');
+                    return;
+                }
+                
+                const selectedMemo = memos[memoIndex];
+                
+                // 从备忘录提取任务
+                const taskResponse = await axios.post('/api/super-agent/task/extract', {
+                    memo_id: selectedMemo.id,
+                    memo_content: selectedMemo.content
+                });
+                
+                if (taskResponse.data.tasks && taskResponse.data.tasks.length > 0) {
+                    // 创建任务节点
+                    taskResponse.data.tasks.forEach((task, index) => {
+                        const nodeId = `task_memo_${Date.now()}_${index}`;
+                        cy.add({
+                            group: 'nodes',
+                            data: {
+                                id: nodeId,
+                                label: task.name || task.description || '任务',
+                                type: 'task'
+                            },
+                            position: { x: 250 + index * 150, y: 150 }
+                        });
+                    });
+                    
+                    alert(`✅ 已从备忘录创建${taskResponse.data.tasks.length}个任务节点`);
+                } else {
+                    alert('未能从备忘录中提取任务');
+                }
+            } catch (error) {
+                console.error('创建任务失败:', error);
+                alert('创建任务失败: ' + (error.response?.data?.detail || error.message));
+            }
+        }
+        
+        // ==================== 试算功能集成 ====================
+        
+        async function showTrialBalancePanel() {
+            const panel = document.getElementById('trial-balance-panel');
+            const content = document.getElementById('trial-balance-content');
+            
+            if (panel.style.display === 'none') {
+                content.innerHTML = `
+                    <h4 style="margin-bottom: 15px; font-size: 14px;">试算功能</h4>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px;">试算类型:</label>
+                            <select id="trial-type" style="width: 100%; padding: 5px; font-size: 12px;">
+                                <option value="daily_delivery">每日交付量</option>
+                                <option value="production_capacity">生产产能</option>
+                                <option value="cost_breakdown">成本分解</option>
+                                <option value="material_requirement">物料需求</option>
+                                <option value="delivery_schedule">交付计划</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px;">目标值:</label>
+                            <input type="number" id="trial-target" placeholder="输入目标值" style="width: 100%; padding: 5px; font-size: 12px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px;">产品ID (可选):</label>
+                            <input type="number" id="trial-product-id" placeholder="产品ID" style="width: 100%; padding: 5px; font-size: 12px;">
+                        </div>
+                        <button class="btn btn-primary" onclick="executeTrialBalance()" style="width: 100%; font-size: 12px;">执行试算</button>
+                    </div>
+                    <div id="trial-result" style="margin-top: 15px; padding: 10px; background: #fff; border-radius: 4px; display: none; font-size: 12px;"></div>
+                `;
+                panel.style.display = 'block';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+        
+        async function executeTrialBalance() {
+            const trialType = document.getElementById('trial-type').value;
+            const targetValue = parseFloat(document.getElementById('trial-target').value);
+            const productId = document.getElementById('trial-product-id').value;
+            const resultDiv = document.getElementById('trial-result');
+            
+            if (!targetValue || isNaN(targetValue)) {
+                alert('请输入有效的目标值');
+                return;
+            }
+            
+            try {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<p>正在计算...</p>';
+                
+                const response = await axios.post('/api/trial-balance/custom', {
+                    calculation_type: trialType,
+                    target_value: targetValue,
+                    parameters: {
+                        product_id: productId ? parseInt(productId) : null
+                    }
+                });
+                
+                if (response.data.success) {
+                    const result = response.data.result;
+                    let resultHtml = '<h5 style="margin-bottom: 10px;">试算结果:</h5>';
+                    
+                    if (trialType === 'daily_delivery') {
+                        resultHtml += `
+                            <p><strong>目标周营业额:</strong> ¥${result.target_weekly_revenue || targetValue}</p>
+                            <p><strong>每日交付量:</strong> ${result.daily_quantity || 'N/A'} 件</p>
+                            <p><strong>总需求量:</strong> ${result.total_quantity_needed || 'N/A'} 件</p>
+                            <p><strong>可行性:</strong> ${result.feasibility || 'N/A'}</p>
+                        `;
+                        if (result.recommendations) {
+                            resultHtml += '<p><strong>建议:</strong></p><ul>';
+                            result.recommendations.forEach(rec => {
+                                resultHtml += `<li>${rec}</li>`;
+                            });
+                            resultHtml += '</ul>';
+                        }
+                    } else {
+                        resultHtml += '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+                    }
+                    
+                    resultDiv.innerHTML = resultHtml;
+                } else {
+                    resultDiv.innerHTML = '<p style="color: #f44336;">试算失败</p>';
+                }
+            } catch (error) {
+                console.error('试算失败:', error);
+                resultDiv.innerHTML = '<p style="color: #f44336;">试算失败: ' + (error.response?.data?.detail || error.message) + '</p>';
+            }
+        }
+        
+        async function calculateDailyDelivery() {
+            const targetRevenue = prompt('请输入周目标营业额:', '100000');
+            if (!targetRevenue) return;
+            
+            try {
+                const response = await axios.post('/api/trial-balance/daily-delivery', {
+                    target_weekly_revenue: parseFloat(targetRevenue)
+                });
+                
+                if (response.data.success) {
+                    const result = response.data.result;
+                    alert(`试算结果:\n每日交付量: ${result.daily_quantity} 件\n可行性: ${result.feasibility}`);
+                }
+            } catch (error) {
+                alert('试算失败: ' + (error.response?.data?.detail || error.message));
+            }
+        }
+        
+        async function calculateProductionCapacity() {
+            const target = prompt('请输入目标产量:', '1000');
+            if (!target) return;
+            
+            try {
+                const response = await axios.post('/api/trial-balance/custom', {
+                    calculation_type: 'production_capacity',
+                    target_value: parseFloat(target),
+                    parameters: {}
+                });
+                
+                if (response.data.success) {
+                    alert('产能试算完成，请查看试算面板');
+                    showTrialBalancePanel();
+                    executeTrialBalance();
+                }
+            } catch (error) {
+                alert('试算失败: ' + (error.response?.data?.detail || error.message));
+            }
+        }
+        
+        async function calculateCostBreakdown() {
+            const target = prompt('请输入目标成本:', '50000');
+            if (!target) return;
+            
+            try {
+                const response = await axios.post('/api/trial-balance/custom', {
+                    calculation_type: 'cost_breakdown',
+                    target_value: parseFloat(target),
+                    parameters: {}
+                });
+                
+                if (response.data.success) {
+                    alert('成本分解试算完成，请查看试算面板');
+                    showTrialBalancePanel();
+                    executeTrialBalance();
+                }
+            } catch (error) {
+                alert('试算失败: ' + (error.response?.data?.detail || error.message));
             }
         }
     </script>

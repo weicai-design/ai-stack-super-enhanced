@@ -1,0 +1,18 @@
+{
+  "short_term": [
+    {
+      "id": "926b6c6b57ec9983",
+      "content": "测试记忆",
+      "timestamp": "2025-11-11T20:55:00.298868",
+      "role": "user",
+      "importance": 0.5,
+      "compressed": false,
+      "summary": null,
+      "keywords": [
+        "测试"
+      ]
+    }
+  ],
+  "mid_term": [],
+  "long_term": []
+}

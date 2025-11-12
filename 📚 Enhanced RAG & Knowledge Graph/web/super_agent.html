@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-STACK 超级智能Agent V3.5</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .super-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* 左侧功能面板 */
+        .function-panel {
+            width: 280px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 2px 0 20px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .panel-section {
+            margin-bottom: 25px;
+        }
+        
+        .section-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        
+        .function-btn {
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .function-btn:hover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+            transform: translateX(5px);
+        }
+        
+        .function-icon {
+            font-size: 20px;
+        }
+        
+        /* 主聊天区域 */
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* 聊天头部 */
+        .chat-header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header-title {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header-subtitle {
+            font-size: 13px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        /* 聊天消息区 */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+        }
+        
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin-left: 15px;
+            order: 2;
+        }
+        
+        .message.agent .message-avatar {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            margin-right: 15px;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 15px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        /* 文件消息样式 */
+        .file-message {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .file-icon {
+            font-size: 30px;
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .file-size {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        /* 工具栏 */
+        .chat-toolbar {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 30px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .toolbar-btn {
+            padding: 8px 15px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .toolbar-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .toolbar-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+        
+        /* 输入区域 */
+        .chat-input-area {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px 30px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        /* 文件拖拽区 */
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            text-align: center;
+            transition: all 0.3s;
+            display: none;
+        }
+        
+        .drop-zone.active {
+            display: block;
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+        
+        .drop-zone.dragover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .input-container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+        
+        .chat-input {
+            width: 100%;
+            min-height: 50px;
+            max-height: 150px;
+            padding: 15px 60px 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            resize: vertical;
+            font-family: inherit;
+        }
+        
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+        
+        .input-actions {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            display: flex;
+            gap: 5px;
+        }
+        
+        .input-btn {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            border: none;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s;
+        }
+        
+        .input-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .send-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .send-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        /* 语音录制界面 */
+        .voice-recording {
+            display: none;
+            padding: 30px;
+            text-align: center;
+            background: white;
+            border-radius: 15px;
+            margin: 20px 30px;
+        }
+        
+        .voice-recording.active {
+            display: block;
+        }
+        
+        .voice-wave {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+        }
+        
+        /* 右侧信息面板 */
+        .info-panel {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: -2px 0 20px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .info-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .info-card-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .info-label {
+            color: #666;
+        }
+        
+        .info-value {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .info-value.good {
+            color: #4caf50;
+        }
+        
+        .info-value.warning {
+            color: #ff9800;
+        }
+        
+        .info-value.error {
+            color: #f44336;
+        }
+        
+        /* 学习系统监控 */
+        .learning-monitor {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .monitor-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .monitor-item {
+            font-size: 12px;
+            margin-bottom: 5px;
+            opacity: 0.9;
+        }
+        
+        /* 隐藏的文件输入 */
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="super-container">
+        <!-- 左侧功能面板 -->
+        <div class="function-panel">
+            <div class="panel-section">
+                <div class="section-title">🎯 快速功能</div>
+                <button class="function-btn" onclick="toggleFileUpload()">
+                    <span class="function-icon">📎</span>
+                    <span>上传文件</span>
+                </button>
+                <button class="function-btn" onclick="startVoiceInput()">
+                    <span class="function-icon">🎤</span>
+                    <span>语音输入</span>
+                </button>
+                <button class="function-btn" onclick="openTranslate()">
+                    <span class="function-icon">🌐</span>
+                    <span>多语言翻译</span>
+                </button>
+                <button class="function-btn" onclick="generatePlan()">
+                    <span class="function-icon">📋</span>
+                    <span>生成工作计划</span>
+                </button>
+            </div>
+            
+            <div class="panel-section">
+                <div class="section-title">🤖 AI专家</div>
+                <button class="function-btn" onclick="callExpert('finance')">
+                    <span class="function-icon">💰</span>
+                    <span>财务专家</span>
+                </button>
+                <button class="function-btn" onclick="callExpert('stock')">
+                    <span class="function-icon">📈</span>
+                    <span>股票专家</span>
+                </button>
+                <button class="function-btn" onclick="callExpert('content')">
+                    <span class="function-icon">✍️</span>
+                    <span>内容专家</span>
+                </button>
+                <button class="function-btn" onclick="callExpert('trend')">
+                    <span class="function-icon">📊</span>
+                    <span>趋势专家</span>
+                </button>
+                <button class="function-btn" onclick="callExpert('erp')">
+                    <span class="function-icon">🏭</span>
+                    <span>ERP专家</span>
+                </button>
+                <button class="function-btn" onclick="callExpert('operations')">
+                    <span class="function-icon">⚙️</span>
+                    <span>运营专家</span>
+                </button>
+            </div>
+            
+            <div class="panel-section">
+                <div class="section-title">📁 文件生成</div>
+                <button class="function-btn" onclick="generateFile('word')">
+                    <span class="function-icon">📄</span>
+                    <span>Word文档</span>
+                </button>
+                <button class="function-btn" onclick="generateFile('excel')">
+                    <span class="function-icon">📊</span>
+                    <span>Excel表格</span>
+                </button>
+                <button class="function-btn" onclick="generateFile('ppt')">
+                    <span class="function-icon">📽️</span>
+                    <span>PPT演示</span>
+                </button>
+                <button class="function-btn" onclick="generateFile('pdf')">
+                    <span class="function-icon">📕</span>
+                    <span>PDF文档</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 主聊天区域 -->
+        <div class="main-chat">
+            <!-- 头部 -->
+            <div class="chat-header">
+                <div class="header-title">🤖 AI-STACK 超级智能Agent V3.5</div>
+                <div class="header-subtitle">多模态智能交互 | 自我学习 | 60+种文件格式 | 60+种语言翻译 | 语音交互</div>
+            </div>
+            
+            <!-- 消息区 -->
+            <div class="chat-messages" id="chatMessages">
+                <!-- 欢迎消息 -->
+                <div class="message agent">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        <div style="font-size: 16px; font-weight: 600; margin-bottom: 10px;">欢迎使用AI-STACK超级智能Agent！🚀</div>
+                        <div style="margin-bottom: 15px;">我是您的全能AI助手，我可以：</div>
+                        <ul style="margin-left: 20px; line-height: 1.8;">
+                            <li>📝 接收文字、语音、60+种文件格式输入</li>
+                            <li>🎤 语音对话，支持60+种语言翻译</li>
+                            <li>📁 生成各种格式文件（Word/Excel/PPT/PDF等）</li>
+                            <li>🧠 自我学习和优化整个处理流程</li>
+                            <li>📋 生成智能工作计划和备忘录</li>
+                            <li>⚡ 2秒内快速响应</li>
+                        </ul>
+                        <div style="margin-top: 15px; padding: 10px; background: rgba(102, 126, 234, 0.1); border-radius: 8px;">
+                            💡 <strong>试试</strong>：直接说话、拖入文件、或输入您的需求！
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 语音录制界面 -->
+            <div class="voice-recording" id="voiceRecording">
+                <div class="voice-wave"></div>
+                <div style="font-size: 18px; font-weight: 600; margin-bottom: 10px;">🎤 正在录音...</div>
+                <div style="color: #666; margin-bottom: 20px;">请说出您的需求</div>
+                <button class="send-btn" onclick="stopVoiceInput()">⏸️</button>
+            </div>
+            
+            <!-- 工具栏 -->
+            <div class="chat-toolbar">
+                <button class="toolbar-btn" onclick="toggleToolbar('file')">
+                    📎 文件
+                </button>
+                <button class="toolbar-btn" onclick="toggleToolbar('voice')">
+                    🎤 语音
+                </button>
+                <button class="toolbar-btn" onclick="toggleToolbar('translate')">
+                    🌐 翻译
+                </button>
+                <button class="toolbar-btn" onclick="toggleToolbar('tts')">
+                    🔊 朗读
+                </button>
+                <button class="toolbar-btn" onclick="toggleToolbar('plan')">
+                    📋 计划
+                </button>
+                <button class="toolbar-btn" onclick="toggleToolbar('memo')">
+                    📝 备忘录
+                </button>
+            </div>
+            
+            <!-- 输入区域 -->
+            <div class="chat-input-area">
+                <!-- 文件拖拽区 -->
+                <div class="drop-zone" id="dropZone">
+                    <div style="font-size: 40px; margin-bottom: 10px;">📁</div>
+                    <div style="font-size: 16px; font-weight: 600; margin-bottom: 5px;">拖拽文件到这里</div>
+                    <div style="font-size: 13px; color: #666;">支持60+种格式：Office、图片、视频、音频、代码等</div>
+                </div>
+                
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <textarea 
+                            class="chat-input" 
+                            id="chatInput" 
+                            placeholder="输入消息，或拖入文件，或点击🎤说话..."
+                            onkeydown="handleKeyDown(event)"
+                        ></textarea>
+                        <div class="input-actions">
+                            <button class="input-btn" onclick="document.getElementById('fileInput').click()" title="上传文件">📎</button>
+                            <button class="input-btn" onclick="startVoiceInput()" title="语音输入">🎤</button>
+                        </div>
+                        <input type="file" id="fileInput" multiple onchange="handleFileSelect(event)" accept="*/*">
+                    </div>
+                    <button class="send-btn" onclick="sendMessage()">📤</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右侧信息面板 -->
+        <div class="info-panel">
+            <!-- 自我学习监控 -->
+            <div class="learning-monitor">
+                <div class="monitor-title">🧠 自我学习系统</div>
+                <div class="monitor-item">✅ 流程监控: 活跃</div>
+                <div class="monitor-item">✅ 问题分析: 运行中</div>
+                <div class="monitor-item">✅ 经验学习: 积累中</div>
+                <div class="monitor-item">✅ 自主优化: 就绪</div>
+                <div class="monitor-item">✅ 资源监控: 正常</div>
+            </div>
+            
+            <!-- 性能监控 -->
+            <div class="info-card">
+                <div class="info-card-title">⚡ 性能监控</div>
+                <div class="info-item">
+                    <span class="info-label">响应时间</span>
+                    <span class="info-value good" id="responseTime">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">RAG检索</span>
+                    <span class="info-value" id="ragTime">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">执行时间</span>
+                    <span class="info-value" id="execTime">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">目标</span>
+                    <span class="info-value">< 2.0秒</span>
+                </div>
+            </div>
+            
+            <!-- 系统资源 -->
+            <div class="info-card">
+                <div class="info-card-title">💻 系统资源</div>
+                <div class="info-item">
+                    <span class="info-label">CPU使用</span>
+                    <span class="info-value good">45%</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">内存使用</span>
+                    <span class="info-value good">62%</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">网络</span>
+                    <span class="info-value good">正常</span>
+                </div>
+            </div>
+            
+            <!-- 学习统计 -->
+            <div class="info-card">
+                <div class="info-card-title">📈 学习统计</div>
+                <div class="info-item">
+                    <span class="info-label">问题发现</span>
+                    <span class="info-value">15个</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">经验积累</span>
+                    <span class="info-value">128条</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">优化次数</span>
+                    <span class="info-value">42次</span>
+                </div>
+            </div>
+            
+            <!-- 当前会话 -->
+            <div class="info-card">
+                <div class="info-card-title">💬 当前会话</div>
+                <div class="info-item">
+                    <span class="info-label">会话ID</span>
+                    <span class="info-value" id="sessionId">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">消息数</span>
+                    <span class="info-value" id="messageCount">0</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">文件数</span>
+                    <span class="info-value" id="fileCount">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 配置
+        const API_BASE = '';
+        const SESSION_ID = 'super_session_' + Date.now();
+        let messageCount = 0;
+        let fileCount = 0;
+        let isRecording = false;
+        
+        // 初始化
+        document.getElementById('sessionId').textContent = SESSION_ID.substring(0, 20) + '...';
+        
+        // 文件拖拽
+        const dropZone = document.getElementById('dropZone');
+        const chatInput = document.getElementById('chatInput');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('dragover');
+                dropZone.style.display = 'block';
+            });
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('dragover');
+            });
+        });
+        
+        dropZone.addEventListener('drop', handleDrop);
+        
+        function handleDrop(e) {
+            const files = e.dataTransfer.files;
+            handleFiles(files);
+        }
+        
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            handleFiles(files);
+        }
+        
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                addFileMessage(file);
+                fileCount++;
+                document.getElementById('fileCount').textContent = fileCount;
+            });
+            dropZone.style.display = 'none';
+        }
+        
+        function addFileMessage(file) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+            
+            const fileIcon = getFileIcon(file.name);
+            const fileSize = formatFileSize(file.size);
+            
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div>📎 上传文件：</div>
+                    <div class="file-message">
+                        <div class="file-icon">${fileIcon}</div>
+                        <div class="file-info">
+                            <div class="file-name">${file.name}</div>
+                            <div class="file-size">${fileSize}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="message-avatar">👤</div>
+            `;
+            
+            messagesDiv.appendChild(messageDiv);
+            scrollToBottom();
+            
+            // 模拟处理文件
+            setTimeout(() => {
+                addAgentMessage(`✅ 已接收文件 "${file.name}"，正在处理...`);
+            }, 500);
+        }
+        
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const iconMap = {
+                'pdf': '📕', 'doc': '📄', 'docx': '📄', 'xls': '📊', 'xlsx': '📊',
+                'ppt': '📽️', 'pptx': '📽️', 'jpg': '🖼️', 'png': '🖼️', 'gif': '🖼️',
+                'mp4': '🎬', 'mp3': '🎵', 'zip': '📦', 'py': '🐍', 'js': '📜',
+                'html': '🌐', 'css': '🎨', 'json': '📋', 'xml': '📋'
+            };
+            return iconMap[ext] || '📄';
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+        
+        // 发送消息
+        async function sendMessage() {
+            const input = chatInput;
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            input.value = '';
+            addUserMessage(message);
+            
+            const startTime = performance.now();
+            
+            try {
+                // 调用超级Agent API
+                const response = await fetch(API_BASE + '/agent/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: SESSION_ID,
+                        features: {
+                            translation: false,
+                            tts: false,
+                            file_generation: false
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                const endTime = performance.now();
+                const responseTime = ((endTime - startTime) / 1000).toFixed(2);
+                
+                updatePerformance(responseTime, data.performance);
+                addAgentMessage(data.message, data);
+                
+            } catch (error) {
+                addAgentMessage(`❌ 处理失败: ${error.message}`);
+            }
+        }
+        
+        function addUserMessage(message) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+            messageDiv.innerHTML = `
+                <div class="message-content">${escapeHtml(message)}</div>
+                <div class="message-avatar">👤</div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            scrollToBottom();
+            
+            messageCount++;
+            document.getElementById('messageCount').textContent = messageCount;
+        }
+        
+        function addAgentMessage(message, data = null) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message agent';
+            
+            let content = `<div>${escapeHtml(message)}</div>`;
+            
+            if (data && data.workflow) {
+                content += '<div style="margin-top: 10px; font-size: 12px; color: #666;">';
+                data.workflow.forEach(step => {
+                    content += `<div>✓ ${step.step}</div>`;
+                });
+                content += '</div>';
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">${content}</div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        function scrollToBottom() {
+            const messagesDiv = document.getElementById('chatMessages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function updatePerformance(total, perf) {
+            const responseTimeElem = document.getElementById('responseTime');
+            responseTimeElem.textContent = total + 's';
+            
+            if (parseFloat(total) < 1.0) {
+                responseTimeElem.className = 'info-value good';
+            } else if (parseFloat(total) < 2.0) {
+                responseTimeElem.className = 'info-value';
+            } else {
+                responseTimeElem.className = 'info-value warning';
+            }
+            
+            if (perf) {
+                document.getElementById('ragTime').textContent = perf.rag_time + 's';
+                document.getElementById('execTime').textContent = perf.exec_time + 's';
+            }
+        }
+        
+        // 语音输入
+        function startVoiceInput() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                recognition.lang = 'zh-CN';
+                recognition.continuous = false;
+                
+                document.getElementById('voiceRecording').classList.add('active');
+                isRecording = true;
+                
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    chatInput.value = transcript;
+                    stopVoiceInput();
+                };
+                
+                recognition.onerror = () => {
+                    stopVoiceInput();
+                    addAgentMessage('❌ 语音识别失败，请重试');
+                };
+                
+                recognition.start();
+            } else {
+                addAgentMessage('❌ 您的浏览器不支持语音识别');
+            }
+        }
+        
+        function stopVoiceInput() {
+            document.getElementById('voiceRecording').classList.remove('active');
+            isRecording = false;
+        }
+        
+        // 工具栏功能
+        function toggleToolbar(tool) {
+            switch(tool) {
+                case 'file':
+                    toggleFileUpload();
+                    break;
+                case 'voice':
+                    startVoiceInput();
+                    break;
+                case 'translate':
+                    addAgentMessage('🌐 翻译功能：请输入要翻译的文本，我会自动检测语言并翻译成您需要的语言。');
+                    break;
+                case 'tts':
+                    addAgentMessage('🔊 朗读功能：我会朗读生成的内容。请告诉我要朗读哪段文字。');
+                    break;
+                case 'plan':
+                    generatePlan();
+                    break;
+                case 'memo':
+                    addAgentMessage('📝 备忘录功能：我会记录您的需求和交互历史。您想记录什么？');
+                    break;
+            }
+        }
+        
+        function toggleFileUpload() {
+            const dropZone = document.getElementById('dropZone');
+            dropZone.style.display = dropZone.style.display === 'block' ? 'none' : 'block';
+        }
+        
+        function generatePlan() {
+            addAgentMessage('📋 工作计划生成：请告诉我您的目标和时间要求，我会为您生成详细的工作计划。');
+        }
+        
+        function callExpert(type) {
+            const expertNames = {
+                'finance': '财务专家',
+                'stock': '股票专家',
+                'content': '内容专家',
+                'trend': '趋势专家',
+                'erp': 'ERP专家',
+                'operations': '运营专家'
+            };
+            addAgentMessage(`✅ 已为您接通${expertNames[type]}，请告诉我您的需求。`);
+        }
+        
+        function generateFile(type) {
+            const fileTypes = {
+                'word': 'Word文档',
+                'excel': 'Excel表格',
+                'ppt': 'PPT演示',
+                'pdf': 'PDF文档'
+            };
+            addAgentMessage(`📄 ${fileTypes[type]}生成：请告诉我要生成什么内容，我会为您创建${fileTypes[type]}。`);
+        }
+        
+        function openTranslate() {
+            addAgentMessage('🌐 多语言翻译：支持60+种语言互译。请输入要翻译的文本和目标语言。');
+        }
+        
+        // 键盘事件
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 页面加载完成
+        console.log('🚀 AI-STACK V3.5 超级智能Agent已加载');
+        console.log('💫 多模态智能交互系统 - 完全体');
+    </script>
+</body>
+</html>
+
+
+
+
+

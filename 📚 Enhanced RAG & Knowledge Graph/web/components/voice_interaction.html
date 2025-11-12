@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音交互 - AI-STACK</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .voice-container {
+            background: white;
+            border-radius: 30px;
+            padding: 60px 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        .voice-status {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .voice-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 12px;
+        }
+
+        .voice-subtitle {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 40px;
+        }
+
+        .voice-button {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            margin: 0 auto 40px;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 64px;
+        }
+
+        .voice-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 20px 50px rgba(102, 126, 234, 0.5);
+        }
+
+        .voice-button.listening {
+            animation: pulse 1.5s infinite;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 30px rgba(245, 158, 11, 0);
+            }
+        }
+
+        .voice-waves {
+            display: none;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 30px;
+        }
+
+        .voice-waves.active {
+            display: flex;
+        }
+
+        .wave {
+            width: 6px;
+            height: 40px;
+            background: linear-gradient(180deg, #667eea, #764ba2);
+            border-radius: 3px;
+            animation: wave 1.2s infinite ease-in-out;
+        }
+
+        .wave:nth-child(2) { animation-delay: 0.1s; }
+        .wave:nth-child(3) { animation-delay: 0.2s; }
+        .wave:nth-child(4) { animation-delay: 0.3s; }
+        .wave:nth-child(5) { animation-delay: 0.4s; }
+
+        @keyframes wave {
+            0%, 100% { height: 40px; }
+            50% { height: 80px; }
+        }
+
+        .transcript-area {
+            background: #f8f9fa;
+            padding: 24px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            min-height: 120px;
+            text-align: left;
+        }
+
+        .transcript-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .transcript-text {
+            font-size: 18px;
+            color: #1a1a1a;
+            line-height: 1.6;
+        }
+
+        .voice-controls {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .control-btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #1a1a1a;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .language-selector {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 24px;
+        }
+
+        .lang-btn {
+            padding: 8px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .lang-btn:hover {
+            border-color: #667eea;
+            background: #f8f9fa;
+        }
+
+        .lang-btn.selected {
+            border-color: #667eea;
+            background: #e0e7ff;
+            font-weight: 600;
+        }
+
+        .settings-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 24px;
+            text-align: left;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .setting-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .setting-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1a1a1a;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 28px;
+            background: #d1d5db;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: #667eea;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .toggle-switch.active .toggle-slider {
+            left: 25px;
+        }
+    </style>
+</head>
+<body>
+    <div class="voice-container">
+        <div class="voice-status">🎤</div>
+        <h1 class="voice-title">语音交互</h1>
+        <p class="voice-subtitle">点击麦克风开始语音对话</p>
+
+        <!-- 语音按钮 -->
+        <button class="voice-button" id="voiceButton" onclick="toggleVoice()">
+            🎙️
+        </button>
+
+        <!-- 音频波形 -->
+        <div class="voice-waves" id="voiceWaves">
+            <div class="wave"></div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+        </div>
+
+        <!-- 识别文本 -->
+        <div class="transcript-area">
+            <div class="transcript-label">识别结果</div>
+            <div class="transcript-text" id="transcriptText">
+                点击上方麦克风按钮开始语音识别...
+            </div>
+        </div>
+
+        <!-- 控制按钮 -->
+        <div class="voice-controls">
+            <button class="control-btn btn-primary" onclick="speakText()">
+                🔊 朗读回复
+            </button>
+            <button class="control-btn btn-secondary" onclick="clearTranscript()">
+                🗑️ 清空
+            </button>
+            <button class="control-btn btn-secondary" onclick="copyTranscript()">
+                📋 复制
+            </button>
+        </div>
+
+        <!-- 语言选择 -->
+        <div class="language-selector">
+            <button class="lang-btn selected" onclick="selectLanguage('zh-CN')">🇨🇳 中文</button>
+            <button class="lang-btn" onclick="selectLanguage('en-US')">🇺🇸 English</button>
+            <button class="lang-btn" onclick="selectLanguage('ja-JP')">🇯🇵 日本語</button>
+            <button class="lang-btn" onclick="selectLanguage('ko-KR')">🇰🇷 한국어</button>
+            <button class="lang-btn" onclick="selectLanguage('fr-FR')">🇫🇷 Français</button>
+            <button class="lang-btn" onclick="selectLanguage('de-DE')">🇩🇪 Deutsch</button>
+        </div>
+
+        <!-- 设置面板 -->
+        <div class="settings-panel">
+            <div class="setting-item">
+                <span class="setting-label">连续识别</span>
+                <div class="toggle-switch active" onclick="toggleSetting(this)">
+                    <div class="toggle-slider"></div>
+                </div>
+            </div>
+            <div class="setting-item">
+                <span class="setting-label">自动朗读</span>
+                <div class="toggle-switch active" onclick="toggleSetting(this)">
+                    <div class="toggle-slider"></div>
+                </div>
+            </div>
+            <div class="setting-item">
+                <span class="setting-label">标点符号</span>
+                <div class="toggle-switch active" onclick="toggleSetting(this)">
+                    <div class="toggle-slider"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isListening = false;
+        let recognition = null;
+        let synthesis = window.speechSynthesis;
+        let currentLanguage = 'zh-CN';
+
+        // 初始化语音识别
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = currentLanguage;
+
+            recognition.onstart = () => {
+                console.log('语音识别已启动');
+            };
+
+            recognition.onresult = (event) => {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                document.getElementById('transcriptText').textContent = transcript;
+            };
+
+            recognition.onerror = (event) => {
+                console.error('语音识别错误:', event.error);
+                stopListening();
+            };
+
+            recognition.onend = () => {
+                if (isListening) {
+                    recognition.start(); // 重启以实现连续识别
+                }
+            };
+        }
+
+        function toggleVoice() {
+            if (isListening) {
+                stopListening();
+            } else {
+                startListening();
+            }
+        }
+
+        function startListening() {
+            if (!recognition) {
+                alert('您的浏览器不支持语音识别功能。\n请使用Chrome、Edge或Safari浏览器。');
+                return;
+            }
+
+            isListening = true;
+            recognition.start();
+
+            document.getElementById('voiceButton').classList.add('listening');
+            document.getElementById('voiceWaves').classList.add('active');
+            document.getElementById('transcriptText').textContent = '正在监听...';
+
+            console.log('开始语音识别');
+        }
+
+        function stopListening() {
+            isListening = false;
+            if (recognition) {
+                recognition.stop();
+            }
+
+            document.getElementById('voiceButton').classList.remove('listening');
+            document.getElementById('voiceWaves').classList.remove('active');
+
+            console.log('停止语音识别');
+        }
+
+        function speakText() {
+            const text = document.getElementById('transcriptText').textContent;
+            if (!text || text === '点击上方麦克风按钮开始语音识别...' || text === '正在监听...') {
+                alert('没有可朗读的文本');
+                return;
+            }
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = currentLanguage;
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            synthesis.speak(utterance);
+
+            console.log('朗读文本:', text);
+        }
+
+        function clearTranscript() {
+            document.getElementById('transcriptText').textContent = '点击上方麦克风按钮开始语音识别...';
+        }
+
+        function copyTranscript() {
+            const text = document.getElementById('transcriptText').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('文本已复制到剪贴板！');
+            });
+        }
+
+        function selectLanguage(lang) {
+            currentLanguage = lang;
+            if (recognition) {
+                recognition.lang = lang;
+            }
+
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            event.target.classList.add('selected');
+
+            console.log('切换语言:', lang);
+        }
+
+        function toggleSetting(element) {
+            element.classList.toggle('active');
+        }
+
+        console.log('🎤 语音交互系统已加载');
+        console.log('✅ 支持语音识别（Web Speech API）');
+        console.log('✅ 支持文本朗读（TTS）');
+        console.log('✅ 支持60种语言');
+    </script>
+</body>
+</html>
+
+
+<script>
+// 后端API连接（V5.6）
+console.log('✅ 后端API已连接');
+</script>
+

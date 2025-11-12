@@ -79,6 +79,16 @@
           <template #header>
             <div class="card-header">
               <span>营收趋势</span>
+              <el-button-group>
+                <el-button size="small" @click="useChartExpert('trend')">
+                  <el-icon><MagicStick /></el-icon>
+                  智能推荐
+                </el-button>
+                <el-button size="small" @click="showChartSelector('trend')">
+                  <el-icon><Setting /></el-icon>
+                  切换图表
+                </el-button>
+              </el-button-group>
             </div>
           </template>
           <div ref="trendChart" style="height: 400px;"></div>
@@ -90,12 +100,45 @@
           <template #header>
             <div class="card-header">
               <span>客户类别分布</span>
+              <el-button-group>
+                <el-button size="small" @click="useChartExpert('pie')">
+                  <el-icon><MagicStick /></el-icon>
+                  智能推荐
+                </el-button>
+                <el-button size="small" @click="showChartSelector('pie')">
+                  <el-icon><Setting /></el-icon>
+                  切换图表
+                </el-button>
+              </el-button-group>
             </div>
           </template>
           <div ref="pieChart" style="height: 400px;"></div>
         </el-card>
       </el-col>
     </el-row>
+    
+    <!-- 图表选择对话框 -->
+    <el-dialog v-model="chartSelectorVisible" title="选择图表类型" width="600px">
+      <el-radio-group v-model="selectedChartType">
+        <el-radio 
+          v-for="chart in chartRecommendations" 
+          :key="chart.chart_type" 
+          :label="chart.chart_type"
+        >
+          <div>
+            <strong>{{ chart.name }}</strong>
+            <p style="margin: 5px 0; color: #909399; font-size: 12px;">
+              {{ chart.description }}
+            </p>
+            <el-tag size="small" type="info">推荐度: {{ chart.score }}分</el-tag>
+          </div>
+        </el-radio>
+      </el-radio-group>
+      <template #footer>
+        <el-button @click="chartSelectorVisible = false">取消</el-button>
+        <el-button type="primary" @click="applyChartType">应用</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 产品统计 -->
     <el-row class="mt-20">
@@ -145,10 +188,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Refresh, Download } from '@element-plus/icons-vue'
+import { Refresh, Download, MagicStick, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import axios from '@/api/axios'
+import { getRevenueAnalysis, recommendChartType, generateChartConfig, smartChart } from '@/api/analytics'
 
 const filters = ref({
   periodType: 'monthly',
@@ -166,6 +210,10 @@ const analysisData = ref({
 const loading = ref(false)
 const trendChart = ref(null)
 const pieChart = ref(null)
+const chartSelectorVisible = ref(false)
+const selectedChartType = ref('')
+const currentChartCategory = ref('') // 'trend' or 'pie'
+const chartRecommendations = ref([])
 
 let trendChartInstance = null
 let pieChartInstance = null
@@ -189,7 +237,7 @@ const loadData = async () => {
       params.customer_category = filters.value.customerCategory
     }
     
-    const response = await axios.get('/analytics/revenue', { params })
+    const response = await getRevenueAnalysis(params)
     analysisData.value = response
     
     updateCharts()
@@ -199,6 +247,173 @@ const loadData = async () => {
     ElMessage.error('加载数据失败')
   } finally {
     loading.value = false
+  }
+}
+
+// 使用图表专家推荐
+const useChartExpert = async (category) => {
+  try {
+    currentChartCategory.value = category
+    
+    let chartData = {}
+    let purpose = ''
+    
+    if (category === 'trend') {
+      const timeData = analysisData.value.time_dimension_data?.daily || []
+      const dates = timeData.map(item => item.date)
+      const revenues = timeData.map(item => item.revenue)
+      
+      chartData = {
+        keys: dates,
+        values: [revenues],
+        series_names: ['营收'],
+        title: '营收趋势',
+        metadata: {
+          has_time: true,
+          series_count: 1
+        }
+      }
+      purpose = '趋势分析'
+    } else if (category === 'pie') {
+      const categoryStats = analysisData.value.customer_category_stats || {}
+      chartData = {
+        keys: Object.keys(categoryStats),
+        values: Object.values(categoryStats),
+        title: '客户类别分布',
+        metadata: {
+          is_proportion: true
+        }
+      }
+      purpose = '占比展示'
+    }
+    
+    const response = await smartChart(chartData, purpose)
+    
+    if (response.success && response.config) {
+      if (category === 'trend') {
+        if (!trendChartInstance) {
+          trendChartInstance = echarts.init(trendChart.value)
+        }
+        trendChartInstance.setOption(response.config)
+        ElMessage.success(`已应用推荐图表: ${response.best_chart?.name || '折线图'}`)
+      } else if (category === 'pie') {
+        if (!pieChartInstance) {
+          pieChartInstance = echarts.init(pieChart.value)
+        }
+        pieChartInstance.setOption(response.config)
+        ElMessage.success(`已应用推荐图表: ${response.best_chart?.name || '饼图'}`)
+      }
+    }
+  } catch (error) {
+    console.error('图表专家推荐失败:', error)
+    ElMessage.warning('图表专家推荐失败，使用默认图表')
+  }
+}
+
+// 显示图表选择器
+const showChartSelector = async (category) => {
+  try {
+    currentChartCategory.value = category
+    
+    let chartData = {}
+    let purpose = ''
+    
+    if (category === 'trend') {
+      const timeData = analysisData.value.time_dimension_data?.daily || []
+      const dates = timeData.map(item => item.date)
+      const revenues = timeData.map(item => item.revenue)
+      
+      chartData = {
+        keys: dates,
+        values: [revenues],
+        series_names: ['营收'],
+        title: '营收趋势',
+        metadata: {
+          has_time: true,
+          series_count: 1
+        }
+      }
+      purpose = '趋势分析'
+    } else if (category === 'pie') {
+      const categoryStats = analysisData.value.customer_category_stats || {}
+      chartData = {
+        keys: Object.keys(categoryStats),
+        values: Object.values(categoryStats),
+        title: '客户类别分布',
+        metadata: {
+          is_proportion: true
+        }
+      }
+      purpose = '占比展示'
+    }
+    
+    const response = await recommendChartType(chartData, purpose)
+    
+    if (response.success && response.recommendations) {
+      chartRecommendations.value = response.recommendations
+      selectedChartType.value = response.recommendations[0]?.chart_type || ''
+      chartSelectorVisible.value = true
+    }
+  } catch (error) {
+    console.error('获取图表推荐失败:', error)
+    ElMessage.error('获取图表推荐失败')
+  }
+}
+
+// 应用选中的图表类型
+const applyChartType = async () => {
+  if (!selectedChartType.value) {
+    ElMessage.warning('请选择图表类型')
+    return
+  }
+  
+  try {
+    const category = currentChartCategory.value
+    
+    let chartData = {}
+    
+    if (category === 'trend') {
+      const timeData = analysisData.value.time_dimension_data?.daily || []
+      const dates = timeData.map(item => item.date)
+      const revenues = timeData.map(item => item.revenue)
+      
+      chartData = {
+        keys: dates,
+        values: [revenues],
+        series_names: ['营收'],
+        title: '营收趋势'
+      }
+    } else if (category === 'pie') {
+      const categoryStats = analysisData.value.customer_category_stats || {}
+      chartData = {
+        keys: Object.keys(categoryStats),
+        values: Object.values(categoryStats),
+        title: '客户类别分布'
+      }
+    }
+    
+    const response = await generateChartConfig(selectedChartType.value, chartData)
+    
+    if (response.success && response.config) {
+      if (category === 'trend') {
+        if (!trendChartInstance) {
+          trendChartInstance = echarts.init(trendChart.value)
+        }
+        trendChartInstance.setOption(response.config)
+      } else if (category === 'pie') {
+        if (!pieChartInstance) {
+          pieChartInstance = echarts.init(pieChart.value)
+        }
+        pieChartInstance.setOption(response.config)
+      }
+      
+      chartSelectorVisible.value = false
+      const chartName = chartRecommendations.value.find(c => c.chart_type === selectedChartType.value)?.name || selectedChartType.value
+      ElMessage.success(`已切换到: ${chartName}`)
+    }
+  } catch (error) {
+    console.error('应用图表类型失败:', error)
+    ElMessage.error('应用图表类型失败')
   }
 }
 

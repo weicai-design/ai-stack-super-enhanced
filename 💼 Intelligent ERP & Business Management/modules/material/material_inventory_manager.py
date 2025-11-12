@@ -35,13 +35,19 @@ class StockMovementType(Enum):
 class MaterialInventoryManager:
     """物料库存管理器"""
     
-    def __init__(self):
-        """初始化物料管理器"""
+    def __init__(self, data_listener=None):
+        """
+        初始化物料管理器
+        
+        Args:
+            data_listener: ERP数据监听器（可选，用于自动发布事件）
+        """
         self.materials = {}
         self.inventory = {}
         self.stock_movements = []
         self.locations = {}
         self.batches = {}
+        self.data_listener = data_listener
     
     def create_material(
         self,
@@ -89,6 +95,28 @@ class MaterialInventoryManager:
         }
         
         self.materials[material_id] = material
+        
+        # 自动发布物料创建事件
+        if self.data_listener:
+            try:
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(
+                            self.data_listener.on_material_created(material_id, material)
+                        )
+                    else:
+                        loop.run_until_complete(
+                            self.data_listener.on_material_created(material_id, material)
+                        )
+                except RuntimeError:
+                    asyncio.run(
+                        self.data_listener.on_material_created(material_id, material)
+                    )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"物料创建事件发布失败: {e}")
         
         # 初始化库存记录
         self.inventory[material_id] = {
@@ -173,6 +201,38 @@ class MaterialInventoryManager:
             material["avg_cost"] = total_cost / inv["total_quantity"] if inv["total_quantity"] > 0 else 0
         
         inv["last_updated"] = datetime.now().isoformat()
+        
+        # 自动发布库存更新事件
+        if self.data_listener:
+            try:
+                import asyncio
+                old_data = {
+                    "total_quantity": inv["total_quantity"] - quantity,
+                    "available_quantity": inv.get("available_quantity", 0) - quantity
+                }
+                new_data = {
+                    "total_quantity": inv["total_quantity"],
+                    "available_quantity": inv.get("available_quantity", 0),
+                    "reserved_quantity": inv.get("reserved_quantity", 0),
+                    "in_transit_quantity": inv.get("in_transit_quantity", 0)
+                }
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(
+                            self.data_listener.on_inventory_updated(material_id, old_data, new_data)
+                        )
+                    else:
+                        loop.run_until_complete(
+                            self.data_listener.on_inventory_updated(material_id, old_data, new_data)
+                        )
+                except RuntimeError:
+                    asyncio.run(
+                        self.data_listener.on_inventory_updated(material_id, old_data, new_data)
+                    )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"库存更新事件发布失败: {e}")
         
         # 检查库存预警
         alerts = self._check_stock_alerts(material_id)

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-STACK 智能交互Agent V3.4</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .chat-container {
+            width: 90%;
+            max-width: 1200px;
+            height: 90vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* 头部 */
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chat-title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .chat-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        .chat-stats {
+            text-align: right;
+            font-size: 12px;
+        }
+        
+        /* 消息区域 */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+            background: #f5f7fa;
+        }
+        
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin-left: 15px;
+            order: 2;
+        }
+        
+        .message.agent .message-avatar {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            margin-right: 15px;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 15px;
+            position: relative;
+        }
+        
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .message.agent .message-content {
+            background: white;
+            color: #333;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .message-time {
+            font-size: 11px;
+            opacity: 0.6;
+            margin-top: 5px;
+        }
+        
+        /* 思考状态 */
+        .thinking {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: #fff3cd;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        .thinking-dots {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .thinking-dot {
+            width: 8px;
+            height: 8px;
+            background: #ff9800;
+            border-radius: 50%;
+            animation: bounce 1.4s ease-in-out infinite;
+        }
+        
+        .thinking-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .thinking-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+        }
+        
+        /* 工作流步骤 */
+        .workflow-step {
+            padding: 8px 15px;
+            background: #e3f2fd;
+            border-left: 3px solid #2196f3;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+        
+        .workflow-step.completed {
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
+        
+        .workflow-step.error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        
+        /* 执行结果 */
+        .execution-result {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .execution-result pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        /* 输入区域 */
+        .chat-input-area {
+            padding: 20px 30px;
+            background: white;
+            border-top: 1px solid #e8e8e8;
+        }
+        
+        .chat-input-container {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e8e8e8;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+        
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+        
+        .send-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .send-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+        
+        /* 快捷建议 */
+        .suggestions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .suggestion-chip {
+            padding: 8px 15px;
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .suggestion-chip:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        /* 性能监控 */
+        .performance-monitor {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        
+        .perf-item {
+            margin: 3px 0;
+        }
+        
+        .perf-value {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        
+        .perf-value.slow {
+            color: #ff9800;
+        }
+        
+        .perf-value.error {
+            color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- 头部 -->
+        <div class="chat-header">
+            <div>
+                <div class="chat-title">🤖 AI-STACK 智能交互Agent</div>
+                <div class="chat-subtitle">AI-STACK的灵魂 - 智能理解，精准执行</div>
+            </div>
+            <div class="chat-stats">
+                <div>会话ID: <span id="session-id">session_001</span></div>
+                <div>平均响应: <span id="avg-response">--</span>秒</div>
+            </div>
+        </div>
+        
+        <!-- 消息区域 -->
+        <div class="chat-messages" id="chat-messages">
+            <!-- 欢迎消息 -->
+            <div class="message agent">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div>您好！我是AI-STACK智能交互Agent 🚀</div>
+                    <div style="margin-top: 10px;">我可以帮您：</div>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li>查询财务数据和分析报告</li>
+                        <li>获取股票行情和交易建议</li>
+                        <li>创作内容和收集素材</li>
+                        <li>分析趋势和生成报告</li>
+                        <li>管理ERP订单和客户</li>
+                        <li>执行各种业务操作</li>
+                    </ul>
+                    <div style="margin-top: 10px;">💡 试试对我说："查询财务看板"或"获取平安银行的股票数据"</div>
+                    <div class="message-time" id="welcome-time"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 输入区域 -->
+        <div class="chat-input-area">
+            <div class="suggestions" id="suggestions">
+                <div class="suggestion-chip" onclick="sendSuggestion('查询财务看板')">💰 查询财务看板</div>
+                <div class="suggestion-chip" onclick="sendSuggestion('获取000001股票数据')">📈 获取股票数据</div>
+                <div class="suggestion-chip" onclick="sendSuggestion('创建一篇关于AI的内容')">✍️ 创作内容</div>
+                <div class="suggestion-chip" onclick="sendSuggestion('分析科技领域的趋势')">📊 分析趋势</div>
+            </div>
+            <div class="chat-input-container">
+                <input 
+                    type="text" 
+                    class="chat-input" 
+                    id="chat-input" 
+                    placeholder="输入您的需求，我会智能理解并执行..."
+                    onkeypress="handleKeyPress(event)"
+                >
+                <button class="send-btn" id="send-btn" onclick="sendMessage()">📤</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 性能监控 -->
+    <div class="performance-monitor" id="perf-monitor">
+        <div class="perf-item">本次响应: <span class="perf-value" id="perf-current">--</span>秒</div>
+        <div class="perf-item">RAG检索: <span class="perf-value" id="perf-rag">--</span>秒</div>
+        <div class="perf-item">指令执行: <span class="perf-value" id="perf-exec">--</span>秒</div>
+        <div class="perf-item">结果综合: <span class="perf-value" id="perf-synth">--</span>秒</div>
+    </div>
+    
+    <script>
+        // 配置
+        const API_BASE = '';
+        const SESSION_ID = 'session_' + Date.now();
+        let messageCount = 0;
+        let totalResponseTime = 0;
+        
+        // 初始化
+        document.getElementById('session-id').textContent = SESSION_ID;
+        document.getElementById('welcome-time').textContent = getCurrentTime();
+        
+        // 获取当前时间
+        function getCurrentTime() {
+            const now = new Date();
+            return now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        // 键盘事件
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        // 发送建议
+        function sendSuggestion(text) {
+            document.getElementById('chat-input').value = text;
+            sendMessage();
+        }
+        
+        // 发送消息
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // 清空输入框
+            input.value = '';
+            
+            // 禁用发送按钮
+            const sendBtn = document.getElementById('send-btn');
+            sendBtn.disabled = true;
+            
+            // 显示用户消息
+            addUserMessage(message);
+            
+            // 显示思考状态
+            showThinking();
+            
+            // 开始计时
+            const startTime = performance.now();
+            
+            try {
+                // 调用Agent API
+                const response = await callAgentAPI(message);
+                
+                // 计算响应时间
+                const endTime = performance.now();
+                const responseTime = ((endTime - startTime) / 1000).toFixed(2);
+                
+                // 更新性能监控
+                updatePerformance(responseTime, response.performance);
+                
+                // 隐藏思考状态
+                hideThinking();
+                
+                // 显示Agent响应
+                addAgentMessage(response);
+                
+            } catch (error) {
+                hideThinking();
+                addAgentMessage({
+                    message: `抱歉，处理您的请求时出现错误：${error.message}`,
+                    error: true
+                });
+            } finally {
+                // 启用发送按钮
+                sendBtn.disabled = false;
+                input.focus();
+            }
+        }
+        
+        // 添加用户消息
+        function addUserMessage(message) {
+            const messagesDiv = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div>${escapeHtml(message)}</div>
+                    <div class="message-time">${getCurrentTime()}</div>
+                </div>
+                <div class="message-avatar">👤</div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // 添加Agent消息
+        function addAgentMessage(response) {
+            const messagesDiv = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message agent';
+            
+            let content = `<div>${escapeHtml(response.message || response.response || '处理完成')}</div>`;
+            
+            // 显示工作流步骤
+            if (response.workflow) {
+                content += '<div style="margin-top: 10px;">';
+                response.workflow.forEach(step => {
+                    const status = step.status === 'completed' ? 'completed' : step.status === 'error' ? 'error' : '';
+                    content += `<div class="workflow-step ${status}">${step.step}: ${step.description} (${step.duration}s)</div>`;
+                });
+                content += '</div>';
+            }
+            
+            // 显示执行结果
+            if (response.result) {
+                content += `<div class="execution-result"><strong>执行结果：</strong><pre>${JSON.stringify(response.result, null, 2)}</pre></div>`;
+            }
+            
+            content += `<div class="message-time">${getCurrentTime()}</div>`;
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">${content}</div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // 显示思考状态
+        function showThinking() {
+            const messagesDiv = document.getElementById('chat-messages');
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.id = 'thinking-indicator';
+            thinkingDiv.className = 'thinking';
+            thinkingDiv.innerHTML = `
+                <div>🤔 正在思考...</div>
+                <div class="thinking-dots">
+                    <div class="thinking-dot"></div>
+                    <div class="thinking-dot"></div>
+                    <div class="thinking-dot"></div>
+                </div>
+            `;
+            messagesDiv.appendChild(thinkingDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // 隐藏思考状态
+        function hideThinking() {
+            const thinkingDiv = document.getElementById('thinking-indicator');
+            if (thinkingDiv) {
+                thinkingDiv.remove();
+            }
+        }
+        
+        // 调用Agent API
+        async function callAgentAPI(message) {
+            const response = await fetch(API_BASE + '/agent/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    session_id: SESSION_ID
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        }
+        
+        // 更新性能监控
+        function updatePerformance(total, perf) {
+            messageCount++;
+            totalResponseTime += parseFloat(total);
+            const avgTime = (totalResponseTime / messageCount).toFixed(2);
+            
+            document.getElementById('avg-response').textContent = avgTime;
+            
+            // 更新本次性能
+            updatePerfValue('perf-current', total);
+            
+            if (perf) {
+                updatePerfValue('perf-rag', perf.rag_time);
+                updatePerfValue('perf-exec', perf.exec_time);
+                updatePerfValue('perf-synth', perf.synth_time);
+            }
+        }
+        
+        function updatePerfValue(id, value) {
+            const elem = document.getElementById(id);
+            elem.textContent = value;
+            
+            // 根据值设置颜色
+            if (parseFloat(value) < 1.0) {
+                elem.className = 'perf-value';
+            } else if (parseFloat(value) < 2.0) {
+                elem.className = 'perf-value slow';
+            } else {
+                elem.className = 'perf-value error';
+            }
+        }
+        
+        // HTML转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 页面加载完成
+        console.log('🤖 AI-STACK V3.4 智能交互Agent已加载');
+        console.log('💫 AI-STACK的灵魂 - 智能理解，精准执行');
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+

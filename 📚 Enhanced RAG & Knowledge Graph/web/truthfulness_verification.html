@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG真实性验证 - AI-STACK</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { margin-bottom: 30px; color: #333; }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .section h2 {
+            margin-bottom: 15px;
+            color: #555;
+            font-size: 18px;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            min-height: 150px;
+            font-family: inherit;
+        }
+        .config-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .config-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .config-item label {
+            font-size: 14px;
+            color: #666;
+        }
+        .config-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+        .btn {
+            padding: 10px 20px;
+            background: #4caf50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        .btn:hover { background: #45a049; }
+        .result-area {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .score-display {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border-radius: 8px;
+        }
+        .score-value {
+            font-size: 48px;
+            font-weight: bold;
+        }
+        .score-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .dimension-scores {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .dimension-item {
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #4caf50;
+        }
+        .dimension-item h4 {
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #333;
+        }
+        .dimension-score {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4caf50;
+        }
+        .issues-list, .recommendations-list {
+            margin-top: 15px;
+        }
+        .issue-item, .recommendation-item {
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .issue-item {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+        .recommendation-item {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 RAG真实性验证</h1>
+        
+        <div class="section">
+            <h2>1. 输入待验证内容</h2>
+            <textarea id="content-input" placeholder="输入需要验证的内容..."></textarea>
+        </div>
+
+        <div class="section">
+            <h2>2. 验证配置</h2>
+            <div class="config-group">
+                <div class="config-item">
+                    <input type="checkbox" id="check-sources" checked>
+                    <label for="check-sources">检查信息来源</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="check-facts" checked>
+                    <label for="check-facts">事实核查</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="check-logic" checked>
+                    <label for="check-logic">逻辑一致性</label>
+                </div>
+                <div class="config-item">
+                    <input type="checkbox" id="check-bias" checked>
+                    <label for="check-bias">偏见检测</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>3. 执行验证</h2>
+            <button class="btn" onclick="verifyContent()">开始验证</button>
+            <div id="status" class="status info" style="display: none;"></div>
+        </div>
+
+        <div class="result-area" id="result-area" style="display: none;">
+            <div class="score-display">
+                <div>
+                    <div class="score-label">总体可信度</div>
+                    <div class="score-value" id="overall-score">0</div>
+                </div>
+                <div>
+                    <div class="score-label">置信度等级</div>
+                    <div class="score-value" id="confidence-level" style="font-size: 24px;">-</div>
+                </div>
+            </div>
+
+            <div class="dimension-scores" id="dimension-scores">
+                <!-- 维度评分将在这里显示 -->
+            </div>
+
+            <div id="issues-section" style="display: none;">
+                <h3>⚠️ 发现的问题</h3>
+                <div class="issues-list" id="issues-list"></div>
+            </div>
+
+            <div id="recommendations-section">
+                <h3>💡 建议</h3>
+                <div class="recommendations-list" id="recommendations-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v5/rag/truthfulness';
+
+        async function verifyContent() {
+            const content = document.getElementById('content-input').value.trim();
+            if (!content) {
+                alert('请输入要验证的内容');
+                return;
+            }
+
+            const statusDiv = document.getElementById('status');
+            const resultArea = document.getElementById('result-area');
+            
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status info';
+            statusDiv.textContent = '正在验证...';
+            resultArea.style.display = 'none';
+
+            try {
+                const request = {
+                    content: content,
+                    check_sources: document.getElementById('check-sources').checked,
+                    check_facts: document.getElementById('check-facts').checked,
+                    check_logic: document.getElementById('check-logic').checked,
+                    check_bias: document.getElementById('check-bias').checked
+                };
+
+                const response = await fetch(`${API_BASE}/verify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(request)
+                });
+
+                const result = await response.json();
+
+                if (result.score) {
+                    displayResult(result);
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '验证完成！';
+                } else {
+                    throw new Error(result.error || '验证失败');
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `错误: ${error.message}`;
+            }
+        }
+
+        function displayResult(result) {
+            const resultArea = document.getElementById('result-area');
+            resultArea.style.display = 'block';
+
+            // 显示总体评分
+            const score = result.score.overall_score || 0;
+            document.getElementById('overall-score').textContent = score.toFixed(1);
+            document.getElementById('confidence-level').textContent = result.score.confidence || '-';
+
+            // 显示维度评分
+            const dimensionScores = document.getElementById('dimension-scores');
+            dimensionScores.innerHTML = `
+                <div class="dimension-item">
+                    <h4>来源可靠性</h4>
+                    <div class="dimension-score">${result.score.source_reliability.toFixed(1)}</div>
+                </div>
+                <div class="dimension-item">
+                    <h4>事实准确性</h4>
+                    <div class="dimension-score">${result.score.factual_accuracy.toFixed(1)}</div>
+                </div>
+                <div class="dimension-item">
+                    <h4>逻辑一致性</h4>
+                    <div class="dimension-score">${result.score.logical_consistency.toFixed(1)}</div>
+                </div>
+                <div class="dimension-item">
+                    <h4>客观性</h4>
+                    <div class="dimension-score">${result.score.bias_score.toFixed(1)}</div>
+                </div>
+            `;
+
+            // 显示问题
+            if (result.issues && result.issues.length > 0) {
+                const issuesSection = document.getElementById('issues-section');
+                const issuesList = document.getElementById('issues-list');
+                issuesSection.style.display = 'block';
+                issuesList.innerHTML = result.issues.map(issue => `
+                    <div class="issue-item">
+                        <strong>${issue.type}</strong> (${issue.severity}): ${issue.description}
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('issues-section').style.display = 'none';
+            }
+
+            // 显示建议
+            const recommendationsList = document.getElementById('recommendations-list');
+            if (result.recommendations && result.recommendations.length > 0) {
+                recommendationsList.innerHTML = result.recommendations.map(rec => `
+                    <div class="recommendation-item">${rec}</div>
+                `).join('');
+            } else {
+                recommendationsList.innerHTML = '<div class="recommendation-item">无特殊建议</div>';
+            }
+        }
+    </script>
+</body>
+</html>
+

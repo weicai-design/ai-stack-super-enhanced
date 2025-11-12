@@ -18,8 +18,16 @@ from core.database_models import Order, ProductionPlan, Material
 class ProductionManager:
     """生产管理器"""
     
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session, data_listener=None):
+        """
+        初始化生产管理器
+        
+        Args:
+            db_session: 数据库会话
+            data_listener: ERP数据监听器（可选，用于自动发布事件）
+        """
         self.db = db_session
+        self.data_listener = data_listener
     
     # ============ 生产计划管理 ============
     
@@ -63,6 +71,36 @@ class ProductionManager:
             self.db.add(plan)
             self.db.commit()
             self.db.refresh(plan)
+            
+            # 自动发布生产计划创建事件
+            if self.data_listener:
+                try:
+                    import asyncio
+                    plan_dict = self._plan_to_dict(plan)
+                    plan_dict["status"] = plan.status
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                self.data_listener.on_production_status_changed(
+                                    str(plan.id), "", plan.status, plan_dict
+                                )
+                            )
+                        else:
+                            loop.run_until_complete(
+                                self.data_listener.on_production_status_changed(
+                                    str(plan.id), "", plan.status, plan_dict
+                                )
+                            )
+                    except RuntimeError:
+                        asyncio.run(
+                            self.data_listener.on_production_status_changed(
+                                str(plan.id), "", plan.status, plan_dict
+                            )
+                        )
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"生产计划创建事件发布失败: {e}")
             
             # 自动生成物料需求计划
             mrp_result = self._generate_mrp(plan.id, plan_data['product_name'], plan_data['quantity'])
@@ -160,6 +198,35 @@ class ProductionManager:
             
             self.db.commit()
             self.db.refresh(plan)
+            
+            # 自动发布生产状态变化事件
+            if self.data_listener:
+                try:
+                    import asyncio
+                    plan_dict = self._plan_to_dict(plan)
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                self.data_listener.on_production_status_changed(
+                                    str(plan_id), old_status, new_status, plan_dict
+                                )
+                            )
+                        else:
+                            loop.run_until_complete(
+                                self.data_listener.on_production_status_changed(
+                                    str(plan_id), old_status, new_status, plan_dict
+                                )
+                            )
+                    except RuntimeError:
+                        asyncio.run(
+                            self.data_listener.on_production_status_changed(
+                                str(plan_id), old_status, new_status, plan_dict
+                            )
+                        )
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"生产状态变化事件发布失败: {e}")
             
             return {
                 "success": True,

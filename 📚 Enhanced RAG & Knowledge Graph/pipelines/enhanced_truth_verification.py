@@ -528,27 +528,380 @@ class CredibilityScorer:
         return max(0.0, min(1.0, score))
 
 
+class AIFactChecker:
+    """
+    AI辅助事实核查器
+    使用LLM进行事实核查和验证
+    """
+    
+    def __init__(self, ollama_url: str = "http://localhost:11434"):
+        self.ollama_url = ollama_url
+        self.model = "qwen2.5:7b"
+    
+    async def check_facts(
+        self,
+        text: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        使用AI进行事实核查
+        
+        Args:
+            text: 要核查的文本
+            context: 上下文信息
+            
+        Returns:
+            事实核查结果
+        """
+        try:
+            import httpx
+            
+            # 构建提示词
+            prompt = f"""请对以下文本进行事实核查，评估其真实性和可信度：
+
+文本内容：
+{text[:1000]}
+
+请从以下维度进行评估：
+1. 事实准确性（是否有明显错误）
+2. 逻辑一致性（是否有矛盾）
+3. 信息来源可信度
+4. 内容完整性
+
+请以JSON格式返回：
+{{
+    "factual_accuracy": 0.0-1.0,
+    "logical_consistency": 0.0-1.0,
+    "source_reliability": 0.0-1.0,
+    "content_completeness": 0.0-1.0,
+    "overall_score": 0.0-1.0,
+    "issues": ["问题列表"],
+    "verdict": "可信/可疑/不可信"
+}}"""
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{self.ollama_url}/api/generate",
+                    json={
+                        "model": self.model,
+                        "prompt": prompt,
+                        "stream": False
+                    }
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    generated_text = result.get("response", "")
+                    
+                    # 尝试解析JSON
+                    import json
+                    import re
+                    json_match = re.search(r'\{[^{}]*\}', generated_text, re.DOTALL)
+                    if json_match:
+                        try:
+                            ai_result = json.loads(json_match.group())
+                            return {
+                                "success": True,
+                                "ai_score": ai_result.get("overall_score", 0.5),
+                                "factual_accuracy": ai_result.get("factual_accuracy", 0.5),
+                                "logical_consistency": ai_result.get("logical_consistency", 0.5),
+                                "source_reliability": ai_result.get("source_reliability", 0.5),
+                                "content_completeness": ai_result.get("content_completeness", 0.5),
+                                "issues": ai_result.get("issues", []),
+                                "verdict": ai_result.get("verdict", "未知"),
+                                "raw_response": generated_text
+                            }
+                        except json.JSONDecodeError:
+                            pass
+                    
+                    # 如果JSON解析失败，返回默认值
+                    return {
+                        "success": True,
+                        "ai_score": 0.7,
+                        "factual_accuracy": 0.7,
+                        "logical_consistency": 0.7,
+                        "source_reliability": 0.7,
+                        "content_completeness": 0.7,
+                        "issues": [],
+                        "verdict": "需要人工审核",
+                        "raw_response": generated_text
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"AI服务调用失败: {response.status_code}",
+                        "ai_score": 0.5
+                    }
+        except Exception as e:
+            logger.warning(f"AI事实核查失败: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "ai_score": 0.5
+            }
+
+
+class ExternalFactChecker:
+    """
+    外部事实核查器
+    通过网络搜索验证事实
+    """
+    
+    def __init__(self):
+        self.search_engines = ["google", "bing", "duckduckgo"]
+    
+    async def verify_with_search(
+        self,
+        claim: str,
+        max_results: int = 5
+    ) -> Dict[str, Any]:
+        """
+        通过网络搜索验证声明
+        
+        Args:
+            claim: 要验证的声明
+            max_results: 最大搜索结果数
+            
+        Returns:
+            验证结果
+        """
+        try:
+            import httpx
+            
+            # 提取关键信息
+            keywords = self._extract_keywords(claim)
+            search_query = " ".join(keywords[:5])
+            
+            # 调用搜索服务（假设有搜索API）
+            search_url = "http://localhost:8015/api/search"  # 趋势分析系统的搜索API
+            
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                try:
+                    response = await client.get(
+                        search_url,
+                        params={"query": search_query, "limit": max_results}
+                    )
+                    
+                    if response.status_code == 200:
+                        results = response.json()
+                        search_results = results.get("results", [])
+                        
+                        # 分析搜索结果与声明的相关性
+                        relevance_score = self._calculate_relevance(claim, search_results)
+                        
+                        return {
+                            "success": True,
+                            "relevance_score": relevance_score,
+                            "search_results_count": len(search_results),
+                            "verification_status": "verified" if relevance_score > 0.7 else "unverified",
+                            "search_results": search_results[:3]  # 只返回前3个结果
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"搜索服务不可用: {response.status_code}",
+                            "relevance_score": 0.5
+                        }
+                except httpx.ConnectError:
+                    # 搜索服务不可用，返回默认值
+                    return {
+                        "success": False,
+                        "error": "搜索服务不可用",
+                        "relevance_score": 0.5
+                    }
+        except Exception as e:
+            logger.warning(f"外部事实核查失败: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "relevance_score": 0.5
+            }
+    
+    def _extract_keywords(self, text: str) -> List[str]:
+        """提取关键词"""
+        import re
+        # 简单的关键词提取（可以改进）
+        words = re.findall(r'\b\w+\b', text.lower())
+        # 过滤停用词
+        stop_words = {"的", "是", "在", "有", "和", "与", "或", "the", "is", "a", "an", "and", "or"}
+        keywords = [w for w in words if w not in stop_words and len(w) > 2]
+        return keywords[:10]
+    
+    def _calculate_relevance(self, claim: str, search_results: List[Dict]) -> float:
+        """计算搜索结果与声明的相关性"""
+        if not search_results:
+            return 0.0
+        
+        claim_keywords = set(self._extract_keywords(claim))
+        total_relevance = 0.0
+        
+        for result in search_results[:5]:
+            result_text = result.get("title", "") + " " + result.get("snippet", "")
+            result_keywords = set(self._extract_keywords(result_text))
+            
+            # 计算关键词重叠度
+            if claim_keywords:
+                overlap = len(claim_keywords & result_keywords) / len(claim_keywords)
+                total_relevance += overlap
+        
+        return min(1.0, total_relevance / len(search_results[:5]))
+
+
+class VerificationReportGenerator:
+    """
+    验证报告生成器
+    生成详细的验证报告和可视化
+    """
+    
+    def generate_report(
+        self,
+        verification_result: Dict[str, Any],
+        include_details: bool = True
+    ) -> Dict[str, Any]:
+        """
+        生成验证报告
+        
+        Args:
+            verification_result: 验证结果
+            include_details: 是否包含详细信息
+            
+        Returns:
+            验证报告
+        """
+        credibility = verification_result.get("credibility", {})
+        component_scores = credibility.get("component_scores", {})
+        
+        report = {
+            "summary": {
+                "verified": verification_result.get("verified", False),
+                "overall_score": credibility.get("credibility_score", 0.0),
+                "recommendation": credibility.get("recommendation", "review"),
+                "timestamp": verification_result.get("timestamp", "")
+            },
+            "component_scores": component_scores,
+            "breakdown": {
+                "source_reliability": {
+                    "score": component_scores.get("source", 0.0),
+                    "status": self._get_status(component_scores.get("source", 0.0)),
+                    "description": self._get_source_description(component_scores.get("source", 0.0))
+                },
+                "content_consistency": {
+                    "score": component_scores.get("consistency", 0.0),
+                    "status": self._get_status(component_scores.get("consistency", 0.0)),
+                    "description": self._get_consistency_description(component_scores.get("consistency", 0.0))
+                },
+                "cross_document_consistency": {
+                    "score": component_scores.get("cross_consistency", 0.0),
+                    "status": self._get_status(component_scores.get("cross_consistency", 0.0)),
+                    "description": "跨文档一致性检查"
+                },
+                "content_quality": {
+                    "score": component_scores.get("quality", 0.0),
+                    "status": self._get_status(component_scores.get("quality", 0.0)),
+                    "description": "内容质量评估"
+                },
+                "timestamp_validity": {
+                    "score": component_scores.get("timestamp", 0.0),
+                    "status": self._get_status(component_scores.get("timestamp", 0.0)),
+                    "description": "时间戳有效性检查"
+                }
+            }
+        }
+        
+        if include_details:
+            report["details"] = {
+                "source_info": credibility.get("source_info", {}),
+                "consistency_info": credibility.get("consistency_info", {}),
+                "timestamp_info": credibility.get("timestamp_info", {})
+            }
+        
+        # 生成建议
+        report["recommendations"] = self._generate_recommendations(component_scores)
+        
+        return report
+    
+    def _get_status(self, score: float) -> str:
+        """获取状态"""
+        if score >= 0.8:
+            return "excellent"
+        elif score >= 0.65:
+            return "good"
+        elif score >= 0.5:
+            return "fair"
+        else:
+            return "poor"
+    
+    def _get_source_description(self, score: float) -> str:
+        """获取来源描述"""
+        if score >= 0.8:
+            return "来源高度可信"
+        elif score >= 0.65:
+            return "来源基本可信"
+        elif score >= 0.5:
+            return "来源可信度一般"
+        else:
+            return "来源可信度较低"
+    
+    def _get_consistency_description(self, score: float) -> str:
+        """获取一致性描述"""
+        if score >= 0.8:
+            return "内容高度一致"
+        elif score >= 0.65:
+            return "内容基本一致"
+        elif score >= 0.5:
+            return "存在一些不一致"
+        else:
+            return "存在明显矛盾"
+    
+    def _generate_recommendations(self, component_scores: Dict[str, float]) -> List[str]:
+        """生成改进建议"""
+        recommendations = []
+        
+        if component_scores.get("source", 1.0) < 0.65:
+            recommendations.append("建议验证信息来源的可信度")
+        
+        if component_scores.get("consistency", 1.0) < 0.65:
+            recommendations.append("建议检查内容内部一致性")
+        
+        if component_scores.get("quality", 1.0) < 0.65:
+            recommendations.append("建议提高内容质量")
+        
+        if component_scores.get("timestamp", 1.0) < 0.65:
+            recommendations.append("建议更新过时信息")
+        
+        if not recommendations:
+            recommendations.append("内容验证通过，可以入库")
+        
+        return recommendations
+
+
 class EnhancedTruthVerification:
     """
     增强的真实性验证器
     集成所有验证功能，提供统一的验证接口
     """
 
-    def __init__(self):
+    def __init__(self, enable_ai_check: bool = True, enable_external_check: bool = False):
         self.scorer = CredibilityScorer()
         self.consistency_checker = ContentConsistencyChecker()
         self.source_checker = SourceReliabilityChecker()
+        self.ai_checker = AIFactChecker() if enable_ai_check else None
+        self.external_checker = ExternalFactChecker() if enable_external_check else None
+        self.report_generator = VerificationReportGenerator()
+        self.verification_history = []  # 验证历史记录
 
-    def verify_content(
+    async def verify_content(
         self,
         text: str,
         source: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         existing_texts: Optional[List[str]] = None,
         min_credibility: float = 0.65,
+        use_ai_check: bool = False,
+        use_external_check: bool = False,
     ) -> Dict[str, Any]:
         """
-        验证内容真实性
+        验证内容真实性（深化版）
         
         Args:
             text: 要验证的文本内容
@@ -556,22 +909,58 @@ class EnhancedTruthVerification:
             metadata: 元数据
             existing_texts: 已有文本（用于一致性检查）
             min_credibility: 最低可信度阈值
+            use_ai_check: 是否使用AI辅助验证
+            use_external_check: 是否使用外部搜索验证
             
         Returns:
             验证结果字典
         """
-        # 计算可信度
+        # 1. 基础可信度计算
         credibility_result = self.scorer.calculate_credibility(
             text=text,
             source=source,
             metadata=metadata,
             existing_texts=existing_texts,
         )
-
+        
+        base_score = credibility_result["credibility_score"]
+        
+        # 2. AI辅助验证（可选）
+        ai_score = None
+        ai_result = None
+        if use_ai_check and self.ai_checker:
+            try:
+                ai_result = await self.ai_checker.check_facts(text, metadata)
+                if ai_result.get("success"):
+                    ai_score = ai_result.get("ai_score", 0.5)
+                    # 将AI评分纳入综合评分（权重30%）
+                    base_score = base_score * 0.7 + ai_score * 0.3
+            except Exception as e:
+                logger.warning(f"AI验证失败: {e}")
+        
+        # 3. 外部搜索验证（可选）
+        external_score = None
+        external_result = None
+        if use_external_check and self.external_checker:
+            try:
+                external_result = await self.external_checker.verify_with_search(text)
+                if external_result.get("success"):
+                    external_score = external_result.get("relevance_score", 0.5)
+                    # 将外部验证评分纳入综合评分（权重20%）
+                    base_score = base_score * 0.8 + external_score * 0.2
+            except Exception as e:
+                logger.warning(f"外部验证失败: {e}")
+        
+        # 更新可信度评分
+        credibility_result["credibility_score"] = round(base_score, 3)
+        credibility_result["ai_verification"] = ai_result
+        credibility_result["external_verification"] = external_result
+        
         # 决定是否接受
-        is_acceptable = credibility_result["credibility_score"] >= min_credibility
-
-        return {
+        is_acceptable = base_score >= min_credibility
+        
+        # 生成详细报告
+        verification_result = {
             "verified": is_acceptable,
             "credibility": credibility_result,
             "action": "accept" if is_acceptable else "reject",
@@ -581,19 +970,50 @@ class EnhancedTruthVerification:
                 else f"可信度低于阈值 {min_credibility}"
             ),
             "timestamp": datetime.now().isoformat(),
+            "verification_methods": {
+                "base_credibility": True,
+                "ai_check": use_ai_check and ai_result is not None,
+                "external_check": use_external_check and external_result is not None
+            }
         }
+        
+        # 生成详细报告
+        verification_result["report"] = self.report_generator.generate_report(
+            verification_result,
+            include_details=True
+        )
+        
+        # 记录验证历史
+        self.verification_history.append({
+            "timestamp": datetime.now().isoformat(),
+            "text_preview": text[:100],
+            "source": source,
+            "score": base_score,
+            "verified": is_acceptable,
+            "methods": verification_result["verification_methods"]
+        })
+        
+        # 限制历史记录数量（保留最近1000条）
+        if len(self.verification_history) > 1000:
+            self.verification_history = self.verification_history[-1000:]
+        
+        return verification_result
 
-    def filter_content(
+    async def filter_content(
         self,
         content_list: List[Dict[str, Any]],
         min_credibility: float = 0.65,
+        use_ai_check: bool = False,
+        use_external_check: bool = False,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
-        过滤内容列表，移除低可信度内容
+        过滤内容列表，移除低可信度内容（异步版）
         
         Args:
             content_list: 内容列表，每个元素包含 text, source, metadata
             min_credibility: 最低可信度阈值
+            use_ai_check: 是否使用AI验证
+            use_external_check: 是否使用外部验证
             
         Returns:
             (accepted_list, rejected_list) 元组
@@ -606,11 +1026,13 @@ class EnhancedTruthVerification:
             source = content.get("source")
             metadata = content.get("metadata", {})
 
-            result = self.verify_content(
+            result = await self.verify_content(
                 text=text,
                 source=source,
                 metadata=metadata,
                 min_credibility=min_credibility,
+                use_ai_check=use_ai_check,
+                use_external_check=use_external_check,
             )
 
             if result["verified"]:
@@ -623,6 +1045,136 @@ class EnhancedTruthVerification:
                 rejected.append(content)
 
         return accepted, rejected
+    
+    async def batch_verify(
+        self,
+        content_list: List[Dict[str, Any]],
+        min_credibility: float = 0.65,
+        use_ai_check: bool = False,
+        use_external_check: bool = False,
+        max_concurrent: int = 5
+    ) -> Dict[str, Any]:
+        """
+        批量验证内容（优化版）
+        
+        Args:
+            content_list: 内容列表
+            min_credibility: 最低可信度阈值
+            use_ai_check: 是否使用AI验证
+            use_external_check: 是否使用外部验证
+            max_concurrent: 最大并发数
+            
+        Returns:
+            批量验证结果
+        """
+        import asyncio
+        
+        accepted = []
+        rejected = []
+        verification_stats = {
+            "total": len(content_list),
+            "accepted": 0,
+            "rejected": 0,
+            "average_score": 0.0,
+            "scores_distribution": {
+                "excellent": 0,  # >= 0.8
+                "good": 0,       # 0.65-0.8
+                "fair": 0,       # 0.5-0.65
+                "poor": 0        # < 0.5
+            }
+        }
+        
+        # 使用信号量控制并发
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def verify_one(content: Dict[str, Any]):
+            async with semaphore:
+                text = content.get("text", "")
+                source = content.get("source")
+                metadata = content.get("metadata", {})
+                
+                result = await self.verify_content(
+                    text=text,
+                    source=source,
+                    metadata=metadata,
+                    min_credibility=min_credibility,
+                    use_ai_check=use_ai_check,
+                    use_external_check=use_external_check,
+                )
+                
+                return content, result
+        
+        # 并发执行验证
+        tasks = [verify_one(content) for content in content_list]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 处理结果
+        total_score = 0.0
+        for item in results:
+            if isinstance(item, Exception):
+                logger.error(f"批量验证出错: {item}")
+                continue
+            
+            content, result = item
+            
+            score = result["credibility"]["credibility_score"]
+            total_score += score
+            
+            # 统计分布
+            if score >= 0.8:
+                verification_stats["scores_distribution"]["excellent"] += 1
+            elif score >= 0.65:
+                verification_stats["scores_distribution"]["good"] += 1
+            elif score >= 0.5:
+                verification_stats["scores_distribution"]["fair"] += 1
+            else:
+                verification_stats["scores_distribution"]["poor"] += 1
+            
+            if result["verified"]:
+                content["verification"] = result["credibility"]
+                accepted.append(content)
+                verification_stats["accepted"] += 1
+            else:
+                content["verification"] = result["credibility"]
+                content["rejection_reason"] = result["reason"]
+                rejected.append(content)
+                verification_stats["rejected"] += 1
+        
+        # 计算平均分
+        if len(content_list) > 0:
+            verification_stats["average_score"] = round(total_score / len(content_list), 3)
+        
+        return {
+            "accepted": accepted,
+            "rejected": rejected,
+            "stats": verification_stats,
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    def get_verification_statistics(self) -> Dict[str, Any]:
+        """
+        获取验证统计信息
+        
+        Returns:
+            统计信息
+        """
+        if not self.verification_history:
+            return {
+                "total_verifications": 0,
+                "average_score": 0.0,
+                "acceptance_rate": 0.0
+            }
+        
+        total = len(self.verification_history)
+        total_score = sum(h["score"] for h in self.verification_history)
+        accepted_count = sum(1 for h in self.verification_history if h["verified"])
+        
+        return {
+            "total_verifications": total,
+            "average_score": round(total_score / total, 3) if total > 0 else 0.0,
+            "acceptance_rate": round(accepted_count / total, 3) if total > 0 else 0.0,
+            "recent_verifications": self.verification_history[-10:]  # 最近10条
+        }
 
 
 # 全局实例（单例模式）

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内容创作 V5.0 - AI-STACK</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --primary: #2563eb; --success: #10b981; --bg: #0f172a; --surface: #1e293b; --text: #f1f5f9; --border: #334155; }
+        body { font-family: Inter, sans-serif; background: var(--bg); color: var(--text); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .top-nav { background: var(--surface); padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+        .nav-title { font-size: 1.5rem; font-weight: 600; }
+        .btn { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; cursor: pointer; background: var(--primary); color: white; }
+        .editor-container { background: var(--surface); padding: 2rem; border-radius: 12px; margin-top: 1.5rem; border: 1px solid var(--border); }
+        .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+        .editor { min-height: 400px; background: #1e293b; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); }
+        .sidebar { background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); margin-top: 1.5rem; }
+        .content-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
+        .material-item { background: #334155; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="top-nav">
+        <div class="nav-title">✍️ 内容创作 V5.0</div>
+        <button class="btn" onclick="window.history.back()">← 返回</button>
+    </div>
+    <div class="container">
+        <div class="content-grid">
+            <div>
+                <div class="editor-container">
+                    <div class="toolbar">
+                        <button class="btn">📝 AI写作</button>
+                        <button class="btn">💾 保存草稿</button>
+                        <button class="btn">👁️ 预览</button>
+                        <button class="btn">🚀 发布</button>
+                    </div>
+                    <div class="editor" contenteditable="true" placeholder="在这里开始创作...或让AI帮你写作">
+                        点击"AI写作"按钮，让AI助手帮你创作内容...
+                    </div>
+                </div>
+            </div>
+            <div>
+                <div class="sidebar">
+                    <h3>📚 素材库</h3>
+                    <div style="margin-top: 1rem;">
+                        <div class="material-item">🖼️ 图片素材 (234个)</div>
+                        <div class="material-item">🎥 视频素材 (45个)</div>
+                        <div class="material-item">📊 数据图表 (67个)</div>
+                    </div>
+                </div>
+                <div class="sidebar" style="margin-top: 1rem;">
+                    <h3>📢 发布渠道</h3>
+                    <div style="margin-top: 1rem;">
+                        <label><input type="checkbox"> 微信公众号</label><br>
+                        <label><input type="checkbox"> 小红书</label><br>
+                        <label><input type="checkbox"> 抖音</label><br>
+                        <label><input type="checkbox"> 知乎</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // ==================== 后端API连接（V5.6）====================
+        
+        // AI写作功能
+        document.querySelectorAll('.btn').forEach(btn => {
+            if (btn.textContent.includes('AI写作')) {
+                btn.addEventListener('click', async () => {
+                    try {
+                        const editor = document.querySelector('.editor');
+                        const prompt = editor.textContent.trim() || '请写一篇关于AI技术发展的文章';
+                        
+                        btn.textContent = '⏳ AI创作中...';
+                        btn.disabled = true;
+                        
+                        const response = await fetch('/api/v5/content/real/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                prompt: prompt,
+                                style: 'professional',
+                                length: 'medium'
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            editor.textContent = data.content || '这是AI生成的内容示例...';
+                            alert('✅ AI写作完成！');
+                        } else {
+                            editor.textContent = '# AI写作示例\n\n这是一篇关于AI技术的文章...\n\n（演示模式）';
+                            alert('⚠️  使用演示内容');
+                        }
+                        
+                        btn.textContent = '📝 AI写作';
+                        btn.disabled = false;
+                        
+                    } catch (error) {
+                        console.warn('⚠️  内容创作API未就绪:', error);
+                        document.querySelector('.editor').textContent = '# AI写作示例\n\n这是一篇示例文章...';
+                        btn.textContent = '📝 AI写作';
+                        btn.disabled = false;
+                    }
+                });
+            }
+            
+            if (btn.textContent.includes('发布')) {
+                btn.addEventListener('click', async () => {
+                    const content = document.querySelector('.editor').textContent;
+                    const channels = [];
+                    document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+                        channels.push(cb.parentElement.textContent.trim());
+                    });
+                    
+                    try {
+                        const response = await fetch('/api/v5/content/real/publish', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content, channels })
+                        });
+                        
+                        if (response.ok) {
+                            alert(`✅ 内容已发布到 ${channels.length} 个平台！`);
+                        } else {
+                            alert('⚠️  发布功能开发中...');
+                        }
+                    } catch (error) {
+                        alert('⚠️  发布功能开发中...');
+                    }
+                });
+            }
+        });
+        
+        console.log('✅ 内容创作V5界面已加载（V5.6后端连接版）');
+    </script>
+</body>
+</html>

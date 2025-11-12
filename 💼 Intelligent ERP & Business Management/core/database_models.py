@@ -497,3 +497,141 @@ class ImprovementPlan(Base):
         Index('idx_improvements_status_priority', 'status', 'priority'),
     )
 
+
+# ============ 售后服务表 ============
+
+class AfterSalesTicket(Base):
+    """售后工单表"""
+    __tablename__ = "after_sales_tickets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_number = Column(String(50), unique=True, nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    ticket_type = Column(String(50), nullable=False)  # complaint, repair, return, exchange, consultation
+    priority = Column(String(20), default="medium")  # low, medium, high, urgent
+    status = Column(String(20), default="open", index=True)  # open, assigned, in_progress, resolved, closed
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    assigned_to = Column(String(100))  # 负责人
+    reported_by = Column(String(100))  # 报告人
+    reported_at = Column(DateTime, default=datetime.utcnow, index=True)
+    resolved_at = Column(DateTime)
+    resolution = Column(Text)
+    customer_satisfaction = Column(Integer)  # 1-5分
+    extra_metadata = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    order = relationship("Order")
+    customer = relationship("Customer")
+
+    __table_args__ = (
+        Index('idx_tickets_status_priority', 'status', 'priority', 'reported_at'),
+        Index('idx_tickets_customer', 'customer_id', 'status'),
+    )
+
+
+class CustomerComplaint(Base):
+    """客户投诉表"""
+    __tablename__ = "customer_complaints"
+
+    id = Column(Integer, primary_key=True, index=True)
+    complaint_number = Column(String(50), unique=True, nullable=False, index=True)
+    ticket_id = Column(Integer, ForeignKey("after_sales_tickets.id"))
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"))
+    complaint_type = Column(String(50), nullable=False)  # quality, delivery, service, price, other
+    severity = Column(String(20), default="medium")  # low, medium, high, critical
+    description = Column(Text, nullable=False)
+    expected_resolution = Column(Text)  # 客户期望的解决方案
+    status = Column(String(20), default="pending", index=True)  # pending, investigating, resolved, closed
+    reported_at = Column(DateTime, default=datetime.utcnow, index=True)
+    resolved_at = Column(DateTime)
+    resolution = Column(Text)
+    resolved_by = Column(String(100))
+    customer_feedback = Column(Text)
+    extra_metadata = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    ticket = relationship("AfterSalesTicket")
+    customer = relationship("Customer")
+    order = relationship("Order")
+
+    __table_args__ = (
+        Index('idx_complaints_status_severity', 'status', 'severity', 'reported_at'),
+    )
+
+
+class RepairRecord(Base):
+    """维修记录表"""
+    __tablename__ = "repair_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    repair_number = Column(String(50), unique=True, nullable=False, index=True)
+    ticket_id = Column(Integer, ForeignKey("after_sales_tickets.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"))
+    product_name = Column(String(200), nullable=False)
+    product_code = Column(String(50))
+    serial_number = Column(String(100))  # 序列号
+    issue_description = Column(Text, nullable=False)
+    repair_type = Column(String(50))  # warranty, paid, recall
+    repair_status = Column(String(20), default="pending", index=True)  # pending, in_progress, completed, failed
+    technician = Column(String(100))  # 维修技师
+    repair_start_date = Column(Date)
+    repair_end_date = Column(Date)
+    repair_cost = Column(Numeric(15, 2))
+    parts_cost = Column(Numeric(15, 2))
+    labor_cost = Column(Numeric(15, 2))
+    repair_notes = Column(Text)
+    warranty_status = Column(String(20))  # in_warranty, out_of_warranty, extended
+    extra_metadata = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    ticket = relationship("AfterSalesTicket")
+    order = relationship("Order")
+
+    __table_args__ = (
+        Index('idx_repairs_status_date', 'repair_status', 'repair_start_date'),
+    )
+
+
+class ReturnRecord(Base):
+    """退换货记录表"""
+    __tablename__ = "return_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    return_number = Column(String(50), unique=True, nullable=False, index=True)
+    ticket_id = Column(Integer, ForeignKey("after_sales_tickets.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    return_type = Column(String(20), nullable=False)  # return, exchange
+    reason = Column(String(100), nullable=False)  # 退货原因
+    product_name = Column(String(200), nullable=False)
+    product_code = Column(String(50))
+    quantity = Column(Numeric(10, 2), nullable=False)
+    return_amount = Column(Numeric(15, 2), nullable=False)
+    return_status = Column(String(20), default="pending", index=True)  # pending, approved, rejected, processing, completed
+    requested_date = Column(Date, nullable=False, index=True)
+    approved_date = Column(Date)
+    completed_date = Column(Date)
+    approved_by = Column(String(100))
+    rejection_reason = Column(Text)
+    return_address = Column(Text)
+    tracking_number = Column(String(100))
+    refund_status = Column(String(20))  # pending, processing, completed, failed
+    refund_amount = Column(Numeric(15, 2))
+    refund_method = Column(String(50))  # original, bank_transfer, credit
+    notes = Column(Text)
+    extra_metadata = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    ticket = relationship("AfterSalesTicket")
+    order = relationship("Order")
+
+    __table_args__ = (
+        Index('idx_returns_status_date', 'return_status', 'requested_date'),
+    )
+

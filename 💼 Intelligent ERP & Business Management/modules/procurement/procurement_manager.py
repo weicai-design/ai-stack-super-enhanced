@@ -34,13 +34,19 @@ class ProcurementType(Enum):
 class ProcurementManager:
     """采购管理器"""
     
-    def __init__(self):
-        """初始化采购管理器"""
+    def __init__(self, data_listener=None):
+        """
+        初始化采购管理器
+        
+        Args:
+            data_listener: ERP数据监听器（可选，用于自动发布事件）
+        """
         self.procurement_orders = {}
         self.suppliers = {}
         self.purchase_requests = {}
         self.price_history = {}
         self.order_counter = 1000
+        self.data_listener = data_listener
     
     def create_purchase_request(
         self,
@@ -214,6 +220,28 @@ class ProcurementManager:
         }
         
         self.procurement_orders[order_id] = order
+        
+        # 自动发布采购订单创建事件
+        if self.data_listener:
+            try:
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(
+                            self.data_listener.on_procurement_order_created(order_id, order)
+                        )
+                    else:
+                        loop.run_until_complete(
+                            self.data_listener.on_procurement_order_created(order_id, order)
+                        )
+                except RuntimeError:
+                    asyncio.run(
+                        self.data_listener.on_procurement_order_created(order_id, order)
+                    )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"采购订单创建事件发布失败: {e}")
         
         return {
             "success": True,

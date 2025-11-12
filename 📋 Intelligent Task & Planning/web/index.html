@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能工作计划与任务 - AI-STACK</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { margin-bottom: 30px; color: #333; }
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .btn {
+            padding: 10px 20px;
+            background: #4caf50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover { background: #45a049; }
+        .btn-secondary {
+            background: #2196f3;
+        }
+        .btn-secondary:hover {
+            background: #1976d2;
+        }
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+        }
+        .tasks-section {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 4px;
+        }
+        .plan-section {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 4px;
+        }
+        .section-title {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .task-item {
+            background: #fff;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #4caf50;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .task-item:hover {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .task-item.pending {
+            border-left-color: #ff9800;
+        }
+        .task-item.confirmed {
+            border-left-color: #2196f3;
+        }
+        .task-item.completed {
+            border-left-color: #4caf50;
+        }
+        .task-item.rejected {
+            border-left-color: #f44336;
+        }
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 8px;
+        }
+        .task-title {
+            font-weight: 600;
+            color: #333;
+        }
+        .task-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            background: #e0e0e0;
+            color: #666;
+        }
+        .task-meta {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+        }
+        .task-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #fff;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4caf50;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        .plan-view {
+            background: #fff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+        .plan-task {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 智能工作计划与任务</h1>
+        
+        <div class="toolbar">
+            <button class="btn" onclick="extractTasks()">✨ 从备忘录提炼任务</button>
+            <button class="btn btn-secondary" onclick="generatePlan()">📅 生成工作计划</button>
+            <button class="btn btn-secondary" onclick="refreshTasks()">🔄 刷新</button>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="total-tasks">0</div>
+                <div class="stat-label">总任务</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="pending-tasks">0</div>
+                <div class="stat-label">待确认</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="completed-tasks">0</div>
+                <div class="stat-label">已完成</div>
+            </div>
+        </div>
+
+        <div class="main-layout">
+            <!-- 任务列表 -->
+            <div class="tasks-section">
+                <h2 class="section-title">任务列表</h2>
+                <div id="tasks-list">
+                    <!-- 任务列表将在这里显示 -->
+                </div>
+            </div>
+
+            <!-- 工作计划 -->
+            <div class="plan-section">
+                <h2 class="section-title">工作计划</h2>
+                <div id="plan-view" class="plan-view">
+                    <p style="color: #666; text-align: center;">点击"生成工作计划"创建计划</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/task-planning';
+
+        async function extractTasks() {
+            try {
+                const response = await fetch(`${API_BASE}/tasks/extract`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+
+                const result = await response.json();
+                if (result.tasks && result.tasks.length > 0) {
+                    alert(`成功提取 ${result.tasks.length} 个任务，请确认后执行`);
+                    await refreshTasks();
+                } else {
+                    alert('未找到可提取的任务');
+                }
+            } catch (error) {
+                alert(`提取失败: ${error.message}`);
+            }
+        }
+
+        async function generatePlan() {
+            try {
+                const response = await fetch(`${API_BASE}/plans/generate`);
+                const result = await response.json();
+                
+                if (result.success && result.plan) {
+                    displayPlan(result.plan);
+                }
+            } catch (error) {
+                alert(`生成计划失败: ${error.message}`);
+            }
+        }
+
+        async function refreshTasks() {
+            try {
+                const response = await fetch(`${API_BASE}/tasks`);
+                const result = await response.json();
+                
+                displayTasks(result.tasks || []);
+                updateStats(result.tasks || []);
+            } catch (error) {
+                console.error('刷新失败:', error);
+            }
+        }
+
+        function displayTasks(tasks) {
+            const list = document.getElementById('tasks-list');
+            if (tasks.length === 0) {
+                list.innerHTML = '<p style="color: #666; text-align: center;">暂无任务</p>';
+                return;
+            }
+
+            list.innerHTML = tasks.map(task => `
+                <div class="task-item ${task.status}" onclick="showTaskDetail(${task.id})">
+                    <div class="task-header">
+                        <div class="task-title">${task.title}</div>
+                        <span class="task-status">${getStatusText(task.status)}</span>
+                    </div>
+                    <div class="task-meta">
+                        来源: ${task.source} | 优先级: ${task.priority} | 
+                        创建时间: ${new Date(task.created_at).toLocaleString()}
+                    </div>
+                    ${task.needs_confirmation ? `
+                        <div class="task-actions">
+                            <button class="btn btn-small" onclick="event.stopPropagation(); confirmTask(${task.id}, true)">✓ 确认</button>
+                            <button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); confirmTask(${task.id}, false)">× 拒绝</button>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function displayPlan(plan) {
+            const view = document.getElementById('plan-view');
+            view.innerHTML = `
+                <h3>计划 #${plan.id}</h3>
+                <p>总任务: ${plan.total_tasks} | 待处理: ${plan.pending_tasks} | 已完成: ${plan.completed_tasks}</p>
+                <div style="margin-top: 15px;">
+                    ${plan.tasks.map(task => `
+                        <div class="plan-task">
+                            <strong>${task.title}</strong><br>
+                            <small>预计: ${task.estimated_hours}小时 | ${new Date(task.scheduled_date).toLocaleString()}</small>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function updateStats(tasks) {
+            document.getElementById('total-tasks').textContent = tasks.length;
+            document.getElementById('pending-tasks').textContent = tasks.filter(t => t.needs_confirmation).length;
+            document.getElementById('completed-tasks').textContent = tasks.filter(t => t.status === 'completed').length;
+        }
+
+        async function confirmTask(taskId, confirmed) {
+            try {
+                const response = await fetch(`${API_BASE}/tasks/${taskId}/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirmed, reason: confirmed ? null : '用户拒绝' })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    await refreshTasks();
+                }
+            } catch (error) {
+                alert(`确认失败: ${error.message}`);
+            }
+        }
+
+        function showTaskDetail(taskId) {
+            // TODO: 显示任务详情
+            alert(`任务详情: ${taskId}`);
+        }
+
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': '待确认',
+                'confirmed': '已确认',
+                'in_progress': '进行中',
+                'completed': '已完成',
+                'rejected': '已拒绝'
+            };
+            return statusMap[status] || status;
+        }
+
+        // 页面加载时刷新
+        window.addEventListener('load', refreshTasks);
+    </script>
+</body>
+</html>
+

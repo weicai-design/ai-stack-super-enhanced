@@ -61,7 +61,6 @@ class EmbeddingService:
                 ensure_mirror_configured()
             except ImportError:
                 # 如果镜像工具不可用，手动设置
-                import os
                 if "HF_ENDPOINT" not in os.environ:
                     mirror_config = Path(__file__).parent.parent.parent / ".config" / "china_mirrors.env"
                     if mirror_config.exists():

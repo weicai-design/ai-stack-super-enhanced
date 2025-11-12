@@ -4,6 +4,7 @@
 - 订单状态管理
 - 订单分析统计
 - 订单与客户关联
+- 自动事件发布（集成ERP数据监听）
 """
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
@@ -18,8 +19,16 @@ from core.database_models import Order, Customer, OrderItem
 class OrderManager:
     """订单管理器"""
     
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session, data_listener=None):
+        """
+        初始化订单管理器
+        
+        Args:
+            db_session: 数据库会话
+            data_listener: ERP数据监听器（可选，用于自动发布事件）
+        """
         self.db = db_session
+        self.data_listener = data_listener
     
     # ============ CRUD操作 ============
     
@@ -86,6 +95,27 @@ class OrderManager:
             self.db.add(order)
             self.db.commit()
             self.db.refresh(order)
+            
+            # 自动发布订单创建事件
+            if self.data_listener:
+                try:
+                    order_dict = self._order_to_dict(order)
+                    # 使用asyncio在同步方法中调用异步方法
+                    import asyncio
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # 如果事件循环正在运行，创建任务
+                            asyncio.create_task(self.data_listener.on_order_created(order_dict))
+                        else:
+                            loop.run_until_complete(self.data_listener.on_order_created(order_dict))
+                    except RuntimeError:
+                        # 如果没有事件循环，创建新的
+                        asyncio.run(self.data_listener.on_order_created(order_dict))
+                except Exception as e:
+                    # 事件发布失败不影响订单创建
+                    import logging
+                    logging.getLogger(__name__).warning(f"订单创建事件发布失败: {e}")
             
             return {
                 "success": True,
@@ -186,6 +216,36 @@ class OrderManager:
             
             self.db.commit()
             self.db.refresh(order)
+            
+            # 自动发布订单状态变化事件
+            if self.data_listener:
+                try:
+                    import asyncio
+                    old_data = {"status": old_status}
+                    new_data = self._order_to_dict(order)
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                self.data_listener.on_order_updated(
+                                    str(order_id), old_data, new_data
+                                )
+                            )
+                        else:
+                            loop.run_until_complete(
+                                self.data_listener.on_order_updated(
+                                    str(order_id), old_data, new_data
+                                )
+                            )
+                    except RuntimeError:
+                        asyncio.run(
+                            self.data_listener.on_order_updated(
+                                str(order_id), old_data, new_data
+                            )
+                        )
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"订单状态变化事件发布失败: {e}")
             
             return {
                 "success": True,
@@ -307,10 +367,42 @@ class OrderManager:
                 if hasattr(order, key) and value is not None:
                     setattr(order, key, value)
             
+            # 保存旧数据用于事件发布
+            old_data = self._order_to_dict(order)
+            
             order.updated_at = datetime.utcnow()
             
             self.db.commit()
             self.db.refresh(order)
+            
+            # 自动发布订单更新事件
+            if self.data_listener:
+                try:
+                    import asyncio
+                    new_data = self._order_to_dict(order)
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                self.data_listener.on_order_updated(
+                                    str(order_id), old_data, new_data
+                                )
+                            )
+                        else:
+                            loop.run_until_complete(
+                                self.data_listener.on_order_updated(
+                                    str(order_id), old_data, new_data
+                                )
+                            )
+                    except RuntimeError:
+                        asyncio.run(
+                            self.data_listener.on_order_updated(
+                                str(order_id), old_data, new_data
+                            )
+                        )
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"订单更新事件发布失败: {e}")
             
             return {
                 "success": True,
@@ -337,8 +429,33 @@ class OrderManager:
                     "error": f"订单状态为 {order.status}，无法删除"
                 }
             
+            # 保存订单数据用于事件发布
+            order_data = self._order_to_dict(order)
+            
             self.db.delete(order)
             self.db.commit()
+            
+            # 自动发布订单删除事件
+            if self.data_listener:
+                try:
+                    import asyncio
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                self.data_listener.on_order_deleted(str(order_id), order_data)
+                            )
+                        else:
+                            loop.run_until_complete(
+                                self.data_listener.on_order_deleted(str(order_id), order_data)
+                            )
+                    except RuntimeError:
+                        asyncio.run(
+                            self.data_listener.on_order_deleted(str(order_id), order_data)
+                        )
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"订单删除事件发布失败: {e}")
             
             return {
                 "success": True,

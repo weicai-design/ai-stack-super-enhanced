@@ -1,149 +1,189 @@
 #!/bin/bash
 
-# AI Stack Super Enhanced - 统一启动脚本
-# 按照正确顺序启动所有服务
+# AI-STACK 所有服务启动脚本
+# 一键启动所有主要服务
 
-echo "🚀 开始启动 AI Stack 所有服务..."
-echo "================================"
+echo "🚀 AI-STACK 服务启动工具"
+echo "════════════════════════════════════════"
+echo ""
 
-# 颜色定义
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+BASE_DIR="/Users/ywc/ai-stack-super-enhanced"
+PIDS_FILE="/tmp/ai-stack-pids.txt"
 
-# 项目根目录
-PROJECT_ROOT="/Users/ywc/ai-stack-super-enhanced"
-
-# 日志目录
-LOG_DIR="$PROJECT_ROOT/logs"
-mkdir -p "$LOG_DIR"
-
-# 启动函数
-start_service() {
-    local name=$1
-    local command=$2
-    local log_file="$LOG_DIR/${name}.log"
-    
-    echo -e "${BLUE}➤ 启动 $name...${NC}"
-    
-    # 在后台执行命令
-    eval "$command" > "$log_file" 2>&1 &
-    
-    echo "  PID: $!"
-    echo "  日志: $log_file"
+# 清理旧进程
+cleanup_port() {
+    local port=$1
+    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo "⚠️  端口 $port 已被占用，正在清理..."
+        lsof -ti :$port | xargs kill -9 2>/dev/null
+        sleep 1
+    fi
 }
 
-echo ""
-echo "1️⃣  启动基础服务"
-echo "--------------------------------"
+# 启动服务并记录PID
+start_service() {
+    local name=$1
+    local port=$2
+    local cmd=$3
+    local dir=$4
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🔧 启动 $name (端口 $port)..."
+    
+    cleanup_port $port
+    
+    if [ -n "$dir" ]; then
+        cd "$BASE_DIR/$dir" || return 1
+    fi
+    
+    # 执行启动命令
+    eval "$cmd" > /tmp/${name// /_}.log 2>&1 &
+    local pid=$!
+    
+    echo "$name|$port|$pid" >> "$PIDS_FILE"
+    echo "✅ $name 已启动 (PID: $pid, 端口: $port)"
+    
+    sleep 2
+}
 
-# 检查 Docker
-if docker ps > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ Docker 已运行${NC}"
-else
-    echo -e "${YELLOW}⚠ 正在启动 Docker...${NC}"
-    open -a Docker
-    sleep 15
+# 检查服务健康状态
+check_service() {
+    local name=$1
+    local port=$2
+    local endpoint=${3:-/health}
+    
+    sleep 3
+    if curl -s "http://localhost:$port$endpoint" > /dev/null 2>&1; then
+        echo "✅ $name 健康检查通过"
+        return 0
+    else
+        echo "⚠️  $name 健康检查失败（可能正在启动中）"
+        return 1
+    fi
+}
+
+# 清空PID文件
+> "$PIDS_FILE"
+
+echo "📍 清理旧进程..."
+cleanup_port 8011
+cleanup_port 8012
+cleanup_port 8013
+cleanup_port 8014
+cleanup_port 8015
+cleanup_port 8016
+cleanup_port 8017
+cleanup_port 8018
+cleanup_port 8019
+cleanup_port 8020
+cleanup_port 8021
+cleanup_port 8022
+cleanup_port 8023
+
+echo ""
+echo "🚀 开始启动服务..."
+echo ""
+
+# 1. 启动RAG系统 (8011)
+start_service "RAG系统" 8011 \
+    "source venv_311/bin/activate && python -m uvicorn api.app:app --host 0.0.0.0 --port 8011" \
+    "📚 Enhanced RAG & Knowledge Graph"
+
+# 2. 启动ERP后端 (8013)
+start_service "ERP后端" 8013 \
+    "source venv/bin/activate && uvicorn api.main:app --host 0.0.0.0 --port 8013 --reload" \
+    "💼 Intelligent ERP & Business Management"
+
+# 3. 启动ERP前端 (8012)
+start_service "ERP前端" 8012 \
+    "cd web/frontend && npm run dev" \
+    "💼 Intelligent ERP & Business Management"
+
+# 4. 启动超级Agent主界面 (8020)
+start_service "超级Agent主界面" 8020 \
+    "python3 -m http.server 8020" \
+    "🚀 Super Agent Main Interface/web"
+
+# 5. 启动任务系统 (8017)
+if [ -f "$BASE_DIR/🤖 Intelligent Task Agent/api/main.py" ]; then
+    start_service "任务系统" 8017 \
+        "source venv/bin/activate 2>/dev/null || true && python -m uvicorn api.main:app --host 0.0.0.0 --port 8017" \
+        "🤖 Intelligent Task Agent"
 fi
 
-# 检查 Ollama
-if ollama list > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ Ollama 已运行${NC}"
-else
-    echo -e "${YELLOW}⚠ 正在启动 Ollama...${NC}"
-    ollama serve &
-    sleep 5
+# 6. 启动自我学习系统 (8019)
+if [ -f "$BASE_DIR/🧠 Self Learning System/api/main.py" ]; then
+    start_service "自我学习系统" 8019 \
+        "source venv/bin/activate 2>/dev/null || true && python -m uvicorn api.main:app --host 0.0.0.0 --port 8019" \
+        "🧠 Self Learning System"
+fi
+
+# 7. 启动资源管理系统 (8018)
+if [ -f "$BASE_DIR/🛠️ Intelligent System Resource Management/api/main.py" ]; then
+    start_service "资源管理系统" 8018 \
+        "source venv/bin/activate 2>/dev/null || true && python -m uvicorn api.main:app --host 0.0.0.0 --port 8018" \
+        "🛠️ Intelligent System Resource Management"
+fi
+
+# 8. 启动趋势分析系统 (8015)
+if [ -f "$BASE_DIR/🔍 Intelligent Trend Analysis/api/main.py" ]; then
+    start_service "趋势分析系统" 8015 \
+        "source venv/bin/activate 2>/dev/null || true && python -m uvicorn api.main:app --host 0.0.0.0 --port 8015" \
+        "🔍 Intelligent Trend Analysis"
+fi
+
+# 9. 启动股票系统 (8014)
+if [ -f "$BASE_DIR/📈 Intelligent Stock Trading/api/main.py" ]; then
+    start_service "股票系统" 8014 \
+        "source venv/bin/activate 2>/dev/null || true && python -m uvicorn api.main:app --host 0.0.0.0 --port 8014" \
+        "📈 Intelligent Stock Trading"
+fi
+
+# 10. 启动内容创作系统 (8016)
+if [ -f "$BASE_DIR/🎨 Intelligent Content Creation/api/main.py" ]; then
+    start_service "内容创作系统" 8016 \
+        "source venv/bin/activate 2>/dev/null || true && python -m uvicorn api.main:app --host 0.0.0.0 --port 8016" \
+        "🎨 Intelligent Content Creation"
 fi
 
 echo ""
-echo "2️⃣  启动核心服务"
-echo "--------------------------------"
-
-# 启动 RAG 服务
-start_service "RAG" \
-    "cd '$PROJECT_ROOT/📚 Enhanced RAG & Knowledge Graph' && python3 -m uvicorn api.app:app --host 0.0.0.0 --port 8011"
-
-sleep 3
-
-# 启动 ERP 后端
-start_service "ERP-Backend" \
-    "cd '$PROJECT_ROOT/💼 Intelligent ERP & Business Management' && source venv/bin/activate && python -m uvicorn api.main:app --host 0.0.0.0 --port 8013"
-
-sleep 3
-
-# 启动 ERP 前端
-start_service "ERP-Frontend" \
-    "cd '$PROJECT_ROOT/💼 Intelligent ERP & Business Management/web/frontend' && npm run dev"
-
+echo "⏳ 等待服务启动..."
 sleep 5
 
 echo ""
-echo "3️⃣  启动业务服务"
-echo "--------------------------------"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📊 服务健康检查"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# 启动股票服务
-start_service "Stock" \
-    "cd '$PROJECT_ROOT/📈 Intelligent Stock Trading' && python -m uvicorn api.main:app --host 0.0.0.0 --port 8014"
-
-sleep 2
-
-# 启动趋势分析
-start_service "Trend" \
-    "cd '$PROJECT_ROOT/🔍 Intelligent Trend Analysis' && python -m uvicorn api.main:app --host 0.0.0.0 --port 8015"
-
-sleep 2
-
-# 启动内容创作
-start_service "Content" \
-    "cd '$PROJECT_ROOT/🎨 Intelligent Content Creation' && python -m uvicorn api.main:app --host 0.0.0.0 --port 8016"
-
-sleep 2
+check_service "RAG系统" 8011
+check_service "ERP后端" 8013
+check_service "ERP前端" 8012 "/"
+check_service "超级Agent" 8020 "/"
 
 echo ""
-echo "4️⃣  启动管理服务"
-echo "--------------------------------"
-
-# 启动任务代理
-start_service "Task-Agent" \
-    "cd '$PROJECT_ROOT/🤖 Intelligent Task Agent' && python -m uvicorn web.api.main:app --host 0.0.0.0 --port 8017"
-
+echo "════════════════════════════════════════"
+echo "✅ 服务启动完成！"
+echo "════════════════════════════════════════"
+echo ""
+echo "📍 访问地址："
+echo "   🤖 超级Agent主界面: http://localhost:8020"
+echo "   💬 OpenWebUI:        http://localhost:3000"
+echo "   📚 RAG知识库:        http://localhost:8011/rag-management"
+echo "   💼 ERP前端:          http://localhost:8012"
+echo "   📖 ERP API文档:      http://localhost:8013/docs"
+echo ""
+echo "📝 服务PID记录在: $PIDS_FILE"
+echo ""
+echo "🛑 停止所有服务:"
+echo "   ./scripts/stop_all_services.sh"
+echo ""
+echo "🌐 正在打开主要界面..."
 sleep 2
-
-# 启动资源管理
-start_service "Resource-Manager" \
-    "cd '$PROJECT_ROOT/🛠️ Resource Management' && python -m uvicorn api.main:app --host 0.0.0.0 --port 8018"
-
-sleep 2
-
-# 启动自我学习
-start_service "Self-Learning" \
-    "cd '$PROJECT_ROOT/🧠 Self Learning System' && python -m uvicorn api.main:app --host 0.0.0.0 --port 8019"
-
-sleep 2
+open http://localhost:8020
+open http://localhost:8012
+open http://localhost:8011/rag-management 2>/dev/null || true
 
 echo ""
-echo "================================"
-echo "✅ 所有服务已启动！"
-echo "================================"
-echo ""
-echo "📋 服务列表："
-echo "  - OpenWebUI:    http://localhost:3000"
-echo "  - RAG API:      http://localhost:8011"
-echo "  - ERP 前端:     http://localhost:8012"
-echo "  - ERP 后端:     http://localhost:8013"
-echo "  - 股票服务:     http://localhost:8014"
-echo "  - 趋势分析:     http://localhost:8015"
-echo "  - 内容创作:     http://localhost:8016"
-echo "  - 任务代理:     http://localhost:8017"
-echo "  - 资源管理:     http://localhost:8018"
-echo "  - 自我学习:     http://localhost:8019"
-echo ""
-echo "📝 日志目录: $LOG_DIR"
-echo ""
-echo "💡 提示:"
-echo "  - 运行 './test_all_systems.sh' 测试所有服务"
-echo "  - 运行 './stop_all_services.sh' 停止所有服务"
-echo "  - 查看日志: tail -f $LOG_DIR/<service>.log"
-echo ""
+echo "✅ 完成！"
+
 

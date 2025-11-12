@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP综合管理 V5.0 - AI-STACK</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --primary: #2563eb; --success: #10b981; --warning: #f59e0b; --bg: #0f172a; --surface: #1e293b; --text: #f1f5f9; --border: #334155; }
+        body { font-family: Inter, sans-serif; background: var(--bg); color: var(--text); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .top-nav { background: var(--surface); padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+        .nav-title { font-size: 1.5rem; font-weight: 600; }
+        .btn { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; cursor: pointer; background: var(--primary); color: white; }
+        .module-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+        .module-card { background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); cursor: pointer; transition: all 0.2s; text-align: center; }
+        .module-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+        .module-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+        .module-name { font-weight: 600; }
+        .module-status { font-size: 0.85rem; color: #94a3b8; margin-top: 0.25rem; }
+        .chart-container { background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); margin-top: 1.5rem; }
+        .chart-wrapper { height: 300px; }
+        .radar-wrapper { height: 400px; }
+    </style>
+</head>
+<body>
+    <div class="top-nav">
+        <div class="nav-title">💼 ERP综合管理 V5.0</div>
+        <button class="btn" onclick="window.history.back()">← 返回主界面</button>
+    </div>
+    <div class="container">
+        <h2 style="margin-top: 1.5rem;">🔗 11个业务环节</h2>
+        <div class="module-grid">
+            <div class="module-card" onclick="window.open('/erp-ui/customers', '_blank')">
+                <div class="module-icon">👥</div>
+                <div class="module-name">客户管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/orders', '_blank')">
+                <div class="module-icon">📋</div>
+                <div class="module-name">订单管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/projects', '_blank')">
+                <div class="module-icon">📊</div>
+                <div class="module-name">项目管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/planning', '_blank')">
+                <div class="module-icon">📅</div>
+                <div class="module-name">计划管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/purchasing', '_blank')">
+                <div class="module-icon">🛒</div>
+                <div class="module-name">采购管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/production', '_blank')">
+                <div class="module-icon">🏭</div>
+                <div class="module-name">生产管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/inbound', '_blank')">
+                <div class="module-icon">📥</div>
+                <div class="module-name">入库管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/quality', '_blank')">
+                <div class="module-icon">✅</div>
+                <div class="module-name">质量管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/outbound', '_blank')">
+                <div class="module-icon">📤</div>
+                <div class="module-name">出库管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/shipping', '_blank')">
+                <div class="module-icon">🚚</div>
+                <div class="module-name">发运管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/aftersales', '_blank')">
+                <div class="module-icon">🔧</div>
+                <div class="module-name">售后服务</div>
+                <div class="module-status">正常运行</div>
+            </div>
+            <div class="module-card" onclick="window.open('/erp-ui/settlement', '_blank')">
+                <div class="module-icon">💰</div>
+                <div class="module-name">结算管理</div>
+                <div class="module-status">正常运行</div>
+            </div>
+        </div>
+
+        <h2 style="margin-top: 2rem;">📊 8维度分析（AI-STACK独创）</h2>
+        <div class="chart-container">
+            <h3>🎯 ERP健康度雷达图</h3>
+            <div class="radar-wrapper"><canvas id="radarChart"></canvas></div>
+        </div>
+
+        <div class="chart-container">
+            <h3>📈 业务流程执行效率</h3>
+            <div class="chart-wrapper"><canvas id="flowChart"></canvas></div>
+        </div>
+    </div>
+    <script>
+        // 8维度雷达图
+        const radarCtx = document.getElementById('radarChart').getContext('2d');
+        const radarChart = new Chart(radarCtx, {
+            type: 'radar',
+            data: {
+                labels: ['质量', '成本', '交期', '安全', '利润', '效率', '管理', '技术'],
+                datasets: [{
+                    label: '当前得分',
+                    data: [85, 78, 92, 88, 75, 82, 79, 86],
+                    fill: true,
+                    backgroundColor: 'rgba(37, 99, 235, 0.2)',
+                    borderColor: '#2563eb',
+                    borderWidth: 2
+                }, {
+                    label: '行业平均',
+                    data: [75, 70, 80, 85, 70, 75, 72, 78],
+                    fill: true,
+                    backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                    borderColor: '#94a3b8',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: { color: '#94a3b8', backdropColor: 'transparent' },
+                        grid: { color: '#334155' },
+                        pointLabels: { color: '#f1f5f9', font: { size: 14 } }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#f1f5f9' } }
+                }
+            }
+        });
+
+        // 流程效率图
+        const flowCtx = document.getElementById('flowChart').getContext('2d');
+        new Chart(flowCtx, {
+            type: 'bar',
+            data: {
+                labels: ['客户', '订单', '项目', '计划', '采购', '生产', '入库', '质检', '出库', '发运', '售后', '结算'],
+                datasets: [{
+                    label: '执行效率 (%)',
+                    data: [95, 92, 89, 87, 85, 90, 93, 88, 91, 86, 94, 90],
+                    backgroundColor: '#2563eb'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#f1f5f9' } } },
+                scales: {
+                    y: { beginAtZero: true, max: 100, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                }
+            }
+        });
+        
+        // ==================== 后端API连接（V5.6）====================
+        
+        async function loadERPData() {
+            try {
+                console.log('📡 加载ERP综合数据...');
+                
+                // 获取8维度分析数据
+                const response = await fetch('/api/v5/erp/real/8-dimension/all');
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ ERP数据加载成功', data);
+                    
+                    // 更新雷达图数据
+                    if (data.dimensions) {
+                        const dimensionData = [
+                            data.dimensions.quality || 85,
+                            data.dimensions.cost || 78,
+                            data.dimensions.delivery || 92,
+                            data.dimensions.safety || 88,
+                            data.dimensions.profit || 75,
+                            data.dimensions.efficiency || 82,
+                            data.dimensions.management || 79,
+                            data.dimensions.technology || 86
+                        ];
+                        
+                        // 更新图表
+                        radarChart.data.datasets[0].data = dimensionData;
+                        radarChart.update();
+                    }
+                }
+            } catch (error) {
+                console.warn('⚠️  ERP API未就绪，使用演示数据:', error.message);
+            }
+        }
+        
+        window.addEventListener('load', loadERPData);
+        
+        console.log('✅ ERP综合管理V5界面已加载（V5.6后端连接版）');
+    </script>
+</body>
+</html>

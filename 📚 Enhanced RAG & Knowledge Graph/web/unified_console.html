@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-STACK 统一控制台 V4.1</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+            background: #f5f7fa;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* 顶部导航栏 */
+        .top-nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .nav-actions {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .nav-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        /* 主容器 */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        
+        /* 左侧菜单 */
+        .sidebar {
+            width: 250px;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            overflow-y: auto;
+        }
+        
+        .menu-section {
+            padding: 20px 0;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .menu-title {
+            padding: 0 20px 10px;
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+        }
+        
+        .menu-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .menu-item:hover {
+            background: #f5f7fa;
+        }
+        
+        .menu-item.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .menu-icon {
+            font-size: 18px;
+        }
+        
+        /* 工作区 */
+        .workspace {
+            flex: 1;
+            background: #f5f7fa;
+            overflow-y: auto;
+            padding: 30px;
+        }
+        
+        .workspace-header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .workspace-title {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .workspace-desc {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .content-area {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            min-height: 500px;
+        }
+        
+        /* 表单样式 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        /* 数据展示卡片 */
+        .data-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .data-card-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .data-card-value {
+            font-size: 28px;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        /* 表格样式 */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .data-table th {
+            background: #f5f7fa;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #e8e8e8;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .data-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .data-table tr:hover {
+            background: #f9f9f9;
+        }
+        
+        /* 加载状态 */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        /* 通知 */
+        .notification {
+            position: fixed;
+            top: 80px;
+            right: 30px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: none;
+        }
+        
+        .notification.show {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .notification.success {
+            border-left: 4px solid #52c41a;
+        }
+        
+        .notification.error {
+            border-left: 4px solid #ff4d4f;
+        }
+        
+        /* 隐藏内容 */
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <div class="top-nav">
+        <div class="logo">🚀 AI-STACK V3.3 统一控制台</div>
+        <div class="nav-actions">
+            <button class="nav-btn" onclick="window.open('/docs', '_blank')">📖 API文档</button>
+            <button class="nav-btn" onclick="window.open('/guide', '_blank')">📚 帮助</button>
+            <button class="nav-btn" onclick="checkHealth()">🏥 健康检查</button>
+        </div>
+    </div>
+    
+    <!-- 主容器 -->
+    <div class="main-container">
+        <!-- 左侧菜单 -->
+        <div class="sidebar">
+            <!-- 核心功能 -->
+            <div class="menu-section">
+                <div class="menu-title">核心功能</div>
+                <div class="menu-item active" onclick="showModule('dashboard')">
+                    <span class="menu-icon">🏠</span>
+                    <span>控制台首页</span>
+                </div>
+                <div class="menu-item" onclick="showModule('rag')">
+                    <span class="menu-icon">📚</span>
+                    <span>RAG知识库</span>
+                </div>
+            </div>
+            
+            <!-- 业务管理 -->
+            <div class="menu-section">
+                <div class="menu-title">业务管理</div>
+                <div class="menu-item" onclick="showModule('finance')">
+                    <span class="menu-icon">💰</span>
+                    <span>财务管理</span>
+                </div>
+                <div class="menu-item" onclick="showModule('operations')">
+                    <span class="menu-icon">⚙️</span>
+                    <span>运营管理</span>
+                </div>
+                <div class="menu-item" onclick="showModule('erp')">
+                    <span class="menu-icon">🏭</span>
+                    <span>ERP系统</span>
+                </div>
+            </div>
+            
+            <!-- 业务智能 -->
+            <div class="menu-section">
+                <div class="menu-title">业务智能</div>
+                <div class="menu-item" onclick="showModule('stock')">
+                    <span class="menu-icon">📈</span>
+                    <span>股票交易</span>
+                </div>
+                <div class="menu-item" onclick="showModule('content')">
+                    <span class="menu-icon">✍️</span>
+                    <span>内容创作</span>
+                </div>
+                <div class="menu-item" onclick="showModule('trend')">
+                    <span class="menu-icon">📊</span>
+                    <span>趋势分析</span>
+                </div>
+            </div>
+            
+            <!-- 智能系统 -->
+            <div class="menu-section">
+                <div class="menu-title">智能系统</div>
+                <div class="menu-item" onclick="window.open('/agent', '_blank')" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                    <span class="menu-icon">🤖</span>
+                    <span>智能Agent ⭐</span>
+                </div>
+                <div class="menu-item" onclick="showModule('interaction')">
+                    <span class="menu-icon">💬</span>
+                    <span>AI交互</span>
+                </div>
+                <div class="menu-item" onclick="showModule('task')">
+                    <span class="menu-icon">📋</span>
+                    <span>智能任务</span>
+                </div>
+                <div class="menu-item" onclick="showModule('enhancements')">
+                    <span class="menu-icon">✨</span>
+                    <span>增强功能</span>
+                </div>
+                <div class="menu-item" onclick="showModule('llm')">
+                    <span class="menu-icon">🤖</span>
+                    <span>LLM助手</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 工作区 -->
+        <div class="workspace">
+            <!-- 工作区头部 -->
+            <div class="workspace-header">
+                <div class="workspace-title" id="workspace-title">控制台首页</div>
+                <div class="workspace-desc" id="workspace-desc">AI-STACK统一管理控制台</div>
+            </div>
+            
+            <!-- 内容区域 -->
+            <div class="content-area" id="content-area">
+                <!-- 内容将通过JavaScript动态加载 -->
+                <div id="dashboard-content">
+                    <h2>🏠 欢迎使用AI-STACK统一控制台</h2>
+                    <p>请从左侧菜单选择功能模块</p>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 30px;">
+                        <div class="data-card">
+                            <div class="data-card-title">总模块数</div>
+                            <div class="data-card-value">15</div>
+                        </div>
+                        <div class="data-card">
+                            <div class="data-card-title">API端点</div>
+                            <div class="data-card-value">226+</div>
+                        </div>
+                        <div class="data-card">
+                            <div class="data-card-title">功能项数</div>
+                            <div class="data-card-value">121+</div>
+                        </div>
+                        <div class="data-card">
+                            <div class="data-card-title">系统状态</div>
+                            <div class="data-card-value" style="color: #52c41a;">🟢</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 其他模块内容区域（隐藏） -->
+                <div id="rag-content" class="hidden"></div>
+                <div id="finance-content" class="hidden"></div>
+                <div id="operations-content" class="hidden"></div>
+                <div id="erp-content" class="hidden"></div>
+                <div id="stock-content" class="hidden"></div>
+                <div id="content-content" class="hidden"></div>
+                <div id="trend-content" class="hidden"></div>
+                <div id="interaction-content" class="hidden"></div>
+                <div id="task-content" class="hidden"></div>
+                <div id="enhancements-content" class="hidden"></div>
+                <div id="llm-content" class="hidden"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 通知组件 -->
+    <div class="notification" id="notification"></div>
+    
+    <script>
+        // API基础URL
+        const API_BASE = '';
+        
+        // 当前模块
+        let currentModule = 'dashboard';
+        
+        // 显示通知
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            setTimeout(() => {
+                notification.className = 'notification';
+            }, 3000);
+        }
+        
+        // API调用封装
+        async function callAPI(endpoint, method = 'GET', data = null) {
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+                
+                if (data && method !== 'GET') {
+                    options.body = JSON.stringify(data);
+                }
+                
+                const response = await fetch(API_BASE + endpoint, options);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API调用失败:', error);
+                showNotification(`API调用失败: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        // 显示模块
+        function showModule(moduleName) {
+            // 更新菜单状态
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            // 隐藏所有内容
+            document.querySelectorAll('[id$="-content"]').forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // 显示对应内容
+            const contentId = `${moduleName}-content`;
+            const contentArea = document.getElementById(contentId);
+            if (contentArea) {
+                contentArea.classList.remove('hidden');
+            }
+            
+            // 更新标题
+            const titles = {
+                'dashboard': '控制台首页',
+                'rag': 'RAG知识库',
+                'finance': '财务管理',
+                'operations': '运营管理',
+                'erp': 'ERP系统',
+                'stock': '股票交易',
+                'content': '内容创作',
+                'trend': '趋势分析',
+                'interaction': 'AI交互中心',
+                'task': '智能任务',
+                'enhancements': '增强功能',
+                'llm': 'LLM助手'
+            };
+            
+            document.getElementById('workspace-title').textContent = titles[moduleName] || moduleName;
+            
+            // 加载模块数据
+            loadModuleData(moduleName);
+        }
+        
+        // 加载模块数据
+        async function loadModuleData(moduleName) {
+            const contentArea = document.getElementById(`${moduleName}-content`);
+            if (!contentArea) return;
+            
+            // 显示加载状态
+            contentArea.innerHTML = '<div class="loading">⏳ 加载中...</div>';
+            
+            try {
+                switch(moduleName) {
+                    case 'dashboard':
+                        // 首页已有静态内容
+                        break;
+                    case 'rag':
+                        await loadRAGModule(contentArea);
+                        break;
+                    case 'finance':
+                        await loadFinanceModule(contentArea);
+                        break;
+                    case 'stock':
+                        await loadStockModule(contentArea);
+                        break;
+                    case 'enhancements':
+                        await loadEnhancementsModule(contentArea);
+                        break;
+                    case 'llm':
+                        await loadLLMModule(contentArea);
+                        break;
+                    case 'operations':
+                        await loadOperationsModule(contentArea);
+                        break;
+                    case 'erp':
+                        await loadERPModule(contentArea);
+                        break;
+                    case 'content':
+                        await loadContentModule(contentArea);
+                        break;
+                    case 'trend':
+                        await loadTrendModule(contentArea);
+                        break;
+                    case 'interaction':
+                        await loadInteractionModule(contentArea);
+                        break;
+                    case 'task':
+                        await loadTaskModule(contentArea);
+                        break;
+                    default:
+                        contentArea.innerHTML = `<h3>${moduleName}模块</h3><p>功能开发中...</p>`;
+                }
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载RAG模块
+        async function loadRAGModule(container) {
+            container.innerHTML = `
+                <h2>📚 RAG知识库管理</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">搜索知识库</label>
+                    <input type="text" class="form-input" id="rag-search-query" placeholder="输入搜索关键词...">
+                    <button class="btn btn-primary" onclick="searchRAG()" style="margin-top: 10px;">🔍 搜索</button>
+                </div>
+                
+                <div id="rag-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        // RAG搜索
+        async function searchRAG() {
+            const query = document.getElementById('rag-search-query').value;
+            if (!query) {
+                showNotification('请输入搜索关键词', 'error');
+                return;
+            }
+            
+            const resultsDiv = document.getElementById('rag-results');
+            resultsDiv.innerHTML = '<div class="loading">🔍 搜索中...</div>';
+            
+            try {
+                const data = await callAPI(`/rag/search?query=${encodeURIComponent(query)}&top_k=5`);
+                
+                let html = '<h3>搜索结果：</h3>';
+                if (data.results && data.results.length > 0) {
+                    html += '<table class="data-table"><thead><tr><th>内容</th><th>相似度</th></tr></thead><tbody>';
+                    data.results.forEach(result => {
+                        html += `<tr><td>${result.text || result.content || '无内容'}</td><td>${(result.score || 0).toFixed(3)}</td></tr>`;
+                    });
+                    html += '</tbody></table>';
+                } else {
+                    html += '<p>未找到相关结果</p>';
+                }
+                
+                resultsDiv.innerHTML = html;
+                showNotification('搜索完成！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">搜索失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 加载财务模块
+        async function loadFinanceModule(container) {
+            container.innerHTML = `
+                <h2>💰 财务管理</h2>
+                
+                <button class="btn btn-primary" onclick="loadFinanceDashboard()">📊 查看财务看板</button>
+                <button class="btn btn-primary" onclick="analyzeProfit()" style="margin-left: 10px;">📈 盈亏分析</button>
+                
+                <div id="finance-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        // 加载财务看板
+        async function loadFinanceDashboard() {
+            const resultsDiv = document.getElementById('finance-results');
+            resultsDiv.innerHTML = '<div class="loading">📊 加载中...</div>';
+            
+            try {
+                const data = await callAPI('/finance/dashboard');
+                
+                let html = '<h3>财务看板</h3>';
+                html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">';
+                html += `<div class="data-card"><div class="data-card-title">总收入</div><div class="data-card-value">¥${(data.revenue || 0).toLocaleString()}</div></div>`;
+                html += `<div class="data-card"><div class="data-card-title">总支出</div><div class="data-card-value">¥${(data.expenses || 0).toLocaleString()}</div></div>`;
+                html += `<div class="data-card"><div class="data-card-title">利润</div><div class="data-card-value" style="color: ${data.profit > 0 ? '#52c41a' : '#ff4d4f'};">¥${(data.profit || 0).toLocaleString()}</div></div>`;
+                html += '</div>';
+                
+                resultsDiv.innerHTML = html;
+                showNotification('财务看板加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 盈亏分析
+        async function analyzeProfit() {
+            const resultsDiv = document.getElementById('finance-results');
+            resultsDiv.innerHTML = '<div class="loading">📈 分析中...</div>';
+            
+            try {
+                const data = await callAPI('/finance/analysis/profit?period=monthly');
+                resultsDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                showNotification('分析完成！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">分析失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 加载股票模块
+        async function loadStockModule(container) {
+            container.innerHTML = `
+                <h2>📈 股票交易系统</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">股票代码</label>
+                    <input type="text" class="form-input" id="stock-code" placeholder="输入股票代码（如：000001）" value="000001">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">市场</label>
+                    <select class="form-input" id="stock-market">
+                        <option value="A">A股</option>
+                        <option value="B">B股</option>
+                        <option value="H">H股</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="getStockData()">📊 获取实时数据</button>
+                <button class="btn btn-primary" onclick="getPortfolio()" style="margin-left: 10px;">💼 查看投资组合</button>
+                
+                <div id="stock-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        // 获取股票数据
+        async function getStockData() {
+            const code = document.getElementById('stock-code').value;
+            const market = document.getElementById('stock-market').value;
+            const resultsDiv = document.getElementById('stock-results');
+            
+            if (!code) {
+                showNotification('请输入股票代码', 'error');
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="loading">📊 获取中...</div>';
+            
+            try {
+                const data = await callAPI(`/stock/data/${code}?market=${market}`);
+                
+                let html = '<h3>股票数据</h3>';
+                html += `<div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                
+                resultsDiv.innerHTML = html;
+                showNotification('数据获取成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">获取失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 获取投资组合
+        async function getPortfolio() {
+            const resultsDiv = document.getElementById('stock-results');
+            resultsDiv.innerHTML = '<div class="loading">💼 加载中...</div>';
+            
+            try {
+                const data = await callAPI('/stock/portfolio');
+                resultsDiv.innerHTML = `<h3>投资组合</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('投资组合加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 加载增强功能模块
+        async function loadEnhancementsModule(container) {
+            container.innerHTML = `
+                <h2>✨ V3.1增强功能</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">翻译文本</label>
+                    <textarea class="form-input" id="translate-text" rows="3" placeholder="输入要翻译的文本..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">目标语言</label>
+                    <select class="form-input" id="target-lang">
+                        <option value="en">English</option>
+                        <option value="ja">日本語</option>
+                        <option value="ko">한국어</option>
+                        <option value="fr">Français</option>
+                        <option value="de">Deutsch</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="translateText()">🌐 翻译</button>
+                
+                <div id="translate-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        // 翻译文本
+        async function translateText() {
+            const text = document.getElementById('translate-text').value;
+            const targetLang = document.getElementById('target-lang').value;
+            const resultsDiv = document.getElementById('translate-results');
+            
+            if (!text) {
+                showNotification('请输入要翻译的文本', 'error');
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="loading">🌐 翻译中...</div>';
+            
+            try {
+                const data = await callAPI('/enhancements/translate', 'POST', {
+                    text: text,
+                    source_lang: 'auto',
+                    target_lang: targetLang
+                });
+                
+                resultsDiv.innerHTML = `
+                    <h3>翻译结果：</h3>
+                    <div class="data-card">
+                        <div><strong>原文：</strong> ${data.source_text}</div>
+                        <div style="margin-top: 10px;"><strong>译文：</strong> ${data.translated_text}</div>
+                    </div>
+                `;
+                showNotification('翻译完成！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">翻译失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 加载LLM模块
+        async function loadLLMModule(container) {
+            container.innerHTML = `
+                <h2>🤖 LLM智能助手</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">对话消息</label>
+                    <textarea class="form-input" id="llm-message" rows="4" placeholder="输入您的问题..."></textarea>
+                </div>
+                
+                <button class="btn btn-primary" onclick="chatWithLLM()">💬 发送</button>
+                
+                <div id="llm-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        // LLM对话
+        async function chatWithLLM() {
+            const message = document.getElementById('llm-message').value;
+            const resultsDiv = document.getElementById('llm-results');
+            
+            if (!message) {
+                showNotification('请输入消息', 'error');
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="loading">🤖 思考中...</div>';
+            
+            try {
+                const data = await callAPI('/llm/chat', 'POST', {
+                    messages: [{"role": "user", "content": message}]
+                });
+                
+                resultsDiv.innerHTML = `
+                    <h3>AI回复：</h3>
+                    <div class="data-card">
+                        ${data.content}
+                        <div style="margin-top: 10px; font-size: 12px; color: #999;">
+                            来源: ${data.source} | 模型: ${data.model}
+                        </div>
+                    </div>
+                `;
+                showNotification('对话完成！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">对话失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 健康检查
+        async function checkHealth() {
+            try {
+                const data = await callAPI('/health');
+                showNotification(`系统状态: ${data.status}`, 'success');
+            } catch (error) {
+                showNotification('健康检查失败', 'error');
+            }
+        }
+        
+        // 加载运营管理模块
+        async function loadOperationsModule(container) {
+            container.innerHTML = `
+                <h2>⚙️ 运营管理系统</h2>
+                
+                <button class="btn btn-primary" onclick="loadOperationsDashboard()">📊 运营看板</button>
+                <button class="btn btn-primary" onclick="getProcesses()" style="margin-left: 10px;">🔄 查看流程</button>
+                <button class="btn btn-primary" onclick="getOperationsStats()" style="margin-left: 10px;">📈 统计数据</button>
+                
+                <div id="operations-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        async function loadOperationsDashboard() {
+            const resultsDiv = document.getElementById('operations-results');
+            resultsDiv.innerHTML = '<div class="loading">📊 加载中...</div>';
+            try {
+                const data = await callAPI('/operations/dashboard');
+                resultsDiv.innerHTML = `<h3>运营看板</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('运营看板加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function getProcesses() {
+            const resultsDiv = document.getElementById('operations-results');
+            resultsDiv.innerHTML = '<div class="loading">🔄 加载中...</div>';
+            try {
+                const data = await callAPI('/operations/processes');
+                let html = '<h3>业务流程列表</h3><table class="data-table"><thead><tr><th>流程名称</th><th>状态</th><th>进度</th></tr></thead><tbody>';
+                if (data.processes && data.processes.length > 0) {
+                    data.processes.forEach(p => {
+                        html += `<tr><td>${p.name || '未命名'}</td><td>${p.status || '未知'}</td><td>${p.progress || 0}%</td></tr>`;
+                    });
+                } else {
+                    html += '<tr><td colspan="3">暂无流程数据</td></tr>';
+                }
+                html += '</tbody></table>';
+                resultsDiv.innerHTML = html;
+                showNotification('流程数据加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function getOperationsStats() {
+            const resultsDiv = document.getElementById('operations-results');
+            resultsDiv.innerHTML = '<div class="loading">📈 加载中...</div>';
+            try {
+                const data = await callAPI('/operations/statistics?period=month');
+                resultsDiv.innerHTML = `<h3>统计数据</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('统计数据加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 加载ERP模块
+        async function loadERPModule(container) {
+            container.innerHTML = `
+                <h2>🏭 ERP集成系统</h2>
+                
+                <button class="btn btn-primary" onclick="getERPStats()">📊 ERP统计</button>
+                <button class="btn btn-primary" onclick="getCustomers()" style="margin-left: 10px;">👥 客户列表</button>
+                <button class="btn btn-primary" onclick="getOrders()" style="margin-left: 10px;">📦 订单列表</button>
+                
+                <div style="margin-top: 20px;">
+                    <h3>创建订单</h3>
+                    <div class="form-group">
+                        <label class="form-label">客户ID</label>
+                        <input type="text" class="form-input" id="erp-customer-id" placeholder="customer_xxx">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">产品名称</label>
+                        <input type="text" class="form-input" id="erp-product" placeholder="产品A">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">数量</label>
+                        <input type="number" class="form-input" id="erp-quantity" placeholder="100">
+                    </div>
+                    <button class="btn btn-primary" onclick="createOrder()">➕ 创建订单</button>
+                </div>
+                
+                <div id="erp-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        async function getERPStats() {
+            const resultsDiv = document.getElementById('erp-results');
+            resultsDiv.innerHTML = '<div class="loading">📊 加载中...</div>';
+            try {
+                const data = await callAPI('/erp/stats');
+                resultsDiv.innerHTML = `<h3>ERP统计</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('ERP统计加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function getCustomers() {
+            const resultsDiv = document.getElementById('erp-results');
+            resultsDiv.innerHTML = '<div class="loading">👥 加载中...</div>';
+            try {
+                const data = await callAPI('/erp/customers');
+                resultsDiv.innerHTML = `<h3>客户列表</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('客户数据加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function getOrders() {
+            const resultsDiv = document.getElementById('erp-results');
+            resultsDiv.innerHTML = '<div class="loading">📦 加载中...</div>';
+            try {
+                const data = await callAPI('/erp/orders');
+                resultsDiv.innerHTML = `<h3>订单列表</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('订单数据加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function createOrder() {
+            const customerId = document.getElementById('erp-customer-id').value;
+            const product = document.getElementById('erp-product').value;
+            const quantity = document.getElementById('erp-quantity').value;
+            
+            if (!customerId || !product || !quantity) {
+                showNotification('请填写所有字段', 'error');
+                return;
+            }
+            
+            const resultsDiv = document.getElementById('erp-results');
+            resultsDiv.innerHTML = '<div class="loading">➕ 创建中...</div>';
+            
+            try {
+                const data = await callAPI('/erp/orders', 'POST', {
+                    customer_id: customerId,
+                    order_no: `ORD${Date.now()}`,
+                    product_name: product,
+                    quantity: parseInt(quantity),
+                    unit_price: 100,
+                    order_date: new Date().toISOString().split('T')[0]
+                });
+                resultsDiv.innerHTML = `<h3>订单创建成功</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('订单创建成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">创建失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 加载内容创作模块
+        async function loadContentModule(container) {
+            container.innerHTML = `
+                <h2>✍️ 内容创作系统</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">内容标题</label>
+                    <input type="text" class="form-input" id="content-title" placeholder="输入标题...">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">内容正文</label>
+                    <textarea class="form-input" id="content-body" rows="5" placeholder="输入内容..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">发布平台</label>
+                    <select class="form-input" id="content-platform">
+                        <option value="xiaohongshu">小红书</option>
+                        <option value="douyin">抖音</option>
+                        <option value="zhihu">知乎</option>
+                        <option value="toutiao">头条</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="createContent()">✍️ 创建内容</button>
+                <button class="btn btn-primary" onclick="collectMaterial()" style="margin-left: 10px;">🔍 收集素材</button>
+                <button class="btn btn-primary" onclick="getContentList()" style="margin-left: 10px;">📋 内容列表</button>
+                
+                <div id="content-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        async function createContent() {
+            const title = document.getElementById('content-title').value;
+            const body = document.getElementById('content-body').value;
+            const platform = document.getElementById('content-platform').value;
+            const resultsDiv = document.getElementById('content-results');
+            
+            if (!title || !body) {
+                showNotification('请填写标题和内容', 'error');
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="loading">✍️ 创建中...</div>';
+            
+            try {
+                const data = await callAPI('/content/contents', 'POST', {
+                    title, body, platform
+                });
+                resultsDiv.innerHTML = `<h3>内容创建成功</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('内容创建成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">创建失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function collectMaterial() {
+            const resultsDiv = document.getElementById('content-results');
+            resultsDiv.innerHTML = '<div class="loading">🔍 收集中...</div>';
+            try {
+                const data = await callAPI('/content/materials/collect-web', 'POST', {
+                    keywords: ['AI', '科技', '创新']
+                });
+                resultsDiv.innerHTML = `<h3>素材收集结果</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('素材收集成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">收集失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function getContentList() {
+            const resultsDiv = document.getElementById('content-results');
+            resultsDiv.innerHTML = '<div class="loading">📋 加载中...</div>';
+            try {
+                const data = await callAPI('/content/contents');
+                resultsDiv.innerHTML = `<h3>内容列表</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('内容列表加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 加载趋势分析模块
+        async function loadTrendModule(container) {
+            container.innerHTML = `
+                <h2>📊 趋势分析系统</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">分析类别</label>
+                    <select class="form-input" id="trend-category">
+                        <option value="technology">科技</option>
+                        <option value="finance">金融</option>
+                        <option value="policy">政策</option>
+                        <option value="industry">产业</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="crawlNews()">🕷️ 爬取新闻</button>
+                <button class="btn btn-primary" onclick="processTrend()" style="margin-left: 10px;">⚙️ 处理分析</button>
+                <button class="btn btn-primary" onclick="getTrendReports()" style="margin-left: 10px;">📄 查看报告</button>
+                
+                <div id="trend-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        async function crawlNews() {
+            const category = document.getElementById('trend-category').value;
+            const resultsDiv = document.getElementById('trend-results');
+            resultsDiv.innerHTML = '<div class="loading">🕷️ 爬取中...</div>';
+            try {
+                const data = await callAPI('/trend/data/crawl', 'POST', {
+                    category, keywords: ['最新', '趋势']
+                });
+                resultsDiv.innerHTML = `<h3>新闻爬取结果</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('新闻爬取成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">爬取失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function processTrend() {
+            const resultsDiv = document.getElementById('trend-results');
+            resultsDiv.innerHTML = '<div class="loading">⚙️ 处理中...</div>';
+            try {
+                const data = await callAPI('/trend/analyses/process', 'POST', {});
+                resultsDiv.innerHTML = `<h3>分析处理结果</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('分析处理完成！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">处理失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function getTrendReports() {
+            const resultsDiv = document.getElementById('trend-results');
+            resultsDiv.innerHTML = '<div class="loading">📄 加载中...</div>';
+            try {
+                const data = await callAPI('/trend/reports');
+                resultsDiv.innerHTML = `<h3>趋势报告列表</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('报告列表加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 加载AI交互中心模块
+        async function loadInteractionModule(container) {
+            container.innerHTML = `
+                <h2>💬 AI交互中心</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">用户ID</label>
+                    <input type="text" class="form-input" id="interaction-user-id" placeholder="user123" value="user123">
+                </div>
+                
+                <button class="btn btn-primary" onclick="createSession()">➕ 创建会话</button>
+                <button class="btn btn-primary" onclick="getFunctions()" style="margin-left: 10px;">🔧 可用功能</button>
+                
+                <div id="interaction-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        async function createSession() {
+            const userId = document.getElementById('interaction-user-id').value;
+            const resultsDiv = document.getElementById('interaction-results');
+            resultsDiv.innerHTML = '<div class="loading">➕ 创建中...</div>';
+            try {
+                const data = await callAPI(`/interaction/sessions?user_id=${userId}`, 'POST');
+                resultsDiv.innerHTML = `<h3>会话创建成功</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('会话创建成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">创建失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function getFunctions() {
+            const resultsDiv = document.getElementById('interaction-results');
+            resultsDiv.innerHTML = '<div class="loading">🔧 加载中...</div>';
+            try {
+                const data = await callAPI('/interaction/functions');
+                resultsDiv.innerHTML = `<h3>可用功能列表</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('功能列表加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 加载智能任务模块
+        async function loadTaskModule(container) {
+            container.innerHTML = `
+                <h2>📋 智能任务系统</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">任务描述</label>
+                    <textarea class="form-input" id="task-desc" rows="3" placeholder="描述您的任务..."></textarea>
+                </div>
+                
+                <button class="btn btn-primary" onclick="createTask()">➕ 创建任务</button>
+                <button class="btn btn-primary" onclick="getTaskList()" style="margin-left: 10px;">📋 任务列表</button>
+                
+                <div id="task-results" style="margin-top: 20px;"></div>
+            `;
+        }
+        
+        async function createTask() {
+            const desc = document.getElementById('task-desc').value;
+            const resultsDiv = document.getElementById('task-results');
+            
+            if (!desc) {
+                showNotification('请输入任务描述', 'error');
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="loading">➕ 创建中...</div>';
+            try {
+                const data = await callAPI('/tasks/create', 'POST', {
+                    title: desc.substring(0, 50),
+                    description: desc,
+                    user_id: 'user123'
+                });
+                resultsDiv.innerHTML = `<h3>任务创建成功</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('任务创建成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">创建失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function getTaskList() {
+            const resultsDiv = document.getElementById('task-results');
+            resultsDiv.innerHTML = '<div class="loading">📋 加载中...</div>';
+            try {
+                const data = await callAPI('/tasks/list');
+                resultsDiv.innerHTML = `<h3>任务列表</h3><div class="data-card"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                showNotification('任务列表加载成功！');
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">加载失败: ${error.message}</p>`;
+            }
+        }
+        
+        // 页面加载完成
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🎊 AI-STACK V3.3 统一控制台已加载');
+            console.log('🌐 12个模块可通过Web界面操作');
+            console.log('✅ RAG、财务、运营、ERP、股票、内容、趋势、交互、任务、增强、LLM');
+        });
+    </script>
+</body>
+</html>
+

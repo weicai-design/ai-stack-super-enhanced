@@ -40,6 +40,39 @@ class EventType(Enum):
     SUPPLIER_CREATED = "supplier_created"
     SUPPLIER_UPDATED = "supplier_updated"
     
+    # 项目事件
+    PROJECT_CREATED = "project_created"
+    PROJECT_UPDATED = "project_updated"
+    PROJECT_STATUS_CHANGED = "project_status_changed"
+    
+    # 质量事件
+    QUALITY_INSPECTION_CREATED = "quality_inspection_created"
+    QUALITY_INSPECTION_COMPLETED = "quality_inspection_completed"
+    
+    # 交付事件
+    DELIVERY_PLAN_CREATED = "delivery_plan_created"
+    DELIVERY_STATUS_CHANGED = "delivery_status_changed"
+    
+    # 售后事件
+    AFTER_SALES_TICKET_CREATED = "after_sales_ticket_created"
+    AFTER_SALES_TICKET_UPDATED = "after_sales_ticket_updated"
+    
+    # 仓储事件
+    WAREHOUSE_CREATED = "warehouse_created"
+    STORAGE_LOCATION_CREATED = "storage_location_created"
+    
+    # 发运事件
+    SHIPMENT_PLAN_CREATED = "shipment_plan_created"
+    SHIPMENT_STATUS_CHANGED = "shipment_status_changed"
+    
+    # 到料事件
+    RECEIVING_NOTICE_CREATED = "receiving_notice_created"
+    RECEIVING_STATUS_CHANGED = "receiving_status_changed"
+    
+    # 设备事件
+    EQUIPMENT_REGISTERED = "equipment_registered"
+    EQUIPMENT_MAINTENANCE_CREATED = "equipment_maintenance_created"
+    
     # 自定义事件
     CUSTOM = "custom"
 
@@ -439,6 +472,144 @@ class ERPDataListener:
             entity_id=material_id,
             new_data=material_data,
             metadata={"action": "create", "custom_type": "material_created"}
+        )
+        await self.emit_event(event)
+    
+    async def on_project_created(
+        self,
+        project_id: str,
+        project_data: Dict[str, Any]
+    ):
+        """项目创建事件"""
+        event = ERPEvent(
+            event_type=EventType.PROJECT_CREATED,
+            entity_type="project",
+            entity_id=project_id,
+            new_data=project_data,
+            metadata={"action": "create"}
+        )
+        await self.emit_event(event)
+    
+    async def on_project_status_changed(
+        self,
+        project_id: str,
+        old_status: str,
+        new_status: str,
+        project_data: Dict[str, Any]
+    ):
+        """项目状态变更事件"""
+        event = ERPEvent(
+            event_type=EventType.PROJECT_STATUS_CHANGED,
+            entity_type="project",
+            entity_id=project_id,
+            old_data={"status": old_status},
+            new_data={"status": new_status, **project_data},
+            metadata={"action": "status_change", "old_status": old_status, "new_status": new_status}
+        )
+        await self.emit_event(event)
+    
+    async def on_quality_inspection_created(
+        self,
+        inspection_id: str,
+        inspection_data: Dict[str, Any]
+    ):
+        """质量检验创建事件"""
+        event = ERPEvent(
+            event_type=EventType.QUALITY_INSPECTION_CREATED,
+            entity_type="quality_inspection",
+            entity_id=inspection_id,
+            new_data=inspection_data,
+            metadata={"action": "create"}
+        )
+        await self.emit_event(event)
+    
+    async def on_delivery_plan_created(
+        self,
+        plan_id: str,
+        plan_data: Dict[str, Any]
+    ):
+        """交付计划创建事件"""
+        event = ERPEvent(
+            event_type=EventType.DELIVERY_PLAN_CREATED,
+            entity_type="delivery_plan",
+            entity_id=plan_id,
+            new_data=plan_data,
+            metadata={"action": "create"}
+        )
+        await self.emit_event(event)
+    
+    async def on_after_sales_ticket_created(
+        self,
+        ticket_id: str,
+        ticket_data: Dict[str, Any]
+    ):
+        """售后工单创建事件"""
+        event = ERPEvent(
+            event_type=EventType.AFTER_SALES_TICKET_CREATED,
+            entity_type="after_sales_ticket",
+            entity_id=ticket_id,
+            new_data=ticket_data,
+            metadata={"action": "create"}
+        )
+        await self.emit_event(event)
+    
+    async def on_warehouse_created(
+        self,
+        warehouse_id: str,
+        warehouse_data: Dict[str, Any]
+    ):
+        """仓库创建事件"""
+        event = ERPEvent(
+            event_type=EventType.WAREHOUSE_CREATED,
+            entity_type="warehouse",
+            entity_id=warehouse_id,
+            new_data=warehouse_data,
+            metadata={"action": "create"}
+        )
+        await self.emit_event(event)
+    
+    async def on_shipment_plan_created(
+        self,
+        shipment_id: str,
+        shipment_data: Dict[str, Any]
+    ):
+        """发运计划创建事件"""
+        event = ERPEvent(
+            event_type=EventType.SHIPMENT_PLAN_CREATED,
+            entity_type="shipment",
+            entity_id=shipment_id,
+            new_data=shipment_data,
+            metadata={"action": "create"}
+        )
+        await self.emit_event(event)
+    
+    async def on_receiving_notice_created(
+        self,
+        notice_id: str,
+        notice_data: Dict[str, Any]
+    ):
+        """到料通知创建事件"""
+        event = ERPEvent(
+            event_type=EventType.RECEIVING_NOTICE_CREATED,
+            entity_type="receiving_notice",
+            entity_id=notice_id,
+            new_data=notice_data,
+            metadata={"action": "create"}
+        )
+        await self.emit_event(event)
+    
+    async def on_equipment_registered(
+        self,
+        equipment_id: str,
+        equipment_data: Dict[str, Any]
+    ):
+        """设备注册事件"""
+        event = ERPEvent(
+            event_type=EventType.EQUIPMENT_REGISTERED,
+            entity_type="equipment",
+            entity_id=equipment_id,
+            new_data=equipment_data,
+            metadata={"action": "register"}
         )
         await self.emit_event(event)
     

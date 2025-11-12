@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-STACK 所有界面快速访问</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 24px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .links-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        .link-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .link-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+        }
+        .link-card a {
+            text-decoration: none;
+            color: #333;
+            display: block;
+        }
+        .link-card .title {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+            color: #667eea;
+        }
+        .link-card .url {
+            font-size: 12px;
+            color: #666;
+            word-break: break-all;
+        }
+        .link-card .port {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-online { background: #28a745; }
+        .status-offline { background: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 AI-STACK 所有界面快速访问</h1>
+            <p>点击卡片即可打开对应界面</p>
+        </div>
+
+        <!-- 一级界面 -->
+        <div class="section">
+            <h2>📱 一级界面（主界面）</h2>
+            <div class="links-grid">
+                <div class="link-card" onclick="window.open('http://localhost:8020', '_blank')">
+                    <div class="title">🤖 超级Agent主界面</div>
+                    <div class="url">http://localhost:8020</div>
+                    <span class="port">端口 8020</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:3000', '_blank')">
+                    <div class="title">💬 OpenWebUI交互中心</div>
+                    <div class="url">http://localhost:3000</div>
+                    <span class="port">端口 3000</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 二级界面 -->
+        <div class="section">
+            <h2>📚 二级界面（独立系统）</h2>
+            <div class="links-grid">
+                <div class="link-card" onclick="window.open('http://localhost:8011/rag-management', '_blank')">
+                    <div class="title">📚 RAG知识库管理</div>
+                    <div class="url">http://localhost:8011/rag-management</div>
+                    <span class="port">端口 8011</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012', '_blank')">
+                    <div class="title">💼 ERP前端系统</div>
+                    <div class="url">http://localhost:8012</div>
+                    <span class="port">端口 8012</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8013/docs', '_blank')">
+                    <div class="title">📖 ERP API文档</div>
+                    <div class="url">http://localhost:8013/docs</div>
+                    <span class="port">端口 8013</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8017/dashboard', '_blank')">
+                    <div class="title">🤖 智能任务系统</div>
+                    <div class="url">http://localhost:8017/dashboard</div>
+                    <span class="port">端口 8017</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8019/dashboard', '_blank')">
+                    <div class="title">🧠 自我学习系统</div>
+                    <div class="url">http://localhost:8019/dashboard</div>
+                    <span class="port">端口 8019</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8018/dashboard', '_blank')">
+                    <div class="title">⚙️ 资源管理系统</div>
+                    <div class="url">http://localhost:8018/dashboard</div>
+                    <span class="port">端口 8018</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8015/dashboard', '_blank')">
+                    <div class="title">🔍 趋势分析系统</div>
+                    <div class="url">http://localhost:8015/dashboard</div>
+                    <span class="port">端口 8015</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8014/dashboard', '_blank')">
+                    <div class="title">📈 股票量化系统</div>
+                    <div class="url">http://localhost:8014/dashboard</div>
+                    <span class="port">端口 8014</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8016/dashboard', '_blank')">
+                    <div class="title">🎨 内容创作系统</div>
+                    <div class="url">http://localhost:8016/dashboard</div>
+                    <span class="port">端口 8016</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8021', '_blank')">
+                    <div class="title">⚙️ 运营管理界面</div>
+                    <div class="url">http://localhost:8021</div>
+                    <span class="port">端口 8021</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8022', '_blank')">
+                    <div class="title">💵 财务管理界面</div>
+                    <div class="url">http://localhost:8022</div>
+                    <span class="port">端口 8022</span>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8023', '_blank')">
+                    <div class="title">💻 AI编程助手</div>
+                    <div class="url">http://localhost:8023</div>
+                    <span class="port">端口 8023</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ERP三级界面 -->
+        <div class="section">
+            <h2>📊 ERP三级界面（子系统）</h2>
+            <div class="links-grid">
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/order-management.html', '_blank')">
+                    <div class="title">📋 订单管理</div>
+                    <div class="url">http://localhost:8012/interfaces/order-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/project-management.html', '_blank')">
+                    <div class="title">📁 项目管理</div>
+                    <div class="url">http://localhost:8012/interfaces/project-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/procurement-management.html', '_blank')">
+                    <div class="title">🛒 采购管理</div>
+                    <div class="url">http://localhost:8012/interfaces/procurement-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/plan-management.html', '_blank')">
+                    <div class="title">📅 计划管理</div>
+                    <div class="url">http://localhost:8012/interfaces/plan-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/production-management.html', '_blank')">
+                    <div class="title">🏭 生产管理</div>
+                    <div class="url">http://localhost:8012/interfaces/production-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/quality-management.html', '_blank')">
+                    <div class="title">✅ 质量管理</div>
+                    <div class="url">http://localhost:8012/interfaces/quality-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/receiving-management.html', '_blank')">
+                    <div class="title">📦 到料管理</div>
+                    <div class="url">http://localhost:8012/interfaces/receiving-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/outbound-management.html', '_blank')">
+                    <div class="title">📤 出库管理</div>
+                    <div class="url">http://localhost:8012/interfaces/outbound-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/shipping-management.html', '_blank')">
+                    <div class="title">🚚 发运管理</div>
+                    <div class="url">http://localhost:8012/interfaces/shipping-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/after-sales-management.html', '_blank')">
+                    <div class="title">🔧 售后管理</div>
+                    <div class="url">http://localhost:8012/interfaces/after-sales-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/settlement-management.html', '_blank')">
+                    <div class="title">💰 结算管理</div>
+                    <div class="url">http://localhost:8012/interfaces/settlement-management.html</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8012/interfaces/trial-balance.html', '_blank')">
+                    <div class="title">⚖️ 试算平衡</div>
+                    <div class="url">http://localhost:8012/interfaces/trial-balance.html</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RAG三级界面 -->
+        <div class="section">
+            <h2>📚 RAG三级界面</h2>
+            <div class="links-grid">
+                <div class="link-card" onclick="window.open('http://localhost:8011/preprocessing', '_blank')">
+                    <div class="title">🧹 预处理系统</div>
+                    <div class="url">http://localhost:8011/preprocessing</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8011/knowledge-graph', '_blank')">
+                    <div class="title">🕸️ 知识图谱可视化</div>
+                    <div class="url">http://localhost:8011/knowledge-graph</div>
+                </div>
+                <div class="link-card" onclick="window.open('http://localhost:8011/truthfulness', '_blank')">
+                    <div class="title">✅ 真实性验证</div>
+                    <div class="url">http://localhost:8011/truthfulness</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="section">
+            <h2>🚀 快速操作</h2>
+            <div style="text-align: center; padding: 20px;">
+                <button onclick="openAllMain()" style="padding: 15px 30px; font-size: 16px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px;">
+                    打开所有主要界面
+                </button>
+                <button onclick="openAllERP()" style="padding: 15px 30px; font-size: 16px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px;">
+                    打开所有ERP界面
+                </button>
+                <button onclick="openAllRAG()" style="padding: 15px 30px; font-size: 16px; background: #17a2b8; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px;">
+                    打开所有RAG界面
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openAllMain() {
+            const urls = [
+                'http://localhost:8020',
+                'http://localhost:3000',
+                'http://localhost:8012',
+                'http://localhost:8011/rag-management',
+                'http://localhost:8013/docs'
+            ];
+            urls.forEach((url, index) => {
+                setTimeout(() => window.open(url, '_blank'), index * 200);
+            });
+        }
+
+        function openAllERP() {
+            const urls = [
+                'http://localhost:8012',
+                'http://localhost:8012/interfaces/order-management.html',
+                'http://localhost:8012/interfaces/project-management.html',
+                'http://localhost:8012/interfaces/procurement-management.html',
+                'http://localhost:8012/interfaces/production-management.html',
+                'http://localhost:8012/interfaces/quality-management.html'
+            ];
+            urls.forEach((url, index) => {
+                setTimeout(() => window.open(url, '_blank'), index * 200);
+            });
+        }
+
+        function openAllRAG() {
+            const urls = [
+                'http://localhost:8011/rag-management',
+                'http://localhost:8011/preprocessing',
+                'http://localhost:8011/knowledge-graph',
+                'http://localhost:8011/truthfulness'
+            ];
+            urls.forEach((url, index) => {
+                setTimeout(() => window.open(url, '_blank'), index * 200);
+            });
+        }
+    </script>
+</body>
+</html>
+
+

@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内容创作全流程系统 - AI-STACK V4.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .content-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* 左侧导航 */
+        .sidebar {
+            width: 280px;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 2px 0 20px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+        
+        .sidebar-header {
+            padding: 25px 20px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .sidebar-title {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .sidebar-subtitle {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        .nav-section {
+            padding: 20px 0;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .section-title {
+            padding: 0 20px 10px;
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        
+        .nav-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .nav-item:hover {
+            background: rgba(240, 147, 251, 0.1);
+        }
+        
+        .nav-item.active {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        /* 主工作区 */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(255,255,255,0.95);
+        }
+        
+        .main-header {
+            background: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-title {
+            font-size: 24px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(240, 147, 251, 0.3);
+        }
+        
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+        }
+        
+        /* 流程看板 */
+        .workflow {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            padding-bottom: 15px;
+        }
+        
+        .workflow-step {
+            min-width: 160px;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        
+        .workflow-step::after {
+            content: '→';
+            position: absolute;
+            right: -18px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 20px;
+            color: #f5576c;
+        }
+        
+        .workflow-step:last-child::after {
+            display: none;
+        }
+        
+        .step-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .step-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .step-count {
+            font-size: 24px;
+            font-weight: bold;
+            color: #f5576c;
+        }
+        
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .stat-icon {
+            font-size: 36px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .stat-trend {
+            font-size: 12px;
+            margin-top: 8px;
+            color: #4caf50;
+        }
+        
+        /* AI专家面板 */
+        .expert-panel {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .expert-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .expert-suggestion {
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+        
+        /* 内容卡片 */
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .content-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+        
+        .content-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        
+        .content-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .content-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .content-stats {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e8e8e8;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+        }
+        
+        .platform-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            background: #e3f2fd;
+            color: #2196f3;
+        }
+    </style>
+</head>
+<body>
+    <div class="content-container">
+        <!-- 左侧导航 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">✍️ 内容创作</div>
+                <div class="sidebar-subtitle">V4.0 全流程运营系统</div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="section-title">全流程</div>
+                <div class="nav-item active" onclick="showSection('collect')">
+                    <span>🔍</span>
+                    <span>素材收集</span>
+                </div>
+                <div class="nav-item" onclick="showSection('plan')">
+                    <span>💡</span>
+                    <span>内容策划</span>
+                </div>
+                <div class="nav-item" onclick="showSection('create')">
+                    <span>✍️</span>
+                    <span>内容生成</span>
+                </div>
+                <div class="nav-item" onclick="showSection('publish')">
+                    <span>📢</span>
+                    <span>发布管理</span>
+                </div>
+                <div class="nav-item" onclick="showSection('analytics')">
+                    <span>📊</span>
+                    <span>运营分析</span>
+                </div>
+                <div class="nav-item" onclick="showSection('improve')">
+                    <span>🔄</span>
+                    <span>持续改进</span>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="section-title">AI专家助手</div>
+                <div class="nav-item" onclick="chatWithExpert('collect')">
+                    <span>🤖</span>
+                    <span>素材收集专家</span>
+                </div>
+                <div class="nav-item" onclick="chatWithExpert('plan')">
+                    <span>🤖</span>
+                    <span>内容策划专家</span>
+                </div>
+                <div class="nav-item" onclick="chatWithExpert('create')">
+                    <span>🤖</span>
+                    <span>内容创作专家</span>
+                </div>
+                <div class="nav-item" onclick="chatWithExpert('publish')">
+                    <span>🤖</span>
+                    <span>发布管理专家</span>
+                </div>
+                <div class="nav-item" onclick="chatWithExpert('analytics')">
+                    <span>🤖</span>
+                    <span>运营分析专家</span>
+                </div>
+                <div class="nav-item" onclick="chatWithExpert('improve')">
+                    <span>🤖</span>
+                    <span>改进专家</span>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="section-title">平台管理</div>
+                <div class="nav-item" onclick="showPlatform('xiaohongshu')">
+                    <span>📱</span>
+                    <span>小红书</span>
+                </div>
+                <div class="nav-item" onclick="showPlatform('douyin')">
+                    <span>🎵</span>
+                    <span>抖音</span>
+                </div>
+                <div class="nav-item" onclick="showPlatform('zhihu')">
+                    <span>📖</span>
+                    <span>知乎</span>
+                </div>
+                <div class="nav-item" onclick="showPlatform('weibo')">
+                    <span>🐦</span>
+                    <span>微博</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 主工作区 -->
+        <div class="main-area">
+            <div class="main-header">
+                <div>
+                    <div class="header-title" id="pageTitle">🔍 素材收集系统</div>
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;" id="pageDesc">AI智能收集，反爬策略，自动去重</p>
+                </div>
+                <button class="btn btn-primary" onclick="startCollecting()">🚀 开始收集</button>
+            </div>
+            
+            <div class="main-content" id="mainContent">
+                <!-- 全流程看板 -->
+                <div class="workflow">
+                    <div class="workflow-step">
+                        <div class="step-icon">🔍</div>
+                        <div class="step-title">素材收集</div>
+                        <div class="step-count">1,250</div>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="step-icon">💡</div>
+                        <div class="step-title">内容策划</div>
+                        <div class="step-count">85</div>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="step-icon">✍️</div>
+                        <div class="step-title">内容生成</div>
+                        <div class="step-count">156</div>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="step-icon">📢</div>
+                        <div class="step-title">已发布</div>
+                        <div class="step-count">142</div>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="step-icon">📊</div>
+                        <div class="step-title">运营中</div>
+                        <div class="step-count">138</div>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="step-icon">🔄</div>
+                        <div class="step-title">已优化</div>
+                        <div class="step-count">95</div>
+                    </div>
+                </div>
+                
+                <!-- AI专家建议 -->
+                <div class="expert-panel">
+                    <div class="expert-title">🤖 AI素材收集专家建议</div>
+                    <div class="expert-suggestion">
+                        💡 今日热点：#AI技术应用 热度指数98/100，建议立即收集素材<br>
+                        ⚠️ 小红书反爬升级，已自动切换策略，成功率保持95%<br>
+                        ✅ 本周收集素材质量评分：92分，去重率：88%，可用率：85%
+                    </div>
+                </div>
+                
+                <!-- 统计卡片 -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-label">素材总量</div>
+                        <div class="stat-value">1,250</div>
+                        <div class="stat-trend">↑ 25% vs上周</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✍️</div>
+                        <div class="stat-label">生成内容</div>
+                        <div class="stat-value">156</div>
+                        <div class="stat-trend">↑ 18% vs上周</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📢</div>
+                        <div class="stat-label">已发布</div>
+                        <div class="stat-value">142</div>
+                        <div class="stat-trend">↑ 22% vs上周</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">👁️</div>
+                        <div class="stat-label">总阅读量</div>
+                        <div class="stat-value">1.2M</div>
+                        <div class="stat-trend">↑ 35% vs上周</div>
+                    </div>
+                </div>
+                
+                <!-- 内容列表 -->
+                <div style="background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                    <h3 style="margin-bottom: 20px;">📋 内容列表</h3>
+                    
+                    <div class="content-grid" id="contentGrid">
+                        <div class="content-card">
+                            <div class="content-title">AI技术如何改变我们的生活</div>
+                            <div class="content-meta">
+                                <span class="platform-badge">小红书</span>
+                                <span>2025-11-09</span>
+                            </div>
+                            <div style="color: #666; font-size: 14px; line-height: 1.6;">
+                                AI正在深刻改变我们的工作和生活方式，从智能助手到自动驾驶...
+                            </div>
+                            <div class="content-stats">
+                                <div class="stat-item">👁️ 8,520</div>
+                                <div class="stat-item">👍 856</div>
+                                <div class="stat-item">💬 125</div>
+                                <div class="stat-item">⭐ 432</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showSection(section) {
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            const titles = {
+                'collect': {title: '🔍 素材收集系统', desc: 'AI智能收集，反爬策略，自动去重'},
+                'plan': {title: '💡 内容策划系统', desc: '热点分析，选题推荐，竞品对比'},
+                'create': {title: '✍️ 内容生成系统', desc: 'AI创作，去AI化处理，多平台适配'},
+                'publish': {title: '📢 发布管理系统', desc: '多平台发布，定时发布，发布监控'},
+                'analytics': {title: '📊 运营分析系统', desc: '数据追踪，效果评估，A/B测试'},
+                'improve': {title: '🔄 持续改进系统', desc: '问题识别，方案优化，效果验证'}
+            };
+            
+            document.getElementById('pageTitle').textContent = titles[section].title;
+            document.getElementById('pageDesc').textContent = titles[section].desc;
+        }
+        
+        function chatWithExpert(type) {
+            alert('正在为您接通AI专家...请在超级Agent聊天界面与专家对话');
+            window.open('/super-agent', '_blank');
+        }
+        
+        function showPlatform(platform) {
+            alert(`正在打开${platform}平台配置...`);
+        }
+        
+        function startCollecting() {
+            alert('开始收集素材！AI将自动：\n✅ 识别热点话题\n✅ 爬取优质内容\n✅ 自动去重去噪\n✅ 质量评分\n✅ 智能分类');
+        }
+        
+        console.log('✍️ 内容创作全流程系统已加载');
+    </script>
+</body>
+</html>
+
+
+
+

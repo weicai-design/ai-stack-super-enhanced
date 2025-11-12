@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI编程助手 - AI-STACK</title>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .toolbar {
+            background: #252526;
+            padding: 8px 16px;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .toolbar select, .toolbar button {
+            padding: 6px 12px;
+            background: #3c3c3c;
+            color: #cccccc;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .toolbar button:hover {
+            background: #464647;
+        }
+        .toolbar button.primary {
+            background: #0e639c;
+            color: #fff;
+        }
+        .toolbar button.primary:hover {
+            background: #1177bb;
+        }
+        .main-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .editor-container {
+            flex: 1;
+            position: relative;
+        }
+        #code-editor {
+            width: 100%;
+            height: 100%;
+        }
+        .sidebar {
+            width: 350px;
+            background: #252526;
+            border-left: 1px solid #3e3e42;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .sidebar-section {
+            padding: 16px;
+            border-bottom: 1px solid #3e3e42;
+        }
+        .sidebar-section h3 {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: #cccccc;
+        }
+        .ai-panel {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        .ai-message {
+            margin-bottom: 12px;
+            padding: 12px;
+            background: #2d2d30;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .ai-message.user {
+            background: #094771;
+        }
+        .ai-message.assistant {
+            background: #2d2d30;
+        }
+        .input-area {
+            padding: 12px;
+            border-top: 1px solid #3e3e42;
+        }
+        .input-area textarea {
+            width: 100%;
+            padding: 8px;
+            background: #1e1e1e;
+            color: #cccccc;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            font-size: 13px;
+            resize: none;
+            min-height: 60px;
+        }
+        .input-area button {
+            margin-top: 8px;
+            width: 100%;
+            padding: 8px;
+            background: #0e639c;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .input-area button:hover {
+            background: #1177bb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 工具栏 -->
+        <div class="toolbar">
+            <select id="language-selector">
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="java">Java</option>
+                <option value="cpp">C++</option>
+                <option value="c">C</option>
+                <option value="csharp">C#</option>
+                <option value="go">Go</option>
+                <option value="rust">Rust</option>
+                <option value="ruby">Ruby</option>
+                <option value="php">PHP</option>
+                <option value="swift">Swift</option>
+                <option value="kotlin">Kotlin</option>
+                <option value="scala">Scala</option>
+                <option value="r">R</option>
+                <option value="sql">SQL</option>
+                <option value="html">HTML</option>
+                <option value="css">CSS</option>
+                <option value="shell">Shell</option>
+                <option value="powershell">PowerShell</option>
+                <option value="lua">Lua</option>
+                <option value="perl">Perl</option>
+                <option value="dart">Dart</option>
+                <option value="haskell">Haskell</option>
+                <option value="elixir">Elixir</option>
+            </select>
+            <button onclick="generateCode()">生成代码</button>
+            <button onclick="reviewCode()">代码审查</button>
+            <button onclick="optimizeCode()">优化代码</button>
+            <button onclick="fixBugs()">修复Bug</button>
+            <button class="primary" onclick="saveFile()">保存</button>
+        </div>
+
+        <div class="main-layout">
+            <!-- 编辑器面板 -->
+            <div class="editor-panel">
+                <div class="editor-container">
+                    <div id="code-editor"></div>
+                </div>
+            </div>
+
+            <!-- AI助手侧边栏 -->
+            <div class="sidebar">
+                <div class="sidebar-section">
+                    <h3>AI助手</h3>
+                    <div class="ai-panel" id="ai-panel">
+                        <div class="ai-message assistant">
+                            <p>👋 我是AI编程助手，可以帮您：</p>
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>生成代码</li>
+                                <li>审查代码</li>
+                                <li>优化性能</li>
+                                <li>修复Bug</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="input-area">
+                        <textarea id="ai-input" placeholder="输入您的需求..."></textarea>
+                        <button onclick="askAI()">发送</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let editor = null;
+        const API_BASE = '/api/coding-assistant';
+
+        // 初始化Monaco Editor
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('code-editor'), {
+                value: '// 欢迎使用AI编程助手\n// 选择语言，然后输入需求生成代码\n\n',
+                language: 'python',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                minimap: { enabled: true },
+                fontSize: 14,
+                lineNumbers: 'on',
+                roundedSelection: false,
+                scrollBeyondLastLine: false,
+                readOnly: false,
+                cursorStyle: 'line',
+                wordWrap: 'on'
+            });
+
+            // 语言切换
+            document.getElementById('language-selector').addEventListener('change', (e) => {
+                const language = e.target.value;
+                monaco.editor.setModelLanguage(editor.getModel(), language);
+            });
+        });
+
+        async function generateCode() {
+            const description = prompt('请输入代码描述：');
+            if (!description) return;
+
+            const language = document.getElementById('language-selector').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        description: description,
+                        language: language,
+                        code_type: 'function'
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    editor.setValue(result.code);
+                    addAIMessage('assistant', `✅ 代码已生成：${description}`);
+                } else {
+                    addAIMessage('assistant', `❌ 生成失败：${result.error}`);
+                }
+            } catch (error) {
+                addAIMessage('assistant', `❌ 错误：${error.message}`);
+            }
+        }
+
+        async function reviewCode() {
+            const code = editor.getValue();
+            if (!code.trim()) {
+                alert('请先输入代码');
+                return;
+            }
+
+            const language = document.getElementById('language-selector').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: code,
+                        language: language
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    let message = `📊 代码审查结果（评分：${result.score}/100）\n\n`;
+                    if (result.issues && result.issues.length > 0) {
+                        message += '⚠️ 发现的问题：\n';
+                        result.issues.forEach(issue => {
+                            message += `- ${issue}\n`;
+                        });
+                    }
+                    if (result.suggestions && result.suggestions.length > 0) {
+                        message += '\n💡 建议：\n';
+                        result.suggestions.forEach(suggestion => {
+                            message += `- ${suggestion}\n`;
+                        });
+                    }
+                    addAIMessage('assistant', message);
+                }
+            } catch (error) {
+                addAIMessage('assistant', `❌ 错误：${error.message}`);
+            }
+        }
+
+        async function optimizeCode() {
+            const code = editor.getValue();
+            if (!code.trim()) {
+                alert('请先输入代码');
+                return;
+            }
+
+            const problemDescription = prompt('请描述性能问题（可选）：') || '优化代码性能';
+            
+            try {
+                const response = await fetch(`${API_BASE}/optimize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        problem_description: problemDescription,
+                        context: { code: code }
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success && result.optimization) {
+                    const opt = result.optimization;
+                    editor.setValue(opt.optimized_code);
+                    let message = `✅ 代码已优化\n\n`;
+                    message += `💡 优化建议：\n`;
+                    opt.suggestions.forEach(s => {
+                        message += `- ${s}\n`;
+                    });
+                    message += `\n📈 预期改进：${opt.expected_improvement}`;
+                    addAIMessage('assistant', message);
+                }
+            } catch (error) {
+                addAIMessage('assistant', `❌ 错误：${error.message}`);
+            }
+        }
+
+        async function fixBugs() {
+            const code = editor.getValue();
+            if (!code.trim()) {
+                alert('请先输入代码');
+                return;
+            }
+
+            const bugDescription = prompt('请描述Bug（可选）：') || '修复代码中的Bug';
+            const language = document.getElementById('language-selector').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/fix-bug`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: code,
+                        bug_description: bugDescription,
+                        language: language
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    editor.setValue(result.fixed_code);
+                    addAIMessage('assistant', `✅ Bug已修复：${bugDescription}`);
+                }
+            } catch (error) {
+                addAIMessage('assistant', `❌ 错误：${error.message}`);
+            }
+        }
+
+        async function askAI() {
+            const input = document.getElementById('ai-input').value.trim();
+            if (!input) return;
+
+            addAIMessage('user', input);
+            document.getElementById('ai-input').value = '';
+
+            // TODO: 调用AI助手API
+            addAIMessage('assistant', '🤔 正在思考...');
+        }
+
+        function addAIMessage(role, content) {
+            const panel = document.getElementById('ai-panel');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `ai-message ${role}`;
+            messageDiv.textContent = content;
+            panel.appendChild(messageDiv);
+            panel.scrollTop = panel.scrollHeight;
+        }
+
+        function saveFile() {
+            const code = editor.getValue();
+            const blob = new Blob([code], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `code.${document.getElementById('language-selector').value}`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
+

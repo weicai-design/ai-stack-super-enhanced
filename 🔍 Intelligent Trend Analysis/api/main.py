@@ -6,6 +6,7 @@ Trend Analysis API Main Application
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.trend_api import router as trend_router
+from api.custom_trend_api import router as custom_trend_router
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -20,6 +21,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:8015",  # 趋势分析前端
         "http://localhost:3000",  # OpenWebUI
+        "http://localhost:8000",  # 主应用
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -28,6 +30,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(trend_router, prefix="/api")
+app.include_router(custom_trend_router, prefix="/api")
 
 @app.get("/")
 def root():

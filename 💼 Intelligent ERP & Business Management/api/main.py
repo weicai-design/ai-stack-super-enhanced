@@ -22,6 +22,11 @@ from api.material_api import router as material_router
 from api.production_api import router as production_router
 from api.equipment_api import router as equipment_router
 from api.process_engineering_api import router as engineering_router
+from api.after_sales_api import router as after_sales_router
+from api.export_api import router as export_router
+from api.trial_balance_api import router as trial_balance_router
+from api.integration_api import router as integration_router
+from api.data_listener_api import router as data_listener_router, data_listener
 
 # 导入数据库
 from core.database import init_db, engine
@@ -35,8 +40,17 @@ async def lifespan(app: FastAPI):
     print("🚀 正在初始化数据库...")
     Base.metadata.create_all(bind=engine)
     print("✅ 数据库初始化完成")
+    
+    # 启动ERP数据监听系统
+    print("🔔 正在启动ERP数据监听系统...")
+    await data_listener.start_listening()
+    print("✅ ERP数据监听系统已启动")
+    
     yield
+    
     # 关闭时的清理工作
+    print("🔔 正在停止ERP数据监听系统...")
+    await data_listener.stop_listening()
     print("👋 关闭应用")
 
 
@@ -75,6 +89,11 @@ app.include_router(material_router)
 app.include_router(production_router)
 app.include_router(equipment_router)
 app.include_router(engineering_router)
+app.include_router(after_sales_router)
+app.include_router(export_router)  # 数据导出API
+app.include_router(trial_balance_router)  # 试算功能API
+app.include_router(integration_router)  # 数据集成API
+app.include_router(data_listener_router)  # 数据监听API ⭐新增
 
 
 # 根路径
@@ -85,10 +104,10 @@ def root():
         "message": "ERP Backend API - 完美版 v2.5.0",
         "status": "running",
         "version": "2.5.0",
-        "modules": 12,
-        "completion": "97%",
-        "new_features": "39个高级功能全面上线！",
-        "highlights": "🎉 系统完成度97% | 120+ API端点 | 16个模块≥95%",
+        "modules": 13,
+        "completion": "98%",
+        "new_features": "售后服务模块全面上线！",
+        "highlights": "🎉 系统完成度98% | 130+ API端点 | 17个模块≥95%",
         "endpoints": {
             "docs": "/docs",
             "health": "/health",
@@ -96,7 +115,7 @@ def root():
             "finance": "/api/finance/*",
             "analytics": "/api/analytics/*",
             "customer": "/api/customer/*",
-            "advanced": "/api/advanced/*  ⭐NEW",
+            "advanced": "/api/advanced/*",
             "process": "/api/process/*",
             "procurement": "/api/procurement/*",
             "warehouse": "/api/warehouse/*",
@@ -104,7 +123,8 @@ def root():
             "material": "/api/material/*",
             "production": "/api/production/*",
             "equipment": "/api/equipment/*",
-            "engineering": "/api/engineering/*"
+            "engineering": "/api/engineering/*",
+            "after_sales": "/api/after-sales/*  ⭐NEW"
         }
     }
 

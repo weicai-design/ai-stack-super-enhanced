@@ -233,6 +233,20 @@ class UniversalFileParser(FileProcessorBase):
             self._initialized = False
             return False
 
+    def supports_format(self, format: str) -> bool:
+        """
+        Check if the parser supports a given file format
+        
+        Args:
+            format: File extension (with or without dot, e.g., 'pdf' or '.pdf')
+            
+        Returns:
+            True if the format is supported, False otherwise
+        """
+        # Remove leading dot if present
+        clean_format = format.lstrip('.').lower()
+        return clean_format in self._file_type_mappings
+
     # Compatibility adapter methods expected by HybridRAGEngine and other components
     def parse_document(self, filepath: str) -> ProcessingResult:
         """

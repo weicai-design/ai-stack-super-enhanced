@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运营管理 V5.0 - AI-STACK</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #2563eb; --success: #10b981; --warning: #f59e0b; --error: #ef4444;
+            --bg: #0f172a; --surface: #1e293b; --text: #f1f5f9; --text-sec: #94a3b8; --border: #334155;
+        }
+        body { font-family: Inter, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .top-nav { background: var(--surface); padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .nav-title { font-size: 1.5rem; font-weight: 600; }
+        .back-btn { background: var(--primary); border: none; color: white; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; }
+        .tabs { display: flex; gap: 0.5rem; background: var(--surface); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; }
+        .tab { padding: 0.75rem 1.5rem; background: transparent; border: none; color: var(--text-sec); cursor: pointer; border-radius: 8px; transition: all 0.2s; }
+        .tab.active { background: var(--primary); color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .metric-card { background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); }
+        .metric-label { color: var(--text-sec); font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .metric-value { font-size: 2rem; font-weight: 700; }
+        .chart-container { background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
+        .chart-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
+        .chart-wrapper { position: relative; height: 300px; }
+        .data-table { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); }
+        .table-header { padding: 1rem; background: #334155; display: flex; justify-content: space-between; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-sec); font-weight: 600; font-size: 0.9rem; }
+        .btn { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; cursor: pointer; background: var(--primary); color: white; }
+    </style>
+</head>
+<body>
+    <div class="top-nav">
+        <div class="nav-title">⚙️ 运营管理 V5.0</div>
+        <button class="back-btn" onclick="window.history.back()">← 返回</button>
+    </div>
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" data-tab="dashboard">📊 数据看板</button>
+            <button class="tab" data-tab="process">🔄 流程管理</button>
+            <button class="tab" data-tab="users">👥 用户分析</button>
+            <button class="tab" data-tab="campaigns">📢 活动管理</button>
+        </div>
+        
+        <div class="tab-content active" id="dashboard">
+            <div class="card-grid">
+                <div class="metric-card"><div class="metric-label">日活用户</div><div class="metric-value">12,345</div></div>
+                <div class="metric-card"><div class="metric-label">转化率</div><div class="metric-value">8.5%</div></div>
+                <div class="metric-card"><div class="metric-label">客单价</div><div class="metric-value">¥456</div></div>
+                <div class="metric-card"><div class="metric-label">留存率</div><div class="metric-value">72%</div></div>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">📈 用户增长趋势</div>
+                <div class="chart-wrapper"><canvas id="chart1"></canvas></div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="process">
+            <div class="data-table">
+                <div class="table-header"><div>🔄 业务流程列表</div><button class="btn">优化建议</button></div>
+                <table><thead><tr><th>流程名称</th><th>执行次数</th><th>平均时长</th><th>成功率</th></tr></thead>
+                <tbody>
+                    <tr><td>用户注册流程</td><td>1,234</td><td>2.3分钟</td><td>95%</td></tr>
+                    <tr><td>订单处理流程</td><td>856</td><td>5.1分钟</td><td>98%</td></tr>
+                </tbody></table>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="users">
+            <div class="chart-container">
+                <div class="chart-title">👥 用户行为分析</div>
+                <div class="chart-wrapper"><canvas id="chart2"></canvas></div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="campaigns">
+            <div class="data-table">
+                <div class="table-header"><div>📢 活动列表</div><button class="btn">创建活动</button></div>
+                <table><thead><tr><th>活动名称</th><th>开始时间</th><th>参与人数</th><th>转化率</th></tr></thead>
+                <tbody>
+                    <tr><td>双十一大促</td><td>2025-11-11</td><td>5,678</td><td>12.3%</td></tr>
+                </tbody></table>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+        const ctx1 = document.getElementById('chart1').getContext('2d');
+        new Chart(ctx1, {
+            type: 'line',
+            data: { labels: ['周一','周二','周三','周四','周五','周六','周日'], datasets: [{
+                label: '日活', data: [8000,8500,9200,10100,11200,13400,12345], borderColor: '#10b981', tension: 0.4
+            }]},
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#f1f5f9' }}},
+                scales: { y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }}, x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }}}
+            }
+        });
+        
+        // ==================== 后端API连接（V5.6）====================
+        
+        async function loadOperationsData() {
+            try {
+                console.log('📡 加载运营数据...');
+                const response = await fetch('/api/v5/operations/kpi/dashboard');
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ 运营数据加载成功', data);
+                    
+                    // 更新KPI指标
+                    if (data.daily_active_users) {
+                        document.querySelector('.metric-card:nth-child(1) .metric-value').textContent = 
+                            data.daily_active_users.toLocaleString();
+                    }
+                    if (data.conversion_rate) {
+                        document.querySelector('.metric-card:nth-child(2) .metric-value').textContent = 
+                            data.conversion_rate + '%';
+                    }
+                }
+            } catch (error) {
+                console.warn('⚠️  运营API未就绪，使用演示数据:', error.message);
+            }
+        }
+        
+        // 页面加载时获取数据
+        window.addEventListener('load', loadOperationsData);
+        
+        console.log('✅ 运营管理V5界面已加载（V5.6后端连接版）');
+    </script>
+</body>
+</html>
+

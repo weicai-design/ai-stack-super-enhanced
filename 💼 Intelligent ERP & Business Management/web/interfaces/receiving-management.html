@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>入库管理 - ERP系统</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/dist/index.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        .header { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 20px 30px; }
+        .container { max-width: 1400px; margin: 20px auto; padding: 0 20px; }
+        .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .filter-bar, .table-container { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header"><h1>📥 入库管理</h1></div>
+        <div class="container">
+            <div class="stat-cards">
+                <div class="stat-card"><div style="color: #666; font-size: 14px;">入库单数</div><div style="font-size: 28px; font-weight: bold;">{{ statistics.total }}</div></div>
+                <div class="stat-card"><div style="color: #666; font-size: 14px;">待入库</div><div style="font-size: 28px; font-weight: bold;">{{ statistics.pending }}</div></div>
+                <div class="stat-card"><div style="color: #666; font-size: 14px;">已入库</div><div style="font-size: 28px; font-weight: bold;">{{ statistics.completed }}</div></div>
+                <div class="stat-card"><div style="color: #666; font-size: 14px;">入库金额</div><div style="font-size: 28px; font-weight: bold;">¥{{ statistics.total_amount }}</div></div>
+            </div>
+            <div class="filter-bar">
+                <el-form :inline="true">
+                    <el-form-item label="入库单号"><el-input v-model="filters.receipt_no" placeholder="请输入入库单号" clearable style="width: 200px" /></el-form-item>
+                    <el-form-item label="状态"><el-select v-model="filters.status" clearable style="width: 150px"><el-option label="全部" value="" /><el-option label="待入库" value="pending" /><el-option label="已入库" value="completed" /></el-select></el-form-item>
+                    <el-form-item><el-button type="primary" @click="loadReceipts">查询</el-button><el-button type="success" @click="showAddDialog">新增入库</el-button></el-form-item>
+                </el-form>
+            </div>
+            <div class="table-container">
+                <el-table :data="receipts" v-loading="loading" stripe>
+                    <el-table-column prop="receipt_no" label="入库单号" width="150" />
+                    <el-table-column prop="supplier_name" label="供应商" width="150" />
+                    <el-table-column prop="material_name" label="物料名称" />
+                    <el-table-column prop="quantity" label="数量" width="100" />
+                    <el-table-column prop="unit" label="单位" width="80" />
+                    <el-table-column prop="status" label="状态" width="100"><template #default="scope"><el-tag :type="scope.row.status === 'completed' ? 'success' : 'warning'">{{ scope.row.status === 'completed' ? '已入库' : '待入库' }}</el-tag></template></el-table-column>
+                    <el-table-column prop="receipt_date" label="入库日期" width="120" />
+                    <el-table-column label="操作" width="200"><template #default="scope"><el-button size="small" @click="viewReceipt(scope.row)">查看</el-button><el-button size="small" type="primary" @click="confirmReceipt(scope.row)" v-if="scope.row.status === 'pending'">确认入库</el-button></template></el-table-column>
+                </el-table>
+            </div>
+        </div>
+    </div>
+    <script>
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    loading: false,
+                    receipts: [],
+                    statistics: { total: 0, pending: 0, completed: 0, total_amount: 0 },
+                    filters: { receipt_no: '', status: '' }
+                }
+            },
+            mounted() { this.loadReceipts(); },
+            methods: {
+                async loadReceipts() {
+                    this.loading = true;
+                    try {
+                        const res = await axios.get('/api/warehouse/receiving', { params: this.filters });
+                        this.receipts = res.data.receipts || [];
+                    } catch (error) {
+                        ElementPlus.ElMessage.error('加载失败: ' + error.message);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                showAddDialog() { ElementPlus.ElMessage.info('新增功能开发中'); },
+                confirmReceipt(row) { ElementPlus.ElMessage.info('确认入库功能开发中'); },
+                viewReceipt(row) { window.open(`/warehouse/receiving/${row.id}`, '_blank'); }
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>
+
