@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP流程可视化编辑器 - AI-STACK</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/dist/index.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 300px;
+            background: #fff;
+            border-right: 1px solid #e0e0e0;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .editor-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .toolbar {
+            padding: 12px 20px;
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover { background: #f0f0f0; }
+        .btn-primary {
+            background: #4caf50;
+            color: #fff;
+            border-color: #4caf50;
+        }
+        .btn-primary:hover { background: #45a049; }
+        #cy {
+            flex: 1;
+            background: #fff;
+        }
+        .node-palette {
+            margin-bottom: 20px;
+        }
+        .node-type {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: move;
+            font-size: 13px;
+            user-select: none;
+            -webkit-user-drag: element;
+        }
+        .node-type:hover {
+            background: #f0f0f0;
+        }
+        .node-type[draggable="true"] {
+            cursor: grab;
+        }
+        .node-type:active {
+            cursor: grabbing;
+        }
+        h3 {
+            margin-bottom: 15px;
+            font-size: 16px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 左侧工具栏 -->
+        <div class="sidebar">
+            <h3>节点类型</h3>
+            <div class="node-palette">
+                <div class="node-type" data-type="start">开始节点</div>
+                <div class="node-type" data-type="task">任务节点</div>
+                <div class="node-type" data-type="condition">条件节点</div>
+                <div class="node-type" data-type="parallel">并行节点</div>
+                <div class="node-type" data-type="approval">审批节点</div>
+                <div class="node-type" data-type="notification">通知节点</div>
+                <div class="node-type" data-type="end">结束节点</div>
+            </div>
+            
+            <h3>流程操作</h3>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button class="btn btn-primary" onclick="saveWorkflow()">💾 保存流程</button>
+                <button class="btn" onclick="loadWorkflow()">📂 加载流程</button>
+                <button class="btn" onclick="validateWorkflow()">✅ 验证流程</button>
+                <button class="btn btn-primary" onclick="publishWorkflow()">🚀 发布流程</button>
+                <button class="btn" onclick="exportWorkflow()">📤 导出JSON</button>
+                <button class="btn" onclick="importWorkflow()">📥 导入JSON</button>
+            </div>
+            
+            <h3 style="margin-top: 30px;">流程模板</h3>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button class="btn" onclick="loadTemplate('standard')">📋 标准订单流程</button>
+                <button class="btn" onclick="loadTemplate('production')">🏭 生产流程</button>
+                <button class="btn" onclick="loadTemplate('procurement')">🛒 采购流程</button>
+            </div>
+            
+            <h3 style="margin-top: 30px;">节点属性</h3>
+            <div id="node-properties" style="font-size: 12px; color: #666; padding: 10px; background: #f9f9f9; border-radius: 4px; margin-bottom: 15px; display: none;">
+                <div><strong>节点名称：</strong><span id="prop-label">-</span></div>
+                <div><strong>节点类型：</strong><span id="prop-type">-</span></div>
+                <div id="prop-assignee-div" style="display: none;"><strong>负责人：</strong><span id="prop-assignee">-</span></div>
+                <div id="prop-duration-div" style="display: none;"><strong>预计时长：</strong><span id="prop-duration">-</span>小时</div>
+                <div id="prop-condition-div" style="display: none;"><strong>条件表达式：</strong><span id="prop-condition">-</span></div>
+            </div>
+            
+            <h3 style="margin-top: 30px;">使用说明</h3>
+            <div style="font-size: 12px; color: #666; line-height: 1.6;">
+                <p><strong>添加节点：</strong>从左侧拖拽节点到画布</p>
+                <p><strong>连接节点：</strong>点击源节点，再点击目标节点</p>
+                <p><strong>编辑节点：</strong>双击节点编辑属性</p>
+                <p><strong>编辑连线：</strong>双击连线编辑标签</p>
+                <p><strong>删除节点/连线：</strong>Ctrl/Cmd + 点击</p>
+                <p><strong>移动节点：</strong>直接拖拽节点</p>
+                <p><strong>查看属性：</strong>点击节点查看属性面板</p>
+                <p><strong>撤销/重做：</strong>Ctrl+Z / Ctrl+Y</p>
+                <p><strong>保存流程：</strong>Ctrl+S</p>
+            </div>
+            
+            <h3 style="margin-top: 30px;">快捷键</h3>
+            <div style="font-size: 11px; color: #999; line-height: 1.5;">
+                <p>Ctrl+Z / Cmd+Z - 撤销</p>
+                <p>Ctrl+Y / Cmd+Y - 重做</p>
+                <p>Ctrl+S / Cmd+S - 保存</p>
+                <p>Delete - 删除选中节点</p>
+            </div>
+        </div>
+
+        <!-- 编辑器区域 -->
+        <div class="editor-area">
+            <div class="toolbar">
+                <button class="btn" onclick="undo()" id="undo-btn" disabled>↶ 撤销</button>
+                <button class="btn" onclick="redo()" id="redo-btn" disabled>↷ 重做</button>
+                <div style="width: 1px; background: #ddd; margin: 0 10px;"></div>
+                <button class="btn" onclick="zoomIn()">🔍 放大</button>
+                <button class="btn" onclick="zoomOut()">🔍 缩小</button>
+                <button class="btn" onclick="resetView()">🎯 重置视图</button>
+                <button class="btn" onclick="clearCanvas()">🗑️ 清空</button>
+                <div style="width: 1px; background: #ddd; margin: 0 10px;"></div>
+                <button class="btn" onclick="previewWorkflow()">👁️ 预览</button>
+                <button class="btn" onclick="simulateWorkflow()">▶️ 模拟执行</button>
+                <div style="flex: 1;"></div>
+                <span style="line-height: 32px; color: #666; font-size: 14px;">流程可视化编辑器 v2.5</span>
+            </div>
+            <div id="cy"></div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化Cytoscape
+        const cy = cytoscape({
+            container: document.getElementById('cy'),
+            elements: [],
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'label': 'data(label)',
+                        'width': 100,
+                        'height': 60,
+                        'shape': 'round-rectangle',
+                        'background-color': '#4caf50',
+                        'color': '#fff',
+                        'text-valign': 'center',
+                        'text-halign': 'center',
+                        'font-size': '12px',
+                        'border-width': '2px',
+                        'border-color': '#333'
+                    }
+                },
+                {
+                    selector: 'node:selected',
+                    style: {
+                        'border-width': '4px',
+                        'border-color': '#2196f3',
+                        'background-color': '#66bb6a'
+                    }
+                },
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 2,
+                        'line-color': '#666',
+                        'target-arrow-color': '#666',
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'bezier',
+                        'label': 'data(label)'
+                    }
+                },
+                {
+                    selector: 'node[type="start"]',
+                    style: {
+                        'background-color': '#4caf50'
+                    }
+                },
+                {
+                    selector: 'node[type="end"]',
+                    style: {
+                        'background-color': '#f44336'
+                    }
+                },
+                {
+                    selector: 'node[type="condition"]',
+                    style: {
+                        'background-color': '#ff9800',
+                        'shape': 'diamond'
+                    }
+                },
+                {
+                    selector: 'node[type="approval"]',
+                    style: {
+                        'background-color': '#9c27b0',
+                        'shape': 'round-hexagon'
+                    }
+                },
+                {
+                    selector: 'node[type="notification"]',
+                    style: {
+                        'background-color': '#00bcd4',
+                        'shape': 'round-pentagon'
+                    }
+                }
+            ],
+            layout: {
+                name: 'dagre',
+                rankDir: 'TB'
+            }
+        });
+
+        let nodeCounter = 0;
+        
+        // 撤销/重做功能
+        let history = [];
+        let historyIndex = -1;
+        const MAX_HISTORY = 50;
+        
+        function saveHistory() {
+            // 保存当前状态到历史记录
+            const currentState = {
+                nodes: cy.nodes().map(node => ({
+                    id: node.id(),
+                    data: node.data(),
+                    position: node.position()
+                })),
+                edges: cy.edges().map(edge => ({
+                    id: edge.id(),
+                    data: edge.data(),
+                    source: edge.source().id(),
+                    target: edge.target().id()
+                }))
+            };
+            
+            // 删除当前位置之后的历史
+            history = history.slice(0, historyIndex + 1);
+            history.push(JSON.parse(JSON.stringify(currentState)));
+            historyIndex++;
+            
+            // 限制历史记录数量
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+                historyIndex--;
+            }
+            
+            updateUndoRedoButtons();
+        }
+        
+        function restoreHistory(state) {
+            cy.elements().remove();
+            
+            // 恢复节点
+            state.nodes.forEach(nodeData => {
+                cy.add({
+                    group: 'nodes',
+                    data: nodeData.data,
+                    position: nodeData.position
+                });
+            });
+            
+            // 恢复连线
+            state.edges.forEach(edgeData => {
+                cy.add({
+                    group: 'edges',
+                    data: {
+                        id: edgeData.id,
+                        source: edgeData.source,
+                        target: edgeData.target,
+                        label: edgeData.data.label || ''
+                    }
+                });
+            });
+        }
+        
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                restoreHistory(history[historyIndex]);
+                updateUndoRedoButtons();
+            }
+        }
+        
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                restoreHistory(history[historyIndex]);
+                updateUndoRedoButtons();
+            }
+        }
+        
+        function updateUndoRedoButtons() {
+            document.getElementById('undo-btn').disabled = historyIndex <= 0;
+            document.getElementById('redo-btn').disabled = historyIndex >= history.length - 1;
+        }
+        
+        // 初始化历史记录
+        saveHistory();
+        
+        // 监听变化，自动保存历史
+        cy.on('add remove', 'node, edge', () => {
+            saveHistory();
+        });
+        
+        // 快捷键支持
+        document.addEventListener('keydown', (e) => {
+            // 如果正在输入，不处理快捷键
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveWorkflow();
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                // 删除选中的节点
+                const selected = cy.$('node:selected');
+                if (selected.length > 0) {
+                    e.preventDefault();
+                    if (confirm(`确定要删除选中的${selected.length}个节点吗？`)) {
+                        selected.remove();
+                        saveHistory();
+                    }
+                }
+            }
+        });
+
+        // 拖拽添加节点
+        document.querySelectorAll('.node-type').forEach(nodeType => {
+            nodeType.setAttribute('draggable', 'true');
+            nodeType.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('node-type', nodeType.dataset.type);
+                e.dataTransfer.effectAllowed = 'copy';
+            });
+        });
+
+        document.getElementById('cy').addEventListener('drop', (e) => {
+            e.preventDefault();
+            const nodeType = e.dataTransfer.getData('node-type');
+            if (nodeType) {
+                const pos = cy.renderer().projectIntoViewport(e.clientX, e.clientY);
+                addNode(nodeType, pos);
+            }
+        });
+
+        document.getElementById('cy').addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        function addNode(type, position) {
+            nodeCounter++;
+            const labels = {
+                'start': '开始',
+                'task': `任务${nodeCounter}`,
+                'condition': `条件${nodeCounter}`,
+                'parallel': `并行${nodeCounter}`,
+                'approval': `审批${nodeCounter}`,
+                'notification': `通知${nodeCounter}`,
+                'end': '结束'
+            };
+
+            cy.add({
+                group: 'nodes',
+                data: {
+                    id: `node_${nodeCounter}`,
+                    label: labels[type] || `节点${nodeCounter}`,
+                    type: type
+                },
+                position: position
+            });
+        }
+
+        // 连线功能
+        let sourceNode = null;
+        cy.on('tap', 'node', (evt) => {
+            const node = evt.target;
+            if (evt.originalEvent.ctrlKey || evt.originalEvent.metaKey) {
+                // Ctrl/Cmd + 点击：删除节点
+                if (confirm('确定要删除此节点吗？')) {
+                    node.remove();
+                }
+                return;
+            }
+            
+            if (!sourceNode) {
+                sourceNode = node;
+                node.style('border-width', '3px');
+                node.style('border-color', '#2196f3');
+                updateNodeProperties(node);
+            } else {
+                if (sourceNode.id() !== node.id()) {
+                    cy.add({
+                        group: 'edges',
+                        data: {
+                            id: `edge_${sourceNode.id()}_${node.id()}`,
+                            source: sourceNode.id(),
+                            target: node.id()
+                        }
+                    });
+                }
+                sourceNode.style('border-width', '2px');
+                sourceNode.style('border-color', '#333');
+                sourceNode = null;
+                updateNodeProperties(node);
+            }
+        });
+        
+        // 显示节点属性
+        function updateNodeProperties(node) {
+            const propsDiv = document.getElementById('node-properties');
+            if (!propsDiv) return;
+            
+            propsDiv.style.display = 'block';
+            document.getElementById('prop-label').textContent = node.data('label') || '-';
+            document.getElementById('prop-type').textContent = getNodeTypeName(node.data('type'));
+            
+            const assigneeDiv = document.getElementById('prop-assignee-div');
+            const durationDiv = document.getElementById('prop-duration-div');
+            const conditionDiv = document.getElementById('prop-condition-div');
+            
+            if (node.data('type') === 'task') {
+                assigneeDiv.style.display = 'block';
+                durationDiv.style.display = 'block';
+                conditionDiv.style.display = 'none';
+                document.getElementById('prop-assignee').textContent = node.data('assignee') || '未设置';
+                document.getElementById('prop-duration').textContent = node.data('duration') || '0';
+            } else if (node.data('type') === 'condition') {
+                assigneeDiv.style.display = 'none';
+                durationDiv.style.display = 'none';
+                conditionDiv.style.display = 'block';
+                document.getElementById('prop-condition').textContent = node.data('condition') || '未设置';
+            } else if (node.data('type') === 'approval') {
+                assigneeDiv.style.display = 'block';
+                durationDiv.style.display = 'none';
+                conditionDiv.style.display = 'none';
+                document.getElementById('prop-assignee').textContent = node.data('approver') || '未设置';
+            } else if (node.data('type') === 'notification') {
+                assigneeDiv.style.display = 'none';
+                durationDiv.style.display = 'none';
+                conditionDiv.style.display = 'none';
+            } else {
+                assigneeDiv.style.display = 'none';
+                durationDiv.style.display = 'none';
+                conditionDiv.style.display = 'none';
+            }
+        }
+        
+        function getNodeTypeName(type) {
+            const names = {
+                'start': '开始节点',
+                'task': '任务节点',
+                'condition': '条件节点',
+                'parallel': '并行节点',
+                'approval': '审批节点',
+                'notification': '通知节点',
+                'end': '结束节点'
+            };
+            return names[type] || type;
+        }
+        
+        // 点击空白处取消选择
+        cy.on('tap', (evt) => {
+            if (evt.target === cy) {
+                if (sourceNode) {
+                    sourceNode.style('border-width', '2px');
+                    sourceNode.style('border-color', '#333');
+                    sourceNode = null;
+                }
+                document.getElementById('node-properties').style.display = 'none';
+            }
+        });
+
+        // 删除连线
+        cy.on('tap', 'edge', (evt) => {
+            if (evt.originalEvent.ctrlKey || evt.originalEvent.metaKey) {
+                if (confirm('确定要删除此连线吗？')) {
+                    evt.target.remove();
+                }
+            } else {
+                // 双击编辑连线标签
+                const edge = evt.target;
+                const label = prompt('连线标签:', edge.data('label') || '');
+                if (label !== null) {
+                    edge.data('label', label);
+                }
+            }
+        });
+
+        // 右键菜单（可选功能）
+        cy.on('cxttap', 'node', (evt) => {
+            const node = evt.target;
+            const action = confirm(`节点: ${node.data('label')}\n\n选择操作:\n确定 = 编辑\n取消 = 删除`);
+            if (action) {
+                showNodeConfigDialog(node);
+            } else {
+                if (confirm('确定要删除此节点吗？')) {
+                    node.remove();
+                }
+            }
+        });
+
+        function zoomIn() {
+            cy.zoom(cy.zoom() * 1.2);
+        }
+
+        function zoomOut() {
+            cy.zoom(cy.zoom() * 0.8);
+        }
+
+        function resetView() {
+            cy.fit();
+        }
+
+        function clearCanvas() {
+            if (confirm('确定要清空画布吗？')) {
+                cy.elements().remove();
+                nodeCounter = 0;
+            }
+        }
+
+        function exportWorkflow() {
+            const workflow = {
+                name: '导出流程',
+                nodes: cy.nodes().map(node => ({
+                    id: node.id(),
+                    label: node.data('label'),
+                    type: node.data('type'),
+                    position: node.position(),
+                    assignee: node.data('assignee'),
+                    duration: node.data('duration'),
+                    condition: node.data('condition'),
+                    properties: node.data('properties') || {}
+                })),
+                edges: cy.edges().map(edge => ({
+                    id: edge.id(),
+                    source: edge.source().id(),
+                    target: edge.target().id(),
+                    label: edge.data('label') || '',
+                    condition: edge.data('condition')
+                }))
+            };
+            
+            const json = JSON.stringify(workflow, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'workflow_' + new Date().getTime() + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importWorkflow() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try {
+                            const workflow = JSON.parse(event.target.result);
+                            loadWorkflowToCanvas(workflow);
+                            alert('流程导入成功！');
+                        } catch (error) {
+                            alert('导入失败: ' + error.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+
+        // 节点配置对话框
+        let currentNode = null;
+        cy.on('dbltap', 'node', (evt) => {
+            currentNode = evt.target;
+            showNodeConfigDialog(currentNode);
+        });
+        
+        // 使节点可拖拽
+        cy.nodes().on('drag', (evt) => {
+            const node = evt.target;
+            node.position({
+                x: evt.position.x,
+                y: evt.position.y
+            });
+        });
+
+        // 节点配置对话框（使用Element Plus）
+        function showNodeConfigDialog(node) {
+            currentNode = node;
+            const nodeType = node.data('type');
+            
+            // 创建配置对话框
+            const dialogHtml = `
+                <div id="node-config-dialog" style="padding: 20px;">
+                    <h3 style="margin-bottom: 15px;">节点配置</h3>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px;">节点名称:</label>
+                        <input id="node-label" type="text" value="${node.data('label') || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" />
+                    </div>
+                    ${nodeType === 'task' ? `
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;">负责人:</label>
+                            <input id="node-assignee" type="text" value="${node.data('assignee') || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" />
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;">预计时长(小时):</label>
+                            <input id="node-duration" type="number" value="${node.data('duration') || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" />
+                        </div>
+                    ` : ''}
+                    ${nodeType === 'condition' ? `
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;">条件表达式:</label>
+                            <textarea id="node-condition" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-height: 60px;">${node.data('condition') || ''}</textarea>
+                        </div>
+                    ` : ''}
+                    ${nodeType === 'approval' ? `
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;">审批人:</label>
+                            <input id="node-approver" type="text" value="${node.data('approver') || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" />
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;">审批级别:</label>
+                            <select id="node-approval-level" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="single" ${node.data('approval_level') === 'single' ? 'selected' : ''}>单人审批</option>
+                                <option value="multi" ${node.data('approval_level') === 'multi' ? 'selected' : ''}>多人审批</option>
+                                <option value="sequential" ${node.data('approval_level') === 'sequential' ? 'selected' : ''}>顺序审批</option>
+                            </select>
+                        </div>
+                    ` : ''}
+                    ${nodeType === 'notification' ? `
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;">通知方式:</label>
+                            <select id="node-notification-type" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="email" ${node.data('notification_type') === 'email' ? 'selected' : ''}>邮件</option>
+                                <option value="sms" ${node.data('notification_type') === 'sms' ? 'selected' : ''}>短信</option>
+                                <option value="system" ${node.data('notification_type') === 'system' ? 'selected' : ''}>系统消息</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;">通知对象:</label>
+                            <input id="node-notification-recipient" type="text" value="${node.data('notification_recipient') || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" />
+                        </div>
+                    ` : ''}
+                    <div style="margin-top: 20px; text-align: right;">
+                        <button onclick="saveNodeConfig()" style="padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">保存</button>
+                        <button onclick="closeNodeConfigDialog()" style="padding: 8px 16px; background: #999; color: white; border: none; border-radius: 4px; cursor: pointer;">取消</button>
+                    </div>
+                </div>
+            `;
+            
+            // 使用Element Plus的对话框（如果可用）或简单的模态框
+            if (typeof ElementPlus !== 'undefined') {
+                // 使用Element Plus对话框
+                ElementPlus.ElMessageBox.alert(dialogHtml, '节点配置', {
+                    dangerouslyUseHTMLString: true,
+                    showCancelButton: true,
+                    confirmButtonText: '保存',
+                    cancelButtonText: '取消',
+                    beforeClose: (action, instance, done) => {
+                        if (action === 'confirm') {
+                            saveNodeConfig();
+                            done();
+                        } else {
+                            done();
+                        }
+                    }
+                });
+            } else {
+                // 简单的模态框
+                const modal = document.createElement('div');
+                modal.id = 'node-config-modal';
+                modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+                modal.innerHTML = `
+                    <div style="background: white; padding: 0; border-radius: 8px; max-width: 500px; width: 90%; max-height: 90%; overflow-y: auto;">
+                        ${dialogHtml}
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+        }
+        
+        function saveNodeConfig() {
+            if (!currentNode) return;
+            
+            const label = document.getElementById('node-label')?.value || '';
+            const assignee = document.getElementById('node-assignee')?.value || '';
+            const duration = document.getElementById('node-duration')?.value || '';
+            const condition = document.getElementById('node-condition')?.value || '';
+            const approver = document.getElementById('node-approver')?.value || '';
+            const approvalLevel = document.getElementById('node-approval-level')?.value || '';
+            const notificationType = document.getElementById('node-notification-type')?.value || '';
+            const notificationRecipient = document.getElementById('node-notification-recipient')?.value || '';
+            
+            currentNode.data('label', label);
+            if (assignee) currentNode.data('assignee', assignee);
+            if (duration) currentNode.data('duration', duration);
+            if (condition) currentNode.data('condition', condition);
+            if (approver) currentNode.data('approver', approver);
+            if (approvalLevel) currentNode.data('approval_level', approvalLevel);
+            if (notificationType) currentNode.data('notification_type', notificationType);
+            if (notificationRecipient) currentNode.data('notification_recipient', notificationRecipient);
+            
+            closeNodeConfigDialog();
+        }
+        
+        function closeNodeConfigDialog() {
+            const modal = document.getElementById('node-config-modal');
+            if (modal) {
+                modal.remove();
+            }
+            currentNode = null;
+        }
+
+        // 连线配置
+        cy.on('dbltap', 'edge', (evt) => {
+            const edge = evt.target;
+            const label = prompt('连线标签:', edge.data('label') || '');
+            if (label !== null) {
+                edge.data('label', label);
+            }
+        });
+
+        async function saveWorkflow() {
+            const workflowName = prompt('流程名称:', '新建流程') || '新建流程';
+            const workflowDescription = prompt('流程描述:', '') || '';
+            
+            // 将节点和边转换为流程阶段
+            const stages = [];
+            cy.nodes().forEach((node, index) => {
+                const stage = {
+                    stage_name: node.data('label'),
+                    stage_order: index + 1,
+                    stage_type: node.data('type'),
+                    assignee: node.data('assignee'),
+                    estimated_duration: node.data('duration') ? parseFloat(node.data('duration')) : null,
+                    condition: node.data('condition'),
+                    properties: node.data('properties') || {}
+                };
+                stages.push(stage);
+            });
+            
+            const workflow = {
+                name: workflowName,
+                description: workflowDescription,
+                process_type: 'custom',
+                stages: stages
+            };
+            
+            try {
+                const response = await axios.post('/api/process/define', workflow);
+                if (response.data && response.data.process_id) {
+                    alert('✅ 流程已保存！\n流程ID: ' + response.data.process_id);
+                } else {
+                    throw new Error('保存失败：未返回流程ID');
+                }
+            } catch (error) {
+                console.error('保存流程:', workflow);
+                alert('保存失败: ' + (error.response?.data?.detail || error.message) + '\n流程数据已输出到控制台');
+            }
+        }
+
+        async function loadWorkflow() {
+            const processId = prompt('请输入流程ID:', '');
+            if (!processId) return;
+            
+            try {
+                const response = await axios.get(`/api/process/define/${processId}`);
+                if (response.data) {
+                    // 将流程阶段转换为节点和边
+                    const workflow = response.data;
+                    const nodes = workflow.stages?.map((stage, index) => ({
+                        id: `node_${index + 1}`,
+                        label: stage.stage_name || stage.name,
+                        type: stage.stage_type || 'task',
+                        position: { x: 250, y: 50 + index * 100 },
+                        assignee: stage.assignee,
+                        duration: stage.estimated_duration,
+                        condition: stage.condition
+                    })) || [];
+                    
+                    const edges = [];
+                    for (let i = 0; i < nodes.length - 1; i++) {
+                        edges.push({
+                            id: `edge_${i}_${i+1}`,
+                            source: nodes[i].id,
+                            target: nodes[i+1].id
+                        });
+                    }
+                    
+                    loadWorkflowToCanvas({ nodes, edges });
+                    alert('✅ 流程加载成功！');
+                } else {
+                    throw new Error('加载失败：未返回数据');
+                }
+            } catch (error) {
+                alert('加载失败: ' + (error.response?.data?.detail || error.message));
+            }
+        }
+
+        function loadWorkflowToCanvas(workflow) {
+            cy.elements().remove();
+            nodeCounter = 0;
+            
+            // 加载节点
+            workflow.nodes.forEach(nodeData => {
+                cy.add({
+                    group: 'nodes',
+                    data: {
+                        id: nodeData.id,
+                        label: nodeData.label,
+                        type: nodeData.type,
+                        assignee: nodeData.assignee,
+                        duration: nodeData.duration,
+                        condition: nodeData.condition,
+                        properties: nodeData.properties || {}
+                    },
+                    position: nodeData.position
+                });
+            });
+            
+            // 加载连线
+            workflow.edges.forEach(edgeData => {
+                cy.add({
+                    group: 'edges',
+                    data: {
+                        id: edgeData.id,
+                        source: edgeData.source,
+                        target: edgeData.target,
+                        label: edgeData.label || '',
+                        condition: edgeData.condition
+                    }
+                });
+            });
+            
+            cy.layout({ name: 'dagre', rankDir: 'TB' }).run();
+            saveHistory(); // 保存加载后的状态
+        }
+        
+        // 流程预览功能
+        function previewWorkflow() {
+            const nodes = cy.nodes();
+            const edges = cy.edges();
+            
+            if (nodes.length === 0) {
+                alert('流程为空，无法预览');
+                return;
+            }
+            
+            let previewHtml = '<div style="padding: 20px;"><h3>流程预览</h3><ol>';
+            nodes.forEach((node, index) => {
+                previewHtml += `<li>${node.data('label')} (${getNodeTypeName(node.data('type'))})</li>`;
+            });
+            previewHtml += '</ol></div>';
+            
+            ElementPlus.ElMessageBox.alert(previewHtml, '流程预览', {
+                dangerouslyUseHTMLString: true,
+                confirmButtonText: '确定'
+            });
+        }
+        
+        // 流程模拟执行
+        function simulateWorkflow() {
+            const nodes = cy.nodes();
+            const startNodes = nodes.filter(node => node.data('type') === 'start');
+            
+            if (startNodes.length === 0) {
+                alert('流程中没有开始节点，无法模拟执行');
+                return;
+            }
+            
+            if (startNodes.length > 1) {
+                alert('流程中有多个开始节点，无法模拟执行');
+                return;
+            }
+            
+            // 简单的模拟执行（按节点顺序）
+            const executionPath = [];
+            const visited = new Set();
+            
+            function traverse(nodeId) {
+                if (visited.has(nodeId)) return;
+                visited.add(nodeId);
+                
+                const node = cy.getElementById(nodeId);
+                executionPath.push({
+                    step: executionPath.length + 1,
+                    node: node.data('label'),
+                    type: node.data('type')
+                });
+                
+                // 遍历后续节点
+                const outgoing = node.outgoers('node');
+                outgoing.forEach(target => {
+                    traverse(target.id());
+                });
+            }
+            
+            traverse(startNodes[0].id());
+            
+            let simulationHtml = '<div style="padding: 20px;"><h3>流程模拟执行</h3><ol>';
+            executionPath.forEach(item => {
+                simulationHtml += `<li>步骤${item.step}: ${item.node} (${getNodeTypeName(item.type)})</li>`;
+            });
+            simulationHtml += '</ol></div>';
+            
+            ElementPlus.ElMessageBox.alert(simulationHtml, '流程模拟执行', {
+                dangerouslyUseHTMLString: true,
+                confirmButtonText: '确定'
+            });
+        }
+
+        function validateWorkflow() {
+            const nodes = cy.nodes();
+            const edges = cy.edges();
+            const errors = [];
+            const warnings = [];
+            
+            // 检查是否有开始节点
+            const startNodes = nodes.filter(node => node.data('type') === 'start');
+            if (startNodes.length === 0) {
+                errors.push('❌ 缺少开始节点');
+            } else if (startNodes.length > 1) {
+                errors.push('❌ 只能有一个开始节点');
+            }
+            
+            // 检查是否有结束节点
+            const endNodes = nodes.filter(node => node.data('type') === 'end');
+            if (endNodes.length === 0) {
+                errors.push('❌ 缺少结束节点');
+            }
+            
+            // 检查孤立节点
+            nodes.forEach(node => {
+                const incoming = node.incomers().length;
+                const outgoing = node.outgoers().length;
+                
+                if (node.data('type') !== 'start' && incoming === 0) {
+                    warnings.push(`⚠️ 节点 "${node.data('label')}" 没有输入连线`);
+                }
+                if (node.data('type') !== 'end' && outgoing === 0) {
+                    warnings.push(`⚠️ 节点 "${node.data('label')}" 没有输出连线`);
+                }
+            });
+            
+            // 检查条件节点的条件表达式
+            nodes.filter(node => node.data('type') === 'condition').forEach(node => {
+                if (!node.data('condition')) {
+                    warnings.push(`⚠️ 条件节点 "${node.data('label')}" 缺少条件表达式`);
+                }
+            });
+            
+            // 检查任务节点的必填字段
+            nodes.filter(node => node.data('type') === 'task').forEach(node => {
+                if (!node.data('assignee')) {
+                    warnings.push(`⚠️ 任务节点 "${node.data('label')}" 缺少负责人`);
+                }
+            });
+            
+            // 检查循环引用
+            const visited = new Set();
+            const recStack = new Set();
+            
+            function hasCycle(nodeId) {
+                if (recStack.has(nodeId)) return true;
+                if (visited.has(nodeId)) return false;
+                
+                visited.add(nodeId);
+                recStack.add(nodeId);
+                
+                const node = cy.getElementById(nodeId);
+                const outgoing = node.outgoers('node');
+                
+                for (let target of outgoing) {
+                    if (hasCycle(target.id())) return true;
+                }
+                
+                recStack.delete(nodeId);
+                return false;
+            }
+            
+            nodes.forEach(node => {
+                if (!visited.has(node.id()) && hasCycle(node.id())) {
+                    errors.push('❌ 检测到循环引用');
+                }
+            });
+            
+            // 显示验证结果
+            let message = '';
+            if (errors.length > 0) {
+                message += '验证失败：\n\n' + errors.join('\n');
+            } else {
+                message += '✅ 流程验证通过！\n';
+            }
+            
+            if (warnings.length > 0) {
+                message += '\n警告：\n' + warnings.join('\n');
+            }
+            
+            alert(message);
+            
+            return errors.length === 0;
+        }
+
+        async function publishWorkflow() {
+            // 先验证流程
+            if (!validateWorkflow()) {
+                alert('请先修复流程错误后再发布！');
+                return;
+            }
+            
+            if (!confirm('确定要发布流程吗？发布后流程将生效。')) {
+                return;
+            }
+            
+            const workflowName = prompt('流程名称:', '新建流程') || '新建流程';
+            const workflowDescription = prompt('流程描述:', '') || '';
+            
+            // 将节点和边转换为流程阶段
+            const stages = [];
+            const nodeMap = new Map();
+            
+            cy.nodes().forEach((node, index) => {
+                const stage = {
+                    stage_name: node.data('label'),
+                    stage_order: index + 1,
+                    stage_type: node.data('type'),
+                    assignee: node.data('assignee'),
+                    estimated_duration: node.data('duration') ? parseFloat(node.data('duration')) : null,
+                    condition: node.data('condition'),
+                    properties: node.data('properties') || {}
+                };
+                stages.push(stage);
+                nodeMap.set(node.id(), stage);
+            });
+            
+            const workflow = {
+                name: workflowName,
+                description: workflowDescription,
+                process_type: 'custom',
+                stages: stages,
+                status: 'published'
+            };
+            
+            try {
+                const response = await axios.post('/api/process/define', workflow);
+                if (response.data && response.data.process_id) {
+                    alert('✅ 流程已发布！\n流程ID: ' + response.data.process_id);
+                } else {
+                    throw new Error('发布失败：未返回流程ID');
+                }
+            } catch (error) {
+                console.error('发布流程:', workflow);
+                alert('发布失败: ' + (error.response?.data?.detail || error.message) + '\n流程数据已输出到控制台');
+            }
+        }
+        
+        // 加载流程模板
+        function loadTemplate(templateType) {
+            if (!confirm('加载模板将清空当前画布，确定继续吗？')) {
+                return;
+            }
+            
+            const templates = {
+                'standard': {
+                    nodes: [
+                        { id: 'start', label: '开始', type: 'start', position: { x: 250, y: 50 } },
+                        { id: 'order', label: '订单确认', type: 'task', position: { x: 250, y: 150 } },
+                        { id: 'plan', label: '生产计划', type: 'task', position: { x: 250, y: 250 } },
+                        { id: 'procure', label: '采购', type: 'task', position: { x: 150, y: 350 } },
+                        { id: 'produce', label: '生产', type: 'task', position: { x: 250, y: 350 } },
+                        { id: 'quality', label: '质检', type: 'task', position: { x: 350, y: 350 } },
+                        { id: 'delivery', label: '交付', type: 'task', position: { x: 250, y: 450 } },
+                        { id: 'end', label: '结束', type: 'end', position: { x: 250, y: 550 } }
+                    ],
+                    edges: [
+                        { source: 'start', target: 'order' },
+                        { source: 'order', target: 'plan' },
+                        { source: 'plan', target: 'procure' },
+                        { source: 'plan', target: 'produce' },
+                        { source: 'procure', target: 'produce' },
+                        { source: 'produce', target: 'quality' },
+                        { source: 'quality', target: 'delivery' },
+                        { source: 'delivery', target: 'end' }
+                    ]
+                },
+                'production': {
+                    nodes: [
+                        { id: 'start', label: '开始', type: 'start', position: { x: 250, y: 50 } },
+                        { id: 'prepare', label: '生产准备', type: 'task', position: { x: 250, y: 150 } },
+                        { id: 'execute', label: '生产执行', type: 'task', position: { x: 250, y: 250 } },
+                        { id: 'check', label: '质量检查', type: 'condition', position: { x: 250, y: 350 } },
+                        { id: 'pass', label: '合格', type: 'task', position: { x: 150, y: 450 } },
+                        { id: 'fail', label: '不合格', type: 'task', position: { x: 350, y: 450 } },
+                        { id: 'end', label: '结束', type: 'end', position: { x: 250, y: 550 } }
+                    ],
+                    edges: [
+                        { source: 'start', target: 'prepare' },
+                        { source: 'prepare', target: 'execute' },
+                        { source: 'execute', target: 'check' },
+                        { source: 'check', target: 'pass', label: '是' },
+                        { source: 'check', target: 'fail', label: '否' },
+                        { source: 'pass', target: 'end' },
+                        { source: 'fail', target: 'execute' }
+                    ]
+                },
+                'procurement': {
+                    nodes: [
+                        { id: 'start', label: '开始', type: 'start', position: { x: 250, y: 50 } },
+                        { id: 'request', label: '采购申请', type: 'task', position: { x: 250, y: 150 } },
+                        { id: 'approve', label: '审批', type: 'condition', position: { x: 250, y: 250 } },
+                        { id: 'order', label: '下单', type: 'task', position: { x: 150, y: 350 } },
+                        { id: 'reject', label: '驳回', type: 'task', position: { x: 350, y: 350 } },
+                        { id: 'receive', label: '收货', type: 'task', position: { x: 150, y: 450 } },
+                        { id: 'end', label: '结束', type: 'end', position: { x: 250, y: 550 } }
+                    ],
+                    edges: [
+                        { source: 'start', target: 'request' },
+                        { source: 'request', target: 'approve' },
+                        { source: 'approve', target: 'order', label: '通过' },
+                        { source: 'approve', target: 'reject', label: '驳回' },
+                        { source: 'order', target: 'receive' },
+                        { source: 'receive', target: 'end' },
+                        { source: 'reject', target: 'end' }
+                    ]
+                }
+            };
+            
+            const template = templates[templateType];
+            if (template) {
+                loadWorkflowToCanvas({ nodes: template.nodes, edges: template.edges });
+                alert('模板加载成功！');
+            }
+        }
+    </script>
+</body>
+</html>
+

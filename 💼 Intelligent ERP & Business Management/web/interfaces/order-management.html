@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订单管理 - ERP系统</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/dist/index.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/echarts/dist/echarts.min.js"></script>
+    <script src="common-functions.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .header h1 { font-size: 24px; }
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .stat-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-card .label {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+        .filter-bar {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>📦 订单管理</h1>
+        </div>
+        
+        <div class="container">
+            <!-- 统计卡片 -->
+            <div class="stat-cards">
+                <div class="stat-card">
+                    <div class="label">订单总数</div>
+                    <div class="value">{{ statistics.total }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">待处理</div>
+                    <div class="value">{{ statistics.pending }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">进行中</div>
+                    <div class="value">{{ statistics.in_progress }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">已完成</div>
+                    <div class="value">{{ statistics.completed }}</div>
+                </div>
+            </div>
+
+            <!-- 筛选栏 -->
+            <div class="filter-bar">
+                <el-form :inline="true">
+                    <el-form-item label="订单状态">
+                        <el-select v-model="filters.status" clearable @change="loadOrders" style="width: 150px">
+                            <el-option label="全部" value="" />
+                            <el-option label="待处理" value="pending" />
+                            <el-option label="已确认" value="confirmed" />
+                            <el-option label="生产中" value="in_production" />
+                            <el-option label="已完成" value="completed" />
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="日期范围">
+                        <el-date-picker
+                            v-model="dateRange"
+                            type="daterange"
+                            range-separator="至"
+                            start-placeholder="开始日期"
+                            end-placeholder="结束日期"
+                            @change="loadOrders"
+                        />
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" @click="loadOrders">查询</el-button>
+                        <el-button type="success" @click="showAddDialog">新增订单</el-button>
+                        <el-button @click="exportData">导出</el-button>
+                    </el-form-item>
+                </el-form>
+            </div>
+
+            <!-- 订单表格 -->
+            <div class="table-container">
+                <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <el-button v-if="selectedOrders.length > 0" type="danger" size="small" @click="batchDelete">批量删除 ({{ selectedOrders.length }})</el-button>
+                        <el-button v-if="selectedOrders.length > 0" type="success" size="small" @click="batchExport">批量导出 ({{ selectedOrders.length }})</el-button>
+                    </div>
+                    <div>
+                        <el-button type="info" size="small" @click="showAdvancedFilter = !showAdvancedFilter">高级筛选</el-button>
+                        <el-button type="warning" size="small" @click="importData">导入数据</el-button>
+                    </div>
+                </div>
+                
+                <!-- 高级筛选 -->
+                <div v-if="showAdvancedFilter" style="margin-bottom: 15px; padding: 15px; background: #f9f9f9; border-radius: 4px;">
+                    <el-form :inline="true">
+                        <el-form-item label="订单金额范围">
+                            <el-input-number v-model="advancedFilters.min_amount" :precision="2" placeholder="最小金额" style="width: 150px;" />
+                            <span style="margin: 0 10px;">-</span>
+                            <el-input-number v-model="advancedFilters.max_amount" :precision="2" placeholder="最大金额" style="width: 150px;" />
+                        </el-form-item>
+                        <el-form-item label="客户名称">
+                            <el-input v-model="advancedFilters.customer_name" placeholder="请输入客户名称" clearable style="width: 200px;" />
+                        </el-form-item>
+                        <el-form-item>
+                            <el-button type="primary" @click="applyAdvancedFilter">应用筛选</el-button>
+                            <el-button @click="resetAdvancedFilter">重置</el-button>
+                        </el-form-item>
+                    </el-form>
+                </div>
+                
+                <el-table 
+                    :data="orders" 
+                    v-loading="loading" 
+                    stripe
+                    @selection-change="handleSelectionChange"
+                >
+                    <el-table-column type="selection" width="55" />
+                    <el-table-column prop="order_no" label="订单号" width="150" />
+                    <el-table-column prop="customer_name" label="客户名称" width="150" />
+                    <el-table-column prop="total_amount" label="订单金额" width="120">
+                        <template #default="scope">
+                            ¥{{ scope.row.total_amount?.toFixed(2) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="status" label="状态" width="100">
+                        <template #default="scope">
+                            <el-tag :type="getStatusType(scope.row.status)">
+                                {{ getStatusText(scope.row.status) }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="order_date" label="订单日期" width="120" />
+                    <el-table-column prop="delivery_date" label="交付日期" width="120" />
+                    <el-table-column label="操作" width="200" fixed="right">
+                        <template #default="scope">
+                            <el-button size="small" @click="viewOrder(scope.row)">查看</el-button>
+                            <el-button size="small" type="primary" @click="editOrder(scope.row)">编辑</el-button>
+                            <el-button size="small" type="danger" @click="deleteOrder(scope.row)">删除</el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+
+                <!-- 分页 -->
+                <el-pagination
+                    v-model:current-page="pagination.page"
+                    v-model:page-size="pagination.size"
+                    :total="pagination.total"
+                    :page-sizes="[10, 20, 50, 100]"
+                    layout="total, sizes, prev, pager, next, jumper"
+                    @size-change="loadOrders"
+                    @current-change="loadOrders"
+                    style="margin-top: 20px; justify-content: flex-end;"
+                />
+            </div>
+        </div>
+
+        <!-- 新增/编辑对话框 -->
+        <el-dialog v-model="dialogVisible" :title="dialogTitle" width="800px">
+            <el-form :model="form" label-width="120px">
+                <el-form-item label="客户">
+                    <el-select v-model="form.customer_id" filterable style="width: 100%">
+                        <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="订单日期">
+                    <el-date-picker v-model="form.order_date" type="date" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="交付日期">
+                    <el-date-picker v-model="form.delivery_date" type="date" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="订单金额">
+                    <el-input-number v-model="form.total_amount" :precision="2" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="备注">
+                    <el-input v-model="form.remarks" type="textarea" :rows="3" />
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="dialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="saveOrder">保存</el-button>
+            </template>
+        </el-dialog>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        const { ElMessage, ElMessageBox } = ElementPlus;
+
+        createApp({
+            data() {
+                return {
+                    loading: false,
+                    orders: [],
+                    customers: [],
+                    statistics: {
+                        total: 0,
+                        pending: 0,
+                        in_progress: 0,
+                        completed: 0
+                    },
+                    filters: {
+                        status: ''
+                    },
+                    dateRange: null,
+                    selectedOrders: [],
+                    showAdvancedFilter: false,
+                    advancedFilters: {
+                        min_amount: null,
+                        max_amount: null,
+                        customer_name: ''
+                    },
+                    pagination: {
+                        page: 1,
+                        size: 20,
+                        total: 0
+                    },
+                    dialogVisible: false,
+                    dialogTitle: '新增订单',
+                    form: {
+                        id: null,
+                        customer_id: null,
+                        order_date: null,
+                        delivery_date: null,
+                        total_amount: 0,
+                        remarks: ''
+                    }
+                }
+            },
+            mounted() {
+                this.loadOrders();
+                this.loadCustomers();
+                this.loadStatistics();
+            },
+            methods: {
+                async loadOrders() {
+                    this.loading = true;
+                    try {
+                        const params = {
+                            page: this.pagination.page,
+                            size: this.pagination.size,
+                            status: this.filters.status
+                        };
+                        if (this.dateRange) {
+                            params.start_date = this.dateRange[0];
+                            params.end_date = this.dateRange[1];
+                        }
+                        const res = await axios.get('/api/business/orders', { params });
+                        this.orders = res.data.orders || [];
+                        this.pagination.total = res.data.total || 0;
+                    } catch (error) {
+                        ElMessage.error('加载订单失败: ' + error.message);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                async loadCustomers() {
+                    try {
+                        const res = await axios.get('/api/business/customers');
+                        this.customers = res.data.customers || [];
+                    } catch (error) {
+                        console.error('加载客户失败:', error);
+                    }
+                },
+                async loadStatistics() {
+                    try {
+                        const res = await axios.get('/api/business/orders/statistics');
+                        this.statistics = res.data || this.statistics;
+                    } catch (error) {
+                        console.error('加载统计失败:', error);
+                    }
+                },
+                showAddDialog() {
+                    this.dialogTitle = '新增订单';
+                    this.form = {
+                        id: null,
+                        customer_id: null,
+                        order_date: new Date(),
+                        delivery_date: null,
+                        total_amount: 0,
+                        remarks: ''
+                    };
+                    this.dialogVisible = true;
+                },
+                editOrder(row) {
+                    this.dialogTitle = '编辑订单';
+                    this.form = { ...row };
+                    this.dialogVisible = true;
+                },
+                async saveOrder() {
+                    try {
+                        if (this.form.id) {
+                            await axios.put(`/api/business/orders/${this.form.id}`, this.form);
+                        } else {
+                            await axios.post('/api/business/orders', this.form);
+                        }
+                        ElMessage.success('保存成功');
+                        this.dialogVisible = false;
+                        this.loadOrders();
+                        this.loadStatistics();
+                    } catch (error) {
+                        ElMessage.error('保存失败: ' + error.message);
+                    }
+                },
+                async deleteOrder(row) {
+                    try {
+                        await ElMessageBox.confirm('确定删除此订单吗？', '提示', {
+                            type: 'warning'
+                        });
+                        await axios.delete(`/api/business/orders/${row.id}`);
+                        ElMessage.success('删除成功');
+                        this.loadOrders();
+                        this.loadStatistics();
+                    } catch (error) {
+                        if (error !== 'cancel') {
+                            ElMessage.error('删除失败: ' + error.message);
+                        }
+                    }
+                },
+                viewOrder(row) {
+                    window.open(`/business/orders/${row.id}`, '_blank');
+                },
+                async exportData() {
+                    await DataExport.exportToExcel(
+                        this.orders,
+                        `订单数据_${Utils.formatDate(new Date(), 'YYYYMMDD')}.xlsx`,
+                        '订单数据'
+                    );
+                },
+                async refreshData() {
+                    await this.loadOrders();
+                    ElementPlus.ElMessage.success('数据已刷新');
+                },
+                handleSelectionChange(selection) {
+                    this.selectedOrders = selection;
+                },
+                async batchDelete() {
+                    if (this.selectedOrders.length === 0) {
+                        ElementPlus.ElMessage.warning('请先选择要删除的订单');
+                        return;
+                    }
+                    
+                    try {
+                        await CommonCRUD.batchDelete('/api/orders', this.selectedOrders.map(o => o.id), `确定要删除选中的${this.selectedOrders.length}个订单吗？`);
+                        this.selectedOrders = [];
+                        await this.loadOrders();
+                    } catch (error) {
+                        // 错误已在CommonCRUD中处理
+                    }
+                },
+                async batchExport() {
+                    if (this.selectedOrders.length === 0) {
+                        ElementPlus.ElMessage.warning('请先选择要导出的订单');
+                        return;
+                    }
+                    
+                    await DataExport.exportToExcel(
+                        this.selectedOrders,
+                        `批量订单_${Utils.formatDate(new Date(), 'YYYYMMDD')}.xlsx`,
+                        `批量订单数据 (${this.selectedOrders.length}条)`
+                    );
+                },
+                async applyAdvancedFilter() {
+                    // 重置到第一页
+                    this.pagination.page = 1;
+                    await this.loadOrders();
+                    ElementPlus.ElMessage.success('筛选已应用');
+                },
+                resetAdvancedFilter() {
+                    this.advancedFilters = {
+                        min_amount: null,
+                        max_amount: null,
+                        customer_name: ''
+                    };
+                    this.loadOrders();
+                },
+                async importData() {
+                    try {
+                        const { value: fileInput } = await ElementPlus.ElMessageBox.prompt('请选择要导入的文件', '导入数据', {
+                            confirmButtonText: '确定',
+                            cancelButtonText: '取消'
+                        });
+                        
+                        // 这里应该实现文件上传逻辑
+                        ElementPlus.ElMessage.info('导入功能开发中，请使用导出功能查看数据格式');
+                    } catch (error) {
+                        if (error !== 'cancel') {
+                            console.error('导入失败:', error);
+                        }
+                    }
+                },
+                getStatusType(status) {
+                    const types = {
+                        'pending': 'info',
+                        'confirmed': 'warning',
+                        'in_production': 'primary',
+                        'completed': 'success'
+                    };
+                    return types[status] || 'info';
+                },
+                getStatusText(status) {
+                    const texts = {
+                        'pending': '待处理',
+                        'confirmed': '已确认',
+                        'in_production': '生产中',
+                        'completed': '已完成'
+                    };
+                    return texts[status] || status;
+                }
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>
+
