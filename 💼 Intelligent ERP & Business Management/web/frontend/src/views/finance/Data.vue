@@ -160,7 +160,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getFinanceData, createFinanceData } from '@/api/finance'
+import { getFinanceData, createFinanceData, updateFinanceData, deleteFinanceData } from '@/api/finance'
 
 const filters = reactive({
   category: '',
@@ -284,11 +284,12 @@ const handleDelete = async (row) => {
       type: 'warning'
     })
     
-    // TODO: 调用删除API
+    await deleteFinanceData(row.id)
     ElMessage.success('删除成功')
     loadData()
-  } catch {
-    // 取消删除
+  } catch (error) {
+    console.error('删除失败:', error)
+    ElMessage.error('删除失败')
   }
 }
 
@@ -303,8 +304,16 @@ const handleSubmit = async () => {
       source_document: formData.source_document
     }
     
-    await createFinanceData(data)
-    ElMessage.success('保存成功')
+    if (formData.id) {
+      // 更新
+      await updateFinanceData(formData.id, data)
+      ElMessage.success('更新成功')
+    } else {
+      // 创建
+      await createFinanceData(data)
+      ElMessage.success('创建成功')
+    }
+    
     dialogVisible.value = false
     loadData()
   } catch (error) {

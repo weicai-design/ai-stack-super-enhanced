@@ -23,6 +23,7 @@ from core.database_models import (
     PeriodType,
 )
 from core.database import get_db
+from api.data_listener_api import data_listener
 
 router = APIRouter(prefix="/finance", tags=["Finance API"])
 
@@ -103,6 +104,44 @@ async def create_financial_data(
         db.add(financial_data)
         db.commit()
         db.refresh(financial_data)
+        
+        # 自动发布财务数据创建事件
+        if data_listener:
+            try:
+                import asyncio
+                financial_dict = {
+                    "id": financial_data.id,
+                    "date": financial_data.date.isoformat() if financial_data.date else None,
+                    "period_type": financial_data.period_type,
+                    "category": financial_data.category,
+                    "subcategory": financial_data.subcategory,
+                    "amount": float(financial_data.amount),
+                    "description": financial_data.description,
+                    "source_document": financial_data.source_document
+                }
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(
+                            data_listener.on_financial_data_created(
+                                str(financial_data.id), financial_dict
+                            )
+                        )
+                    else:
+                        loop.run_until_complete(
+                            data_listener.on_financial_data_created(
+                                str(financial_data.id), financial_dict
+                            )
+                        )
+                except RuntimeError:
+                    asyncio.run(
+                        data_listener.on_financial_data_created(
+                            str(financial_data.id), financial_dict
+                        )
+                    )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"财务数据创建事件发布失败: {e}")
         
         return financial_data
     except Exception as e:
@@ -269,6 +308,182 @@ async def get_financial_data(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"查询财务数据失败: {str(e)}")
+
+
+@router.put("/data/{financial_id}", response_model=FinancialDataOutput)
+async def update_financial_data(
+    financial_id: int,
+    data: FinancialDataInput,
+    db: Session = Depends(get_db),
+):
+    """
+    更新财务数据
+    
+    Args:
+        financial_id: 财务数据ID
+        data: 财务数据输入
+        db: 数据库会话
+        
+    Returns:
+        更新后的财务数据
+    """
+    try:
+        financial_data = db.query(FinancialData).filter(
+            FinancialData.id == financial_id
+        ).first()
+        
+        if not financial_data:
+            raise HTTPException(status_code=404, detail="财务数据不存在")
+        
+        # 保存旧数据用于事件发布
+        old_data = {
+            "id": financial_data.id,
+            "date": financial_data.date.isoformat() if financial_data.date else None,
+            "period_type": financial_data.period_type,
+            "category": financial_data.category,
+            "subcategory": financial_data.subcategory,
+            "amount": float(financial_data.amount),
+            "description": financial_data.description,
+            "source_document": financial_data.source_document
+        }
+        
+        # 更新数据
+        financial_data.date = data.date
+        financial_data.period_type = data.period_type
+        financial_data.category = data.category
+        financial_data.subcategory = data.subcategory
+        financial_data.amount = data.amount
+        financial_data.description = data.description
+        financial_data.source_document = data.source_document
+        if data.metadata:
+            financial_data.extra_metadata = data.metadata
+        financial_data.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(financial_data)
+        
+        # 自动发布财务数据更新事件
+        if data_listener:
+            try:
+                import asyncio
+                new_data = {
+                    "id": financial_data.id,
+                    "date": financial_data.date.isoformat() if financial_data.date else None,
+                    "period_type": financial_data.period_type,
+                    "category": financial_data.category,
+                    "subcategory": financial_data.subcategory,
+                    "amount": float(financial_data.amount),
+                    "description": financial_data.description,
+                    "source_document": financial_data.source_document
+                }
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(
+                            data_listener.on_financial_data_updated(
+                                str(financial_id), old_data, new_data
+                            )
+                        )
+                    else:
+                        loop.run_until_complete(
+                            data_listener.on_financial_data_updated(
+                                str(financial_id), old_data, new_data
+                            )
+                        )
+                except RuntimeError:
+                    asyncio.run(
+                        data_listener.on_financial_data_updated(
+                            str(financial_id), old_data, new_data
+                        )
+                    )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"财务数据更新事件发布失败: {e}")
+        
+        return financial_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"更新财务数据失败: {str(e)}")
+
+
+@router.delete("/data/{financial_id}")
+async def delete_financial_data(
+    financial_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    删除财务数据
+    
+    Args:
+        financial_id: 财务数据ID
+        db: 数据库会话
+        
+    Returns:
+        删除结果
+    """
+    try:
+        financial_data = db.query(FinancialData).filter(
+            FinancialData.id == financial_id
+        ).first()
+        
+        if not financial_data:
+            raise HTTPException(status_code=404, detail="财务数据不存在")
+        
+        # 保存旧数据用于事件发布
+        old_data = {
+            "id": financial_data.id,
+            "date": financial_data.date.isoformat() if financial_data.date else None,
+            "period_type": financial_data.period_type,
+            "category": financial_data.category,
+            "subcategory": financial_data.subcategory,
+            "amount": float(financial_data.amount),
+            "description": financial_data.description,
+            "source_document": financial_data.source_document
+        }
+        
+        db.delete(financial_data)
+        db.commit()
+        
+        # 自动发布财务数据删除事件
+        if data_listener:
+            try:
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(
+                            data_listener.on_financial_data_deleted(
+                                str(financial_id), old_data
+                            )
+                        )
+                    else:
+                        loop.run_until_complete(
+                            data_listener.on_financial_data_deleted(
+                                str(financial_id), old_data
+                            )
+                        )
+                except RuntimeError:
+                    asyncio.run(
+                        data_listener.on_financial_data_deleted(
+                            str(financial_id), old_data
+                        )
+                    )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"财务数据删除事件发布失败: {e}")
+        
+        return {
+            "success": True,
+            "message": "财务数据已删除",
+            "financial_id": financial_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"删除财务数据失败: {str(e)}")
 
 
 # get_db函数已从core.database导入
