@@ -8,9 +8,17 @@ RAG_DIR="/Users/ywc/ai-stack-super-enhanced/📚 Enhanced RAG & Knowledge Graph"
 lsof -ti:8011 | xargs kill -9 2>/dev/null
 sleep 2
 
-# 激活Python 3.11环境
+# 激活Python 3.11环境（使用新环境）
 cd "$RAG_DIR"
-source venv_311/bin/activate
+if [ -d "venv_311_new" ]; then
+    source venv_311_new/bin/activate
+else
+    # 如果新环境不存在，尝试创建
+    python3.11 -m venv venv_311_new
+    source venv_311_new/bin/activate
+    pip install --upgrade pip setuptools wheel > /dev/null 2>&1
+    pip install fastapi uvicorn[standard] httpx pydantic > /dev/null 2>&1
+fi
 
 # 启动服务
 nohup python -m uvicorn api.app:app --host 0.0.0.0 --port 8011 > /tmp/rag-system.log 2>&1 &

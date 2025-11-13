@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-STACK 超级Agent - 智能控制台</title>
+    <link rel="stylesheet" href="css/style_new.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <header class="app-header">
+            <div class="header-left">
+                <h1 class="app-title">🤖 AI-STACK 超级Agent</h1>
+                <span class="app-subtitle">智能控制台 V5.0</span>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator">
+                    <span class="status-dot active"></span>
+                    <span class="status-text">运行中</span>
+                </div>
+                <select id="model-selector" class="model-selector">
+                    <option value="qwen2.5:1.5b" selected>qwen2.5:1.5b (快速)</option>
+                    <option value="qwen2.5:7b">qwen2.5:7b (高质量)</option>
+                    <option value="llama3.2:1b">llama3.2:1b (极速)</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- 主内容区 -->
+        <div class="app-main">
+            <!-- 左侧模块导航 -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3 class="section-title">核心模块</h3>
+                    <nav class="module-nav">
+                        <button class="nav-btn" data-module="chat">
+                            <span class="nav-icon">💬</span>
+                            <span class="nav-label">智能聊天</span>
+                        </button>
+                        <button class="nav-btn" data-module="rag">
+                            <span class="nav-icon">📚</span>
+                            <span class="nav-label">RAG知识库</span>
+                        </button>
+                        <button class="nav-btn" data-module="erp">
+                            <span class="nav-icon">💼</span>
+                            <span class="nav-label">ERP管理</span>
+                        </button>
+                        <button class="nav-btn" data-module="content">
+                            <span class="nav-icon">✍️</span>
+                            <span class="nav-label">内容创作</span>
+                        </button>
+                        <button class="nav-btn" data-module="trend">
+                            <span class="nav-icon">📈</span>
+                            <span class="nav-label">趋势分析</span>
+                        </button>
+                        <button class="nav-btn" data-module="stock">
+                            <span class="nav-icon">💰</span>
+                            <span class="nav-label">股票量化</span>
+                        </button>
+                        <button class="nav-btn" data-module="operations">
+                            <span class="nav-icon">⚙️</span>
+                            <span class="nav-label">运营财务</span>
+                        </button>
+                        <button class="nav-btn" data-module="coding">
+                            <span class="nav-icon">💻</span>
+                            <span class="nav-label">AI编程</span>
+                        </button>
+                    </nav>
+                </div>
+                <div class="sidebar-section">
+                    <h3 class="section-title">工具功能</h3>
+                    <nav class="module-nav">
+                        <button class="nav-btn" data-module="websearch">
+                            <span class="nav-icon">🔍</span>
+                            <span class="nav-label">网络搜索</span>
+                        </button>
+                        <button class="nav-btn" data-module="translation">
+                            <span class="nav-icon">🌐</span>
+                            <span class="nav-label">多语言翻译</span>
+                        </button>
+                        <button class="nav-btn" data-module="filegen">
+                            <span class="nav-icon">📄</span>
+                            <span class="nav-label">文件生成</span>
+                        </button>
+                    </nav>
+                </div>
+            </aside>
+
+            <!-- 中央聊天区域 -->
+            <main class="chat-area">
+                <div class="chat-messages" id="chat-messages">
+                    <div class="welcome-message">
+                        <div class="welcome-icon">🤖</div>
+                        <h2>欢迎使用 AI-STACK 超级Agent</h2>
+                        <p>我是您的智能助手，可以帮您处理各种任务</p>
+                        <div class="welcome-features">
+                            <span class="feature-tag">💬 智能对话</span>
+                            <span class="feature-tag">📚 知识检索</span>
+                            <span class="feature-tag">💼 业务管理</span>
+                            <span class="feature-tag">✍️ 内容创作</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chat-input-area">
+                    <div class="input-toolbar">
+                        <button class="tool-btn" id="voice-btn" title="语音输入">🎤</button>
+                        <button class="tool-btn" id="file-btn" title="上传文件">📎</button>
+                        <button class="tool-btn" id="search-btn" title="搜索">🔍</button>
+                    </div>
+                    <div class="input-wrapper">
+                        <input 
+                            type="text" 
+                            id="chat-input" 
+                            class="chat-input"
+                            placeholder="输入您的问题或指令..."
+                            autocomplete="off"
+                        />
+                        <button class="send-btn" id="send-btn" title="发送">
+                            <span>发送</span>
+                        </button>
+                    </div>
+                </div>
+            </main>
+
+            <!-- 右侧信息面板 -->
+            <aside class="info-panel">
+                <div class="panel-section">
+                    <h3 class="panel-title">系统状态</h3>
+                    <div class="status-grid">
+                        <div class="status-item">
+                            <span class="status-label">CPU</span>
+                            <div class="status-bar">
+                                <div class="status-fill" id="cpu-bar" style="width: 45%"></div>
+                            </div>
+                            <span class="status-value" id="cpu-value">45%</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">内存</span>
+                            <div class="status-bar">
+                                <div class="status-fill" id="memory-bar" style="width: 60%"></div>
+                            </div>
+                            <span class="status-value" id="memory-value">60%</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">磁盘</span>
+                            <div class="status-bar">
+                                <div class="status-fill" id="disk-bar" style="width: 75%"></div>
+                            </div>
+                            <span class="status-value" id="disk-value">75%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3 class="panel-title">快速操作</h3>
+                    <div class="quick-actions">
+                        <button class="action-btn-small" id="quick-memo">📝 创建备忘录</button>
+                        <button class="action-btn-small" id="quick-task">📋 新建任务</button>
+                        <button class="action-btn-small" id="quick-file">📄 生成文件</button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3 class="panel-title">最近活动</h3>
+                    <div class="activity-list" id="activity-list">
+                        <div class="activity-item">
+                            <span class="activity-icon">💬</span>
+                            <span class="activity-text">系统已就绪</span>
+                            <span class="activity-time">刚刚</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="js/app_new.js"></script>
+</body>
+</html>
+

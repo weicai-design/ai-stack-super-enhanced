@@ -1,0 +1,124 @@
+/* 弹窗系统样式 */
+
+.modal-container {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 400px;
+    max-width: 90vw;
+    padding: 20px;
+    z-index: 10000;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 100vh;
+    overflow-y: auto;
+}
+
+.modal {
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 100%;
+}
+
+.modal-show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.modal-hide {
+    opacity: 0;
+    transform: translateX(100%);
+}
+
+.modal-content {
+    padding: 16px;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.modal-icon {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.modal-title {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.modal-body p {
+    margin: 0;
+}
+
+/* 不同类型弹窗的颜色 */
+.modal-info {
+    border-left: 4px solid #007AFF;
+}
+
+.modal-success {
+    border-left: 4px solid #34C759;
+}
+
+.modal-warning {
+    border-left: 4px solid #FF9500;
+}
+
+.modal-error {
+    border-left: 4px solid #FF3B30;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .modal-container {
+        width: 100%;
+        padding: 12px;
+    }
+    
+    .modal {
+        max-width: 100%;
+    }
+}
+

@@ -12,7 +12,7 @@ from sqlalchemy import and_, or_, func
 from decimal import Decimal
 import sys
 sys.path.append('../..')
-from core.database_models import Order, ProductionPlan, Material
+from core.database_models import Order, ProductionPlan
 
 
 class ProductionManager:

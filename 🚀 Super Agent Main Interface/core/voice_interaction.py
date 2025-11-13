@@ -7,7 +7,10 @@ from typing import Dict, Optional, Any, List
 import asyncio
 import base64
 import json
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 class VoiceInteraction:
     """
@@ -153,16 +156,141 @@ class VoiceInteraction:
         speed: float,
         pitch: float
     ) -> bytes:
-        """使用第三方服务进行语音合成"""
-        # TODO: 实现实际的TTS服务调用
-        # 可以使用：
-        # 1. 百度语音合成API
-        # 2. 讯飞语音合成API
-        # 3. Google Text-to-Speech API
-        # 4. Azure Text-to-Speech
-        # 5. 本地TTS库（pyttsx3、gTTS等）
+        """使用第三方服务进行语音合成⭐增强版（支持多种TTS服务）"""
+        # 优先使用浏览器Web Speech API（前端实现）
+        # 后端提供备用TTS服务
         
-        # 临时返回空音频数据
+        # 策略1: 尝试使用gTTS（Google Text-to-Speech，免费且质量好）
+        try:
+            from gtts import gTTS
+            import tempfile
+            import os
+            
+            # 语言代码映射
+            lang_map = {
+                "zh-CN": "zh-cn",
+                "zh-TW": "zh-tw",
+                "en-US": "en",
+                "ja-JP": "ja",
+                "ko-KR": "ko",
+                "fr-FR": "fr",
+                "de-DE": "de",
+                "es-ES": "es",
+                "it-IT": "it",
+                "pt-PT": "pt",
+                "ru-RU": "ru"
+            }
+            
+            lang_code = lang_map.get(language, language[:2] if len(language) >= 2 else 'zh')
+            
+            tts = gTTS(text=text, lang=lang_code, slow=False)
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp_file:
+                tmp_path = tmp_file.name
+            
+            tts.save(tmp_path)
+            
+            with open(tmp_path, 'rb') as f:
+                audio_data = f.read()
+            
+            os.unlink(tmp_path)
+            
+            return audio_data
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning(f"gTTS失败: {e}")
+        
+        # 策略2: 尝试使用pyttsx3（本地TTS，无需网络）
+        try:
+            import pyttsx3
+            import tempfile
+            import os
+            
+            engine = pyttsx3.init()
+            
+            # 设置语言
+            voices = engine.getProperty('voices')
+            if language.startswith("zh"):
+                # 尝试找到中文语音
+                for v in voices:
+                    if 'chinese' in v.name.lower() or 'zh' in v.id.lower():
+                        engine.setProperty('voice', v.id)
+                        break
+            elif language.startswith("en"):
+                # 尝试找到英文语音
+                for v in voices:
+                    if 'english' in v.name.lower() or 'en' in v.id.lower():
+                        engine.setProperty('voice', v.id)
+                        break
+            
+            # 设置语速和音调
+            engine.setProperty('rate', int(150 * speed))  # 默认150
+            engine.setProperty('volume', 0.9)
+            
+            # 创建临时音频文件
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
+                tmp_path = tmp_file.name
+            
+            engine.save_to_file(text, tmp_path)
+            engine.runAndWait()
+            
+            # 读取音频文件
+            with open(tmp_path, 'rb') as f:
+                audio_data = f.read()
+            
+            # 清理临时文件
+            os.unlink(tmp_path)
+            
+            return audio_data
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning(f"pyttsx3失败: {e}")
+        
+        # 策略3: 使用edge-tts（Microsoft Edge TTS，免费且质量好）
+        try:
+            import edge_tts
+            import asyncio
+            import tempfile
+            import os
+            
+            # 选择语音
+            voices = await edge_tts.list_voices()
+            selected_voice = None
+            
+            for v in voices:
+                if language.startswith("zh") and "zh-CN" in v.get("Locale", ""):
+                    selected_voice = v.get("ShortName", "")
+                    break
+                elif language.startswith("en") and "en-US" in v.get("Locale", ""):
+                    selected_voice = v.get("ShortName", "")
+                    break
+            
+            if not selected_voice:
+                # 默认使用第一个可用语音
+                selected_voice = voices[0].get("ShortName", "") if voices else "zh-CN-XiaoxiaoNeural"
+            
+            # 生成语音
+            communicate = edge_tts.Communicate(text, selected_voice, rate=f"+{int((speed - 1) * 100)}%")
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp_file:
+                tmp_path = tmp_file.name
+            
+            await communicate.save(tmp_path)
+            
+            with open(tmp_path, 'rb') as f:
+                audio_data = f.read()
+            
+            os.unlink(tmp_path)
+            
+            return audio_data
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning(f"edge-tts失败: {e}")
+        
+        # 所有TTS服务都失败，返回空数据（前端会使用Web Speech API）
         return b""
     
     def set_language(self, language: str):

@@ -32,7 +32,7 @@ class RAGServiceAdapter:
         filter_type: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        检索知识
+        检索知识⭐真实实现，移除模拟数据回退
         
         Args:
             query: 查询文本
@@ -43,28 +43,56 @@ class RAGServiceAdapter:
         Returns:
             检索结果列表
         """
-        try:
-            # 调用RAG集成API
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{self.integration_api_url}/retrieve",
-                    json={
-                        "query": query,
-                        "top_k": top_k,
-                        "context": context,
-                        "filter_type": filter_type
-                    }
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    return result.get("knowledge", [])
-                else:
-                    # 如果API不可用，返回模拟结果
-                    return self._get_fallback_results(query, top_k)
-        except Exception as e:
-            print(f"RAG检索失败: {e}，使用备用结果")
-            return self._get_fallback_results(query, top_k)
+        # 尝试多个可能的端点
+        endpoints = [
+            f"{self.integration_api_url}/retrieve",  # 集成API
+            f"{self.rag_api_url}/rag/search",  # 标准搜索API
+            f"{self.rag_api_url}/api/retrieve",  # 备用检索API
+        ]
+        
+        for endpoint in endpoints:
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    # 尝试POST请求
+                    try:
+                        response = await client.post(
+                            endpoint,
+                            json={
+                                "query": query,
+                                "top_k": top_k,
+                                "context": context,
+                                "filter_type": filter_type
+                            }
+                        )
+                    except Exception:
+                        # 如果POST失败，尝试GET请求（某些端点可能使用GET）
+                        response = await client.get(
+                            endpoint,
+                            params={
+                                "query": query,
+                                "top_k": top_k
+                            }
+                        )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        # 处理不同的响应格式
+                        if "knowledge" in result:
+                            return result.get("knowledge", [])
+                        elif "results" in result:
+                            return result.get("results", [])
+                        elif isinstance(result, list):
+                            return result
+                        else:
+                            return []
+            except Exception as e:
+                continue  # 尝试下一个端点
+        
+        # 如果所有端点都失败，返回空列表（而不是模拟数据）
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"RAG检索失败: 所有端点都不可用，查询='{query}'")
+        return []  # 返回空列表，让调用者知道检索失败
     
     def _get_fallback_results(self, query: str, top_k: int) -> List[Dict[str, Any]]:
         """获取备用检索结果"""

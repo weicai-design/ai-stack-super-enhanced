@@ -3,9 +3,10 @@
 提供各种试算计算功能
 """
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
+from sqlalchemy.orm import Session
 
 from core.trial_balance import TrialBalanceCalculator
 from core.trial_history import TrialHistoryManager

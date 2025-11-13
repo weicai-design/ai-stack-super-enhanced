@@ -23,7 +23,7 @@ from core.database_models import (
     PeriodType,
 )
 from core.database import get_db
-from api.data_listener_api import data_listener
+from .data_listener_api import data_listener
 
 router = APIRouter(prefix="/finance", tags=["Finance API"])
 

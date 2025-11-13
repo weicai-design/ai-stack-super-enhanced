@@ -7,6 +7,9 @@ import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import json
+import time
+
+from .workflow_monitor import WorkflowMonitor
 
 class SuperAgent:
     """
@@ -32,9 +35,28 @@ class SuperAgent:
         self.learning_monitor = None  # 学习监控
         self.resource_monitor = None  # 资源监控
         self.task_planning = None  # 任务规划系统
+        self.workflow_monitor = None  # 工作流监控器
         
         # 自动初始化依赖
         self._initialize_dependencies()
+        
+        # 初始化工作流监控器
+        self.workflow_monitor = WorkflowMonitor()
+        
+        # 初始化缓存
+        self.response_cache = {}
+        self.rag_cache = {}
+        self.expert_cache = {}
+        self.rag2_cache = {}
+        self.max_cache_size = 1000
+        self.cache_ttl = 300  # 5分钟
+        self.timeout_config = {
+            "memo_extraction": 0.3,  # 优化：减少到0.3秒
+            "rag_retrieval": 2.0,  # 优化：减少到2秒
+            "expert_routing": 0.3,  # 优化：减少到0.3秒
+            "module_execution": 2.5,  # 优化：减少到2.5秒
+            "rag2_retrieval": 1.0  # 优化：减少到1秒
+        }
     
     def _initialize_dependencies(self):
         """初始化依赖组件"""
@@ -74,6 +96,12 @@ class SuperAgent:
         """
         start_time = datetime.now()
         
+        # 开始工作流监控
+        workflow_id = None
+        if self.workflow_monitor:
+            workflow_id = await self.workflow_monitor.start_workflow(user_input, context)
+            await self.workflow_monitor.record_step("user_input", "user_input", success=True, data={"input": user_input})
+        
         # 检查缓存（简单查询可以缓存）
         cache_key = f"{user_input}:{input_type}"
         if cache_key in self.response_cache:
@@ -103,48 +131,79 @@ class SuperAgent:
             ) if self.memo_system else None
             
             # 步骤3: 第1次RAG检索（理解需求 + 检索相关知识）⭐并行
+            if self.workflow_monitor:
+                await self.workflow_monitor.record_step("rag_retrieval_1", "rag_retrieval")
             rag_result_1 = await self._first_rag_retrieval(user_input, context)
+            if self.workflow_monitor:
+                await self.workflow_monitor.complete_step("rag_retrieval_1", success=True, result=rag_result_1)
             
             # 步骤4: 路由到对应专家
+            if self.workflow_monitor:
+                await self.workflow_monitor.record_step("expert_routing", "expert_routing")
             expert = await self._route_to_expert(user_input, rag_result_1)
+            if self.workflow_monitor:
+                await self.workflow_monitor.complete_step("expert_routing", success=True, result=expert)
             
             # 步骤5: 专家分析并调用模块功能执行
+            if self.workflow_monitor:
+                await self.workflow_monitor.record_step("module_execution", "module_execution")
             module_result = await self._execute_module_function(expert, user_input, rag_result_1)
+            if self.workflow_monitor:
+                await self.workflow_monitor.complete_step("module_execution", success=True, result=module_result)
             
             # 步骤6: 功能模块执行任务，返回结果
             execution_result = await self._get_execution_result(module_result)
             
             # 步骤7: 专家接收结果，第2次RAG检索（整合经验知识）⭐优化版（缓存+超时）
+            if self.workflow_monitor:
+                await self.workflow_monitor.record_step("rag_retrieval_2", "rag_retrieval")
             rag_result_2 = await self._second_rag_retrieval(
                 user_input, execution_result, rag_result_1
             )
+            if self.workflow_monitor:
+                await self.workflow_monitor.complete_step("rag_retrieval_2", success=True, result=rag_result_2)
             
             # 步骤8: 专家综合生成最终回复
+            if self.workflow_monitor:
+                await self.workflow_monitor.record_step("response_generation", "response_generation")
             final_response = await self._generate_final_response(
                 expert, execution_result, rag_result_2
             )
+            if self.workflow_monitor:
+                await self.workflow_monitor.complete_step("response_generation", success=True, result=final_response)
             
-            # 步骤2完成：处理备忘录（异步执行，不阻塞主流程）
+            # 步骤2完成：处理备忘录（异步执行，不阻塞主流程）⭐增强版
             memo_created = False
+            memo_info = None
             if memo_task:
                 try:
                     important_info = await memo_task
                     if important_info and self.memo_system:
                         memo = await self.memo_system.add_memo(important_info)
                         memo_created = True
+                        memo_info = {
+                            "memo_id": memo.get("id") if isinstance(memo, dict) else None,
+                            "title": important_info.get("title"),
+                            "type": important_info.get("type"),
+                            "importance": important_info.get("importance")
+                        }
                         
-                        # 如果是任务类型，异步提炼到任务规划系统
+                        # 如果是任务类型，异步提炼到任务规划系统⭐增强版
                         if important_info.get("type") == "task" and self.task_planning:
                             asyncio.create_task(
-                                self.task_planning.extract_tasks_from_memos()
+                                self._extract_and_plan_tasks(important_info)
                             )
                 except asyncio.TimeoutError:
                     pass  # 超时不影响主流程
-                except Exception:
-                    pass  # 错误不影响主流程
+                except Exception as e:
+                    logger.warning(f"备忘录创建失败: {e}")  # 记录错误但不影响主流程
             
             # 步骤9: 返回给用户
             response_time = (datetime.now() - start_time).total_seconds()
+            
+            # 完成工作流监控
+            if self.workflow_monitor and workflow_id:
+                workflow_result = await self.workflow_monitor.complete_workflow(final_response, response_time)
             
             # 并行：自我学习监控
             if self.learning_monitor:
@@ -168,8 +227,22 @@ class SuperAgent:
                 },
                 "execution": execution_result,
                 "timestamp": datetime.now().isoformat(),
-                "memo_created": memo_created
+                "memo_created": memo_created,
+                "memo_info": memo_info,  # 添加备忘录信息，供前端显示
+                "task_plan_created": False,  # 任务计划创建标志
+                "task_plan": None  # 任务计划数据
             }
+            
+            # 检查是否创建了任务计划
+            if memo_info and memo_info.get("type") == "task" and self.task_planning:
+                try:
+                    extracted_tasks = await self.task_planning.extract_tasks_from_memos()
+                    if extracted_tasks:
+                        plan = await self.task_planning.create_plan(extracted_tasks)
+                        result["task_plan_created"] = True
+                        result["task_plan"] = plan
+                except Exception as e:
+                    logger.warning(f"任务计划创建失败: {e}")
             
             # 缓存结果（优化策略：缓存更多查询）
             should_cache = (
@@ -206,6 +279,37 @@ class SuperAgent:
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }
+    
+    async def _extract_and_plan_tasks(self, memo_info: Dict):
+        """
+        从备忘录提炼任务并创建计划⭐增强版
+        
+        Args:
+            memo_info: 备忘录信息
+        """
+        try:
+            # 提炼任务
+            extracted_tasks = await self.task_planning.extract_tasks_from_memos()
+            
+            if extracted_tasks:
+                # 创建工作计划
+                plan = await self.task_planning.create_plan(extracted_tasks)
+                
+                # 记录到工作流监控
+                if self.workflow_monitor:
+                    await self.workflow_monitor.record_step(
+                        "task_extraction",
+                        "task_planning",
+                        success=True,
+                        data={
+                            "tasks_count": len(extracted_tasks),
+                            "plan_id": plan.get("id")
+                        }
+                    )
+                
+                logger.info(f"已从备忘录提炼 {len(extracted_tasks)} 个任务，创建计划 {plan.get('id')}")
+        except Exception as e:
+            logger.warning(f"任务提炼失败: {e}")
     
     async def _extract_important_info(self, input_data: Dict) -> Optional[Dict]:
         """提取重要信息到备忘录⭐增强版"""
@@ -294,15 +398,20 @@ class SuperAgent:
         if not title:
             title = content[:30]
         
-        # 判断是否应该创建备忘录（提高识别准确率）
+        # 判断是否应该创建备忘录（提高识别准确率）⭐增强版
         should_create = (
             has_task or  # 包含任务关键词
             len(dates) > 0 or  # 包含日期
             len(times) > 0 or  # 包含时间
             len(contacts) > 0 or  # 包含联系人
             importance >= 4 or  # 重要性高
-            len(content) > 50  # 内容较长（可能是重要信息）
+            len(content) > 50 or  # 内容较长（可能是重要信息）
+            any(keyword in content for keyword in ["重要", "记住", "备忘", "记录", "保存", "提醒"])  # 明确要求记录
         )
+        
+        # 如果包含明确的记录要求，提高重要性
+        if any(keyword in content for keyword in ["重要", "记住", "备忘", "记录"]):
+            importance = max(importance, 4)
         
         if should_create:
             return {
@@ -347,7 +456,7 @@ class SuperAgent:
             # 并行执行：检索知识 + 理解意图（带超时控制）
             knowledge_task = self.rag_service.retrieve(
                 query=user_input,
-                top_k=5,
+                top_k=3,  # 优化：减少检索数量以提升速度（从5减少到3）
                 context=context
             )
             understanding_task = self.rag_service.understand_intent(user_input)
@@ -357,6 +466,16 @@ class SuperAgent:
                 asyncio.gather(knowledge_task, understanding_task),
                 timeout=self.timeout_config["rag_retrieval"]
             )
+            
+            # 确保understanding不为None
+            if understanding is None:
+                understanding = {"intent": "query", "domain": "general", "confidence": 0.5}
+            
+            # 确保knowledge是列表
+            if knowledge is None:
+                knowledge = []
+            elif not isinstance(knowledge, list):
+                knowledge = []
             
             result = {
                 "knowledge": knowledge,
@@ -373,9 +492,21 @@ class SuperAgent:
             # 超时返回快速结果
             return {
                 "knowledge": [],
-                "understanding": {"intent": "query", "confidence": 0.5},
+                "understanding": {"intent": "query", "domain": "general", "confidence": 0.5},
                 "query": user_input,
                 "timeout": True,
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            # 异常时返回默认结果
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"RAG检索异常: {e}")
+            return {
+                "knowledge": [],
+                "understanding": {"intent": "query", "domain": "general", "confidence": 0.5},
+                "query": user_input,
+                "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }
     
@@ -385,11 +516,17 @@ class SuperAgent:
         rag_result: Dict
     ) -> Dict[str, Any]:
         """路由到对应专家⭐优化版（0.5秒超时）"""
+        # 确保rag_result不为None
+        if rag_result is None:
+            rag_result = {"knowledge": [], "understanding": {"intent": "query", "domain": "general", "confidence": 0.5}}
+        
         if not self.expert_router:
-            return {"expert": "default", "confidence": 0.5}
+            return {"expert": "default", "domain": "general", "confidence": 0.5}
         
         # 检查缓存
-        cache_key = f"expert:{user_input[:50]}:{rag_result.get('understanding', {}).get('intent', '')}"
+        understanding = rag_result.get("understanding", {}) if rag_result else {}
+        intent = understanding.get("intent", "") if isinstance(understanding, dict) else ""
+        cache_key = f"expert:{user_input[:50]}:{intent}"
         if cache_key in self.expert_cache:
             cached = self.expert_cache[cache_key]
             if (datetime.now() - datetime.fromisoformat(cached["cached_at"])).total_seconds() < 300:
@@ -455,6 +592,12 @@ class SuperAgent:
         这是AI工作流最关键的步骤！
         通过检索历史经验和最佳实践，提升回答质量
         """
+        # 确保execution_result和rag_result_1不为None
+        if execution_result is None:
+            execution_result = {"module": "default", "type": "unknown", "result": {}}
+        if rag_result_1 is None:
+            rag_result_1 = {"knowledge": [], "understanding": {"intent": "query"}}
+        
         if not self.rag_service:
             return {
                 "experience": [],
@@ -465,14 +608,15 @@ class SuperAgent:
             }
         
         # 检查缓存⭐新增
-        cache_key = f"rag2:{user_input[:50]}:{execution_result.get('module', '')}:{execution_result.get('type', '')}"
+        module = execution_result.get("module", "") if execution_result else ""
+        result_type = execution_result.get("type", "") if execution_result else ""
+        cache_key = f"rag2:{user_input[:50]}:{module}:{result_type}"
         if cache_key in self.rag2_cache:
             cached = self.rag2_cache[cache_key]
             if (datetime.now() - datetime.fromisoformat(cached["cached_at"])).total_seconds() < 300:
                 return cached["result"]
         
-        module = execution_result.get("module", "default")
-        result_type = execution_result.get("type", "unknown")
+        # module和result_type已在上面定义
         
         # 构建更精准的查询语句
         execution_summary = self._summarize_execution_result(execution_result)
@@ -678,63 +822,105 @@ class SuperAgent:
         execution_result: Dict,
         rag_result_2: Dict
     ) -> str:
-        """生成最终回复"""
-        # 综合专家分析、执行结果和经验知识
-        response_parts = []
+        """生成最终回复⭐使用真实LLM生成"""
+        # 确保参数不为None
+        if expert is None:
+            expert = {"expert": "default", "domain": "general", "confidence": 0.5}
+        if execution_result is None:
+            execution_result = {"module": "default", "type": "unknown", "result": {}}
+        if rag_result_2 is None:
+            rag_result_2 = {
+                "experience": [],
+                "best_practices": [],
+                "similar_cases": [],
+                "integrated_knowledge": "",
+                "recommendations": []
+            }
         
-        # 添加执行结果
-        result_data = execution_result.get("result", {})
-        if isinstance(result_data, dict):
-            if result_data.get("message"):
-                response_parts.append(result_data["message"])
-            elif result_data.get("type"):
-                response_parts.append(f"✅ {result_data['type']}模块执行完成")
-        elif isinstance(result_data, str):
-            response_parts.append(result_data)
-        
-        # ⭐第2次RAG检索的灵魂：优先使用整合后的知识
-        integrated_knowledge = rag_result_2.get("integrated_knowledge", "")
-        if integrated_knowledge and integrated_knowledge != "暂无相关经验知识":
-            response_parts.append("\n\n" + "="*50)
-            response_parts.append("🧠 基于历史经验和最佳实践的综合知识（第2次RAG检索）：")
-            response_parts.append("="*50)
-            response_parts.append(integrated_knowledge)
-        
-        # 添加智能推荐建议（第2次RAG检索的另一个灵魂功能）
-        recommendations = rag_result_2.get("recommendations", [])
-        if recommendations:
-            response_parts.append("\n\n💡 智能推荐建议：")
-            for i, rec in enumerate(recommendations, 1):
-                response_parts.append(f"{i}. {rec}")
-        
-        # 如果整合知识为空，则使用原始数据（向后兼容）
-        if not integrated_knowledge or integrated_knowledge == "暂无相关经验知识":
-            best_practices = rag_result_2.get("best_practices", [])
+        try:
+            # 导入LLM服务
+            from .llm_service import get_llm_service
+            
+            # 构建上下文信息
+            context_parts = []
+            
+            # 添加执行结果
+            result_data = execution_result.get("result", {}) if execution_result else {}
+            if isinstance(result_data, dict):
+                if result_data.get("message"):
+                    context_parts.append(f"执行结果: {result_data['message']}")
+                elif result_data.get("type"):
+                    context_parts.append(f"模块类型: {result_data['type']}")
+            elif isinstance(result_data, str):
+                context_parts.append(f"执行结果: {result_data}")
+            
+            # 添加RAG检索的知识
+            integrated_knowledge = rag_result_2.get("integrated_knowledge", "") if rag_result_2 else ""
+            if integrated_knowledge and integrated_knowledge != "暂无相关经验知识":
+                context_parts.append(f"相关知识: {integrated_knowledge}")
+            
+            best_practices = rag_result_2.get("best_practices", []) if rag_result_2 else []
             if best_practices:
-                response_parts.append("\n\n💡 基于历史经验的最佳实践：")
-                for i, practice in enumerate(best_practices[:3], 1):
-                    response_parts.append(f"{i}. {practice}")
+                context_parts.append(f"最佳实践: {', '.join(best_practices[:3])}")
             
-            similar_cases = rag_result_2.get("similar_cases", [])
+            similar_cases = rag_result_2.get("similar_cases", []) if rag_result_2 else []
             if similar_cases:
-                response_parts.append("\n\n📚 参考类似案例：")
-                for i, case in enumerate(similar_cases[:2], 1):
-                    title = case.get("title") or case.get("content", "案例")[:50]
-                    response_parts.append(f"{i}. {title}")
+                case_summaries = []
+                for case in similar_cases[:2]:
+                    title = case.get("title") or case.get("content", "案例")[:50] if isinstance(case, dict) else str(case)[:50]
+                    case_summaries.append(title)
+                context_parts.append(f"类似案例: {', '.join(case_summaries)}")
             
-            experience = rag_result_2.get("experience", [])
-            if experience:
-                response_parts.append("\n\n🔍 相关历史经验：")
-                for i, exp in enumerate(experience[:2], 1):
-                    content = exp.get("content", "")[:100]
-                    if content:
-                        response_parts.append(f"{i}. {content}...")
-        
-        # 如果没有内容，返回默认回复
-        if not response_parts:
-            response_parts.append("✅ 任务执行完成")
-        
-        return "\n".join(response_parts)
+            recommendations = rag_result_2.get("recommendations", []) if rag_result_2 else []
+            if recommendations:
+                context_parts.append(f"推荐建议: {', '.join(recommendations[:3])}")
+            
+            # 构建提示词
+            system_prompt = """你是一个智能助手，能够根据执行结果、RAG检索的知识和历史经验，生成专业、准确、有用的回复。
+请用中文回复，语言自然流畅，逻辑清晰。"""
+            
+            user_prompt = f"""基于以下信息生成回复：
+
+{chr(10).join(context_parts) if context_parts else '任务执行完成'}
+
+请综合以上信息，生成一个专业、有用的回复。"""
+            
+            # 调用真实LLM生成回复（优化：使用更快模型和更少token）
+            llm_service = get_llm_service()
+            response = await llm_service.generate(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                temperature=0.3,  # 优化：进一步降低温度以提高速度和一致性
+                max_tokens=256  # 优化：减少token数量以加快响应（从512减少到256）
+            )
+            
+            return response
+            
+        except Exception as e:
+            # 如果LLM调用失败，使用模板回复（但明确告知用户）
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"LLM生成失败，使用模板回复: {e}")
+            
+            # 降级到模板回复
+            response_parts = []
+            result_data = execution_result.get("result", {})
+            if isinstance(result_data, dict):
+                if result_data.get("message"):
+                    response_parts.append(result_data["message"])
+                elif result_data.get("type"):
+                    response_parts.append(f"✅ {result_data['type']}模块执行完成")
+            elif isinstance(result_data, str):
+                response_parts.append(result_data)
+            
+            integrated_knowledge = rag_result_2.get("integrated_knowledge", "")
+            if integrated_knowledge and integrated_knowledge != "暂无相关经验知识":
+                response_parts.append(f"\n\n🧠 相关知识:\n{integrated_knowledge}")
+            
+            if not response_parts:
+                response_parts.append("✅ 任务执行完成")
+            
+            return "\n".join(response_parts) + f"\n\n⚠️ 注意: LLM服务暂时不可用，这是模板回复。错误: {str(e)}"
     
     def set_memo_system(self, memo_system):
         """设置备忘录系统"""

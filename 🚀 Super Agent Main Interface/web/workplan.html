@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能工作计划管理 - AI-STACK</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/confirmation.css">
+    <style>
+        .workplan-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .workplan-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .workplan-header h2 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .workplan-actions {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .workplan-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .workplan-filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+        }
+        
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .filter-group label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+        }
+        
+        .plans-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .plan-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            transition: all 0.2s;
+        }
+        
+        .plan-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+        
+        .plan-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+        
+        .plan-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+        
+        .plan-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        .plan-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .plan-status {
+            padding: 4px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-confirmed {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-executing {
+            background: #cce5ff;
+            color: #004085;
+        }
+        
+        .status-completed {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .plan-tasks {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .task-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+        }
+        
+        .task-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .task-title {
+            flex: 1;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+        
+        .task-duration {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-color-hover);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+            border-color: var(--danger-color);
+        }
+        
+        .btn-danger:hover {
+            background: #dc3545;
+        }
+        
+        .plan-dialog {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .plan-dialog.show {
+            display: flex;
+        }
+        
+        .plan-dialog-content {
+            background: var(--bg-primary);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .dialog-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .dialog-header h3 {
+            margin: 0;
+            font-size: 20px;
+        }
+        
+        .dialog-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+        }
+        
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="workplan-container">
+        <div class="workplan-header">
+            <h2>📋 智能工作计划管理</h2>
+            <div class="workplan-actions">
+                <button class="btn btn-primary" onclick="openCreatePlanDialog()">➕ 新建计划</button>
+                <button class="btn btn-secondary" onclick="refreshPlans()">🔄 刷新</button>
+            </div>
+        </div>
+        
+        <div class="workplan-stats">
+            <div class="stat-card">
+                <div class="stat-label">总计划数</div>
+                <div class="stat-value" id="total-plans">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">待确认</div>
+                <div class="stat-value" id="pending-plans">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">执行中</div>
+                <div class="stat-value" id="executing-plans">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">已完成</div>
+                <div class="stat-value" id="completed-plans">0</div>
+            </div>
+        </div>
+        
+        <div class="workplan-filters">
+            <div class="filter-group">
+                <label>状态:</label>
+                <select id="status-filter" onchange="filterPlans()">
+                    <option value="">全部</option>
+                    <option value="pending">待确认</option>
+                    <option value="confirmed">已确认</option>
+                    <option value="executing">执行中</option>
+                    <option value="completed">已完成</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>分类:</label>
+                <select id="category-filter" onchange="filterPlans()">
+                    <option value="">全部</option>
+                    <option value="work">工作</option>
+                    <option value="personal">个人</option>
+                    <option value="project">项目</option>
+                    <option value="other">其他</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>搜索:</label>
+                <input type="text" id="search-input" placeholder="搜索计划..." oninput="filterPlans()">
+            </div>
+        </div>
+        
+        <div class="plans-list" id="plans-list">
+            <!-- 计划列表将在这里动态生成 -->
+        </div>
+    </div>
+    
+    <!-- 创建/编辑计划对话框 -->
+    <div class="plan-dialog" id="plan-dialog">
+        <div class="plan-dialog-content">
+            <div class="dialog-header">
+                <h3 id="dialog-title">新建工作计划</h3>
+                <button class="dialog-close" onclick="closePlanDialog()">×</button>
+            </div>
+            <form id="plan-form" onsubmit="savePlan(event)">
+                <input type="hidden" id="plan-id" value="">
+                <div class="form-group">
+                    <label>计划标题 *</label>
+                    <input type="text" id="plan-title" required>
+                </div>
+                <div class="form-group">
+                    <label>分类</label>
+                    <select id="plan-category">
+                        <option value="work">工作</option>
+                        <option value="personal">个人</option>
+                        <option value="project">项目</option>
+                        <option value="other">其他</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>描述</label>
+                    <textarea id="plan-description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>优先级</label>
+                    <select id="plan-priority">
+                        <option value="low">低</option>
+                        <option value="medium" selected>中</option>
+                        <option value="high">高</option>
+                        <option value="urgent">紧急</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closePlanDialog()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="js/modal.js"></script>
+    <script src="js/confirmation.js"></script>
+    <script>
+        const API_BASE = '/api/super-agent';
+        let plans = [];
+        let filteredPlans = [];
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPlans();
+        });
+        
+        // 加载计划列表
+        async function loadPlans() {
+            try {
+                const response = await fetch(`${API_BASE}/task-planning/plans`);
+                const data = await response.json();
+                plans = data.plans || [];
+                filteredPlans = plans;
+                renderPlans();
+                updateStats();
+            } catch (error) {
+                console.error('加载计划失败:', error);
+                if (window.modalSystem) {
+                    window.modalSystem.show({
+                        type: 'error',
+                        title: '加载失败',
+                        message: '无法加载工作计划列表',
+                        duration: 3000
+                    });
+                }
+            }
+        }
+        
+        // 渲染计划列表
+        function renderPlans() {
+            const plansList = document.getElementById('plans-list');
+            if (filteredPlans.length === 0) {
+                plansList.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">暂无工作计划</div>';
+                return;
+            }
+            
+            plansList.innerHTML = filteredPlans.map(plan => `
+                <div class="plan-card">
+                    <div class="plan-header">
+                        <div>
+                            <div class="plan-title">${plan.title || '未命名计划'}</div>
+                            <div class="plan-meta">
+                                <span>📅 ${plan.created_at ? new Date(plan.created_at).toLocaleDateString() : '未知日期'}</span>
+                                <span>📋 ${plan.total_tasks || 0} 个任务</span>
+                                <span>⏱️ ${formatDuration(plan.total_duration_minutes || 0)}</span>
+                            </div>
+                        </div>
+                        <div class="plan-actions">
+                            <span class="plan-status status-${plan.status || 'pending'}">${getStatusText(plan.status)}</span>
+                            ${plan.status === 'pending' ? `
+                                <button class="btn btn-primary" onclick="confirmPlan(${plan.id})">确认</button>
+                            ` : ''}
+                            <button class="btn btn-secondary" onclick="editPlan(${plan.id})">编辑</button>
+                            <button class="btn btn-danger" onclick="deletePlan(${plan.id})">删除</button>
+                        </div>
+                    </div>
+                    ${plan.tasks && plan.tasks.length > 0 ? `
+                        <div class="plan-tasks">
+                            ${plan.tasks.slice(0, 5).map(task => `
+                                <div class="task-item">
+                                    <input type="checkbox" class="task-checkbox" ${task.status === 'completed' ? 'checked' : ''} 
+                                           onchange="toggleTask(${plan.id}, ${task.id || task.step_number})">
+                                    <span class="task-title">${task.title || task.description || '未命名任务'}</span>
+                                    ${task.estimated_duration ? `<span class="task-duration">${task.estimated_duration}分钟</span>` : ''}
+                                </div>
+                            `).join('')}
+                            ${plan.tasks.length > 5 ? `<div style="text-align: center; padding: 8px; color: var(--text-secondary);">还有 ${plan.tasks.length - 5} 个任务...</div>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+        
+        // 更新统计
+        function updateStats() {
+            document.getElementById('total-plans').textContent = plans.length;
+            document.getElementById('pending-plans').textContent = plans.filter(p => p.status === 'pending').length;
+            document.getElementById('executing-plans').textContent = plans.filter(p => p.status === 'executing').length;
+            document.getElementById('completed-plans').textContent = plans.filter(p => p.status === 'completed').length;
+        }
+        
+        // 筛选计划
+        function filterPlans() {
+            const statusFilter = document.getElementById('status-filter').value;
+            const categoryFilter = document.getElementById('category-filter').value;
+            const searchInput = document.getElementById('search-input').value.toLowerCase();
+            
+            filteredPlans = plans.filter(plan => {
+                const matchStatus = !statusFilter || plan.status === statusFilter;
+                const matchCategory = !categoryFilter || plan.category === categoryFilter;
+                const matchSearch = !searchInput || (plan.title || '').toLowerCase().includes(searchInput);
+                return matchStatus && matchCategory && matchSearch;
+            });
+            
+            renderPlans();
+        }
+        
+        // 打开创建计划对话框
+        function openCreatePlanDialog() {
+            document.getElementById('dialog-title').textContent = '新建工作计划';
+            document.getElementById('plan-id').value = '';
+            document.getElementById('plan-form').reset();
+            document.getElementById('plan-dialog').classList.add('show');
+        }
+        
+        // 关闭计划对话框
+        function closePlanDialog() {
+            document.getElementById('plan-dialog').classList.remove('show');
+        }
+        
+        // 编辑计划
+        function editPlan(planId) {
+            const plan = plans.find(p => p.id === planId);
+            if (!plan) return;
+            
+            document.getElementById('dialog-title').textContent = '编辑工作计划';
+            document.getElementById('plan-id').value = planId;
+            document.getElementById('plan-title').value = plan.title || '';
+            document.getElementById('plan-description').value = plan.description || '';
+            document.getElementById('plan-category').value = plan.category || 'work';
+            document.getElementById('plan-priority').value = plan.priority || 'medium';
+            document.getElementById('plan-dialog').classList.add('show');
+        }
+        
+        // 保存计划
+        async function savePlan(event) {
+            event.preventDefault();
+            
+            const planId = document.getElementById('plan-id').value;
+            const planData = {
+                title: document.getElementById('plan-title').value,
+                description: document.getElementById('plan-description').value,
+                category: document.getElementById('plan-category').value,
+                priority: document.getElementById('plan-priority').value
+            };
+            
+            try {
+                if (planId) {
+                    // 更新计划
+                    const response = await fetch(`${API_BASE}/task-planning/plans/${planId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(planData)
+                    });
+                    
+                    if (!response.ok) throw new Error('更新失败');
+                } else {
+                    // 创建计划
+                    const response = await fetch(`${API_BASE}/task-planning/plans`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(planData)
+                    });
+                    
+                    if (!response.ok) throw new Error('创建失败');
+                }
+                
+                closePlanDialog();
+                await loadPlans();
+                
+                if (window.modalSystem) {
+                    window.modalSystem.show({
+                        type: 'success',
+                        title: '成功',
+                        message: planId ? '计划已更新' : '计划已创建',
+                        duration: 2000
+                    });
+                }
+            } catch (error) {
+                console.error('保存计划失败:', error);
+                if (window.modalSystem) {
+                    window.modalSystem.show({
+                        type: 'error',
+                        title: '失败',
+                        message: '保存计划时发生错误',
+                        duration: 3000
+                    });
+                }
+            }
+        }
+        
+        // 确认计划
+        async function confirmPlan(planId) {
+            if (window.confirmationSystem) {
+                const plan = plans.find(p => p.id === planId);
+                const result = await window.confirmationSystem.showTaskPlanConfirmation(plan);
+                if (result.confirmed) {
+                    await loadPlans();
+                }
+            } else {
+                // 如果没有确认系统，直接确认
+                try {
+                    const response = await fetch(`${API_BASE}/task-planning/plans/${planId}/confirm`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ confirmed: true })
+                    });
+                    
+                    if (response.ok) {
+                        await loadPlans();
+                    }
+                } catch (error) {
+                    console.error('确认计划失败:', error);
+                }
+            }
+        }
+        
+        // 删除计划
+        async function deletePlan(planId) {
+            if (!confirm('确定要删除这个计划吗？')) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/task-planning/plans/${planId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    await loadPlans();
+                    if (window.modalSystem) {
+                        window.modalSystem.show({
+                            type: 'success',
+                            title: '已删除',
+                            message: '计划已删除',
+                            duration: 2000
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('删除计划失败:', error);
+            }
+        }
+        
+        // 切换任务状态
+        async function toggleTask(planId, taskId) {
+            // TODO: 实现任务状态切换
+            console.log('切换任务状态:', planId, taskId);
+        }
+        
+        // 刷新计划
+        function refreshPlans() {
+            loadPlans();
+        }
+        
+        // 工具函数
+        function getStatusText(status) {
+            const statusMap = {
+                pending: '待确认',
+                confirmed: '已确认',
+                executing: '执行中',
+                completed: '已完成'
+            };
+            return statusMap[status] || '未知';
+        }
+        
+        function formatDuration(minutes) {
+            if (minutes < 60) return `${minutes}分钟`;
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return mins > 0 ? `${hours}小时${mins}分钟` : `${hours}小时`;
+        }
+    </script>
+</body>
+</html>
+

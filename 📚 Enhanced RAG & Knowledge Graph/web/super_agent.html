@@ -621,20 +621,27 @@
                 </div>
             </div>
             
-            <!-- 系统资源 -->
+            <!-- 系统资源⭐P0功能完善 -->
             <div class="info-card">
                 <div class="info-card-title">💻 系统资源</div>
                 <div class="info-item">
                     <span class="info-label">CPU使用</span>
-                    <span class="info-value good">45%</span>
+                    <span class="info-value good" id="cpuUsage">--</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">内存使用</span>
-                    <span class="info-value good">62%</span>
+                    <span class="info-value good" id="memoryUsage">--</span>
                 </div>
                 <div class="info-item">
-                    <span class="info-label">网络</span>
-                    <span class="info-value good">正常</span>
+                    <span class="info-label">磁盘使用</span>
+                    <span class="info-value good" id="diskUsage">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">外接硬盘</span>
+                    <span class="info-value good" id="externalDrives">0个</span>
+                </div>
+                <div style="margin-top: 10px; font-size: 11px; color: #999; text-align: center;">
+                    每5秒自动更新
                 </div>
             </div>
             
@@ -843,6 +850,24 @@
             
             let content = `<div>${escapeHtml(message)}</div>`;
             
+            // 显示备忘录创建提示⭐P0功能完善
+            if (data && data.memo_created && data.memo_info) {
+                const memoInfo = data.memo_info;
+                const importanceEmoji = memoInfo.importance >= 4 ? '🔴' : memoInfo.importance >= 3 ? '🟡' : '🟢';
+                content += `
+                    <div style="margin-top: 10px; padding: 10px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border-left: 3px solid #667eea;">
+                        <div style="font-size: 12px; color: #667eea; font-weight: 600; margin-bottom: 5px;">
+                            📝 已自动创建备忘录
+                        </div>
+                        <div style="font-size: 11px; color: #666;">
+                            <div>标题: ${escapeHtml(memoInfo.title || '无标题')}</div>
+                            <div>类型: ${memoInfo.type === 'task' ? '任务' : '笔记'}</div>
+                            <div>重要性: ${importanceEmoji} ${memoInfo.importance}/5</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
             if (data && data.workflow) {
                 content += '<div style="margin-top: 10px; font-size: 12px; color: #666;">';
                 data.workflow.forEach(step => {
@@ -851,9 +876,20 @@
                 content += '</div>';
             }
             
+            // 添加语音播放按钮
+            const playButton = data && data.response ? `
+                <button onclick="synthesizeAndPlay(\`${escapeHtml(data.response.replace(/`/g, '\\`'))}\`)" 
+                    style="margin-top: 10px; padding: 5px 10px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 12px;">
+                    🔊 朗读
+                </button>
+            ` : '';
+            
             messageDiv.innerHTML = `
                 <div class="message-avatar">🤖</div>
-                <div class="message-content">${content}</div>
+                <div class="message-content">
+                    ${content}
+                    ${playButton}
+                </div>
             `;
             messagesDiv.appendChild(messageDiv);
             scrollToBottom();
@@ -882,25 +918,50 @@
             }
         }
         
-        // 语音输入
+        // 语音输入⭐增强版
+        let recognition = null;
+        let isRecording = false;
+        
         function startVoiceInput() {
             if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
                 recognition.lang = 'zh-CN';
                 recognition.continuous = false;
+                recognition.interimResults = true;
                 
                 document.getElementById('voiceRecording').classList.add('active');
                 isRecording = true;
                 
                 recognition.onresult = (event) => {
-                    const transcript = event.results[0][0].transcript;
-                    chatInput.value = transcript;
-                    stopVoiceInput();
+                    let interimTranscript = '';
+                    let finalTranscript = '';
+                    
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const transcript = event.results[i][0].transcript;
+                        if (event.results[i].isFinal) {
+                            finalTranscript += transcript;
+                        } else {
+                            interimTranscript += transcript;
+                        }
+                    }
+                    
+                    // 显示识别结果
+                    if (finalTranscript) {
+                        chatInput.value = finalTranscript;
+                        stopVoiceInput();
+                    } else if (interimTranscript) {
+                        // 显示临时识别结果
+                        chatInput.placeholder = '识别中: ' + interimTranscript;
+                    }
                 };
                 
-                recognition.onerror = () => {
+                recognition.onerror = (event) => {
                     stopVoiceInput();
-                    addAgentMessage('❌ 语音识别失败，请重试');
+                    addAgentMessage('❌ 语音识别失败: ' + event.error);
+                };
+                
+                recognition.onend = () => {
+                    stopVoiceInput();
                 };
                 
                 recognition.start();
@@ -910,8 +971,107 @@
         }
         
         function stopVoiceInput() {
+            if (recognition) {
+                recognition.stop();
+                recognition = null;
+            }
             document.getElementById('voiceRecording').classList.remove('active');
             isRecording = false;
+            chatInput.placeholder = '输入消息，或拖入文件，或点击🎤说话...';
+        }
+        
+        // 语音输出（TTS）⭐新增
+        let currentAudio = null;
+        
+        async function synthesizeAndPlay(text, language = 'zh-CN') {
+            try {
+                // 停止当前播放
+                if (currentAudio) {
+                    currentAudio.pause();
+                    currentAudio = null;
+                }
+                
+                // 优先使用浏览器Web Speech API
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = language;
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 1.0;
+                    
+                    utterance.onend = () => {
+                        currentAudio = null;
+                    };
+                    
+                    utterance.onerror = (event) => {
+                        console.error('TTS错误:', event);
+                        // 如果Web Speech API失败，尝试后端TTS
+                        fallbackToBackendTTS(text, language);
+                    };
+                    
+                    window.speechSynthesis.speak(utterance);
+                    currentAudio = utterance;
+                    return;
+                }
+                
+                // 如果浏览器不支持，使用后端TTS
+                await fallbackToBackendTTS(text, language);
+            } catch (error) {
+                console.error('语音合成失败:', error);
+                addAgentMessage('❌ 语音合成失败: ' + error.message);
+            }
+        }
+        
+        async function fallbackToBackendTTS(text, language) {
+            try {
+                const response = await fetch('/api/super-agent/voice/synthesize', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        text: text,
+                        language: language,
+                        speed: 1.0,
+                        pitch: 1.0
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.audio_data) {
+                    // 解码base64音频数据
+                    const audioData = atob(result.audio_data);
+                    const bytes = new Uint8Array(audioData.length);
+                    for (let i = 0; i < audioData.length; i++) {
+                        bytes[i] = audioData.charCodeAt(i);
+                    }
+                    
+                    // 创建音频对象并播放
+                    const blob = new Blob([bytes], {type: 'audio/mp3'});
+                    const url = URL.createObjectURL(blob);
+                    const audio = new Audio(url);
+                    
+                    audio.onended = () => {
+                        URL.revokeObjectURL(url);
+                        currentAudio = null;
+                    };
+                    
+                    audio.play();
+                    currentAudio = audio;
+                }
+            } catch (error) {
+                console.error('后端TTS失败:', error);
+            }
+        }
+        
+        function stopTTS() {
+            if (currentAudio) {
+                if (currentAudio.pause) {
+                    currentAudio.pause();
+                } else if (window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
+                currentAudio = null;
+            }
         }
         
         // 工具栏功能
@@ -927,7 +1087,19 @@
                     addAgentMessage('🌐 翻译功能：请输入要翻译的文本，我会自动检测语言并翻译成您需要的语言。');
                     break;
                 case 'tts':
-                    addAgentMessage('🔊 朗读功能：我会朗读生成的内容。请告诉我要朗读哪段文字。');
+                    // 朗读最后一条AI消息
+                    const lastMessage = document.querySelector('.message.agent:last-child .message-content');
+                    if (lastMessage) {
+                        const text = lastMessage.textContent.trim();
+                        if (text) {
+                            synthesizeAndPlay(text);
+                            addAgentMessage('🔊 正在朗读...');
+                        } else {
+                            addAgentMessage('🔊 没有可朗读的内容');
+                        }
+                    } else {
+                        addAgentMessage('🔊 朗读功能：我会朗读生成的内容。请告诉我要朗读哪段文字。');
+                    }
                     break;
                 case 'plan':
                     generatePlan();
@@ -959,6 +1131,7 @@
             addAgentMessage(`✅ 已为您接通${expertNames[type]}，请告诉我您的需求。`);
         }
         
+        // 文件生成功能⭐P0功能完善
         function generateFile(type) {
             const fileTypes = {
                 'word': 'Word文档',
@@ -966,7 +1139,154 @@
                 'ppt': 'PPT演示',
                 'pdf': 'PDF文档'
             };
-            addAgentMessage(`📄 ${fileTypes[type]}生成：请告诉我要生成什么内容，我会为您创建${fileTypes[type]}。`);
+            
+            // 显示文件生成对话框
+            showFileGenerationDialog(type, fileTypes[type]);
+        }
+        
+        function showFileGenerationDialog(fileType, typeName) {
+            const dialog = document.createElement('div');
+            dialog.className = 'file-gen-dialog';
+            dialog.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 30px;
+                border-radius: 15px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                z-index: 10000;
+                min-width: 500px;
+                max-width: 700px;
+            `;
+            
+            let contentInput = '';
+            if (fileType === 'excel') {
+                contentInput = `
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">表头（JSON格式）：</label>
+                        <textarea id="excelHeaders" style="width: 100%; min-height: 60px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;" 
+                            placeholder='["姓名", "年龄", "职位"]'></textarea>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">数据（JSON格式）：</label>
+                        <textarea id="excelData" style="width: 100%; min-height: 120px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;" 
+                            placeholder='[["张三", 25, "工程师"], ["李四", 30, "经理"]]'></textarea>
+                    </div>
+                `;
+            } else if (fileType === 'ppt') {
+                contentInput = `
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">幻灯片内容（JSON格式）：</label>
+                        <textarea id="pptSlides" style="width: 100%; min-height: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;" 
+                            placeholder='{"slides": [{"title": "标题1", "content": "内容1"}, {"title": "标题2", "content": "内容2"}]}'></textarea>
+                    </div>
+                `;
+            } else {
+                contentInput = `
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">文档内容：</label>
+                        <textarea id="fileContent" style="width: 100%; min-height: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;" 
+                            placeholder="请输入要生成的${typeName}内容..."></textarea>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">文档标题（可选）：</label>
+                        <input type="text" id="fileTitle" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;" 
+                            placeholder="文档标题">
+                    </div>
+                `;
+            }
+            
+            dialog.innerHTML = `
+                <h2 style="margin-bottom: 20px; color: #667eea;">📄 生成${typeName}</h2>
+                ${contentInput}
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                    <button onclick="this.closest('.file-gen-dialog').remove()" 
+                        style="padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 5px; cursor: pointer;">
+                        取消
+                    </button>
+                    <button onclick="executeFileGeneration('${fileType}')" 
+                        style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        生成文件
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(dialog);
+        }
+        
+        async function executeFileGeneration(fileType) {
+            const dialog = document.querySelector('.file-gen-dialog');
+            const generateBtn = dialog.querySelector('button:last-child');
+            generateBtn.disabled = true;
+            generateBtn.textContent = '生成中...';
+            
+            try {
+                let content = '';
+                let title = '';
+                
+                if (fileType === 'excel') {
+                    const headers = document.getElementById('excelHeaders').value;
+                    const data = document.getElementById('excelData').value;
+                    content = JSON.stringify({
+                        headers: JSON.parse(headers),
+                        data: JSON.parse(data)
+                    });
+                } else if (fileType === 'ppt') {
+                    content = document.getElementById('pptSlides').value;
+                } else {
+                    content = document.getElementById('fileContent').value;
+                    title = document.getElementById('fileTitle').value || undefined;
+                }
+                
+                if (!content) {
+                    alert('请输入内容');
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = '生成文件';
+                    return;
+                }
+                
+                const response = await fetch('/api/super-agent/generate/file', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        file_type: fileType,
+                        content: content,
+                        title: title
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 下载文件
+                    const fileData = result.file_data_base64;
+                    const binaryString = atob(fileData);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    const blob = new Blob([bytes], {type: `application/${result.format}`});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = result.filename;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    
+                    addAgentMessage(`✅ ${result.format.toUpperCase()}文件已生成并下载：${result.filename}`);
+                    dialog.remove();
+                } else {
+                    alert('文件生成失败：' + (result.error || '未知错误'));
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = '生成文件';
+                }
+            } catch (error) {
+                alert('文件生成失败：' + error.message);
+                generateBtn.disabled = false;
+                generateBtn.textContent = '生成文件';
+            }
         }
         
         function openTranslate() {
@@ -987,9 +1307,93 @@
             return div.innerHTML;
         }
         
+        // 资源监控⭐P0功能完善
+        async function updateResourceStatus() {
+            try {
+                const response = await fetch('/api/super-agent/resource/system');
+                const result = await response.json();
+                
+                if (result.success && result.resources) {
+                    const cpu = result.resources.cpu;
+                    const memory = result.resources.memory;
+                    const disk = result.resources.disk;
+                    const externalDrives = result.resources.external_drives || [];
+                    
+                    // 更新CPU
+                    const cpuElem = document.getElementById('cpuUsage');
+                    cpuElem.textContent = cpu.percent.toFixed(1) + '%';
+                    cpuElem.className = 'info-value ' + (cpu.status === 'normal' ? 'good' : 'warning');
+                    
+                    // 更新内存
+                    const memoryElem = document.getElementById('memoryUsage');
+                    memoryElem.textContent = memory.percent.toFixed(1) + '% (' + memory.used_gb.toFixed(1) + 'GB/' + memory.total_gb.toFixed(1) + 'GB)';
+                    memoryElem.className = 'info-value ' + (memory.status === 'normal' ? 'good' : 'warning');
+                    
+                    // 更新磁盘
+                    const diskElem = document.getElementById('diskUsage');
+                    diskElem.textContent = disk.percent.toFixed(1) + '% (' + disk.used_gb.toFixed(1) + 'GB/' + disk.total_gb.toFixed(1) + 'GB)';
+                    diskElem.className = 'info-value ' + (disk.status === 'normal' ? 'good' : 'warning');
+                    
+                    // 更新外接硬盘
+                    const drivesElem = document.getElementById('externalDrives');
+                    drivesElem.textContent = externalDrives.length + '个';
+                    if (externalDrives.length > 0) {
+                        drivesElem.className = 'info-value good';
+                        drivesElem.title = externalDrives.map(d => d.mountpoint).join(', ');
+                    } else {
+                        drivesElem.className = 'info-value';
+                        drivesElem.title = '未检测到外接硬盘';
+                    }
+                    
+                    // 如果有告警，显示提示
+                    if (result.alerts_count > 0) {
+                        console.warn('⚠️ 资源告警:', result.alerts);
+                    }
+                }
+            } catch (error) {
+                console.error('资源监控更新失败:', error);
+            }
+        }
+        
+        // 每5秒更新一次资源状态
+        setInterval(updateResourceStatus, 5000);
+        updateResourceStatus(); // 立即执行一次
+        
+        // 性能监控更新
+        async function updatePerformanceStats() {
+            try {
+                const response = await fetch('/api/super-agent/performance/stats');
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 更新响应时间统计
+                    const responseTimeElem = document.getElementById('responseTime');
+                    if (result.avg_response_time) {
+                        responseTimeElem.textContent = result.avg_response_time.toFixed(2) + 's';
+                        responseTimeElem.className = 'info-value ' + 
+                            (result.avg_response_time < 1.0 ? 'good' : 
+                             result.avg_response_time < 2.0 ? '' : 'warning');
+                    }
+                    
+                    // 更新响应率
+                    if (result.current_response_rate) {
+                        const rate = (result.current_response_rate * 100).toFixed(1);
+                        console.log(`📊 2秒内响应率: ${rate}%`);
+                    }
+                }
+            } catch (error) {
+                console.error('性能统计更新失败:', error);
+            }
+        }
+        
+        // 每10秒更新一次性能统计
+        setInterval(updatePerformanceStats, 10000);
+        updatePerformanceStats(); // 立即执行一次
+        
         // 页面加载完成
         console.log('🚀 AI-STACK V3.5 超级智能Agent已加载');
         console.log('💫 多模态智能交互系统 - 完全体');
+        console.log('✅ P0功能已启用：2秒响应优化、资源监控、文件生成');
     </script>
 </body>
 </html>

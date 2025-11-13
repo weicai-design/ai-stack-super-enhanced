@@ -32,6 +32,11 @@ const routes = [
     component: () => import('@/views/analytics/Output.vue')
   },
   {
+    path: '/analytics/eight-dimensions',
+    name: 'EightDimensions',
+    component: () => import('@/views/analytics/EightDimensions.vue')
+  },
+  {
     path: '/process/list',
     name: 'ProcessList',
     component: () => import('@/views/process/List.vue')

@@ -179,3 +179,8 @@ news_adapter = NewsAdapter()
 
 
 
+
+
+
+
+

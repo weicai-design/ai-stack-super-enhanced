@@ -36,6 +36,7 @@
             <el-menu-item index="/analytics/revenue">开源分析</el-menu-item>
             <el-menu-item index="/analytics/cost">成本分析</el-menu-item>
             <el-menu-item index="/analytics/output">产出效益</el-menu-item>
+            <el-menu-item index="/analytics/eight-dimensions">8维度分析</el-menu-item>
           </el-sub-menu>
           
           <el-sub-menu index="process">

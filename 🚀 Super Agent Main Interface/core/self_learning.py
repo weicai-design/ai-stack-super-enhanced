@@ -1,12 +1,16 @@
 """
 自我学习监控系统
 整合自🧠 Self Learning System/，融合到超级Agent
+集成工作流监控和资源自动调节功能
 """
 
 import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import json
+
+from .workflow_monitor import WorkflowMonitor
+from .resource_auto_adjuster import ResourceAutoAdjuster
 
 class SelfLearningMonitor:
     """
@@ -19,9 +23,10 @@ class SelfLearningMonitor:
     4. 将问题和解决方案存入RAG
     """
     
-    def __init__(self, rag_service=None, coding_assistant=None):
+    def __init__(self, rag_service=None, coding_assistant=None, resource_manager=None):
         self.rag_service = rag_service
         self.coding_assistant = coding_assistant
+        self.resource_manager = resource_manager
         self.workflow_logs = []
         self.problems = []
         self.solutions = []
@@ -31,6 +36,20 @@ class SelfLearningMonitor:
             self.coding_assistant_url = coding_assistant
         else:
             self.coding_assistant_url = None
+        
+        # 初始化工作流监控器
+        self.workflow_monitor = WorkflowMonitor(
+            rag_service=rag_service,
+            resource_manager=resource_manager
+        )
+        
+        # 初始化资源自动调节器
+        self.resource_adjuster = ResourceAutoAdjuster(
+            resource_manager=resource_manager
+        )
+        
+        # 启动后台监控任务
+        self._background_task = None
         
     async def monitor_workflow(self, workflow_data: Dict[str, Any]):
         """

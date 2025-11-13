@@ -11,10 +11,16 @@ class TaskManager {
     }
 
     init() {
+        // 检查元素是否存在
         const extractBtn = document.getElementById('extract-tasks');
-        extractBtn.addEventListener('click', () => this.extractTasks());
+        if (extractBtn) {
+            extractBtn.addEventListener('click', () => this.extractTasks());
+        }
         
-        this.loadTasks();
+        // 延迟加载，等待DOM完全加载
+        setTimeout(() => {
+            this.loadTasks();
+        }, 500);
     }
 
     async loadTasks() {
@@ -51,30 +57,23 @@ class TaskManager {
     }
 
     renderTasks() {
-        const tasksList = document.getElementById('tasks-list');
-        if (this.tasks.length === 0) {
-            tasksList.innerHTML = '<div class="empty-state">暂无任务</div>';
+        const tasksList = document.getElementById('task-list');
+        if (!tasksList) {
+            console.warn('任务列表元素不存在');
             return;
         }
-
-        tasksList.innerHTML = this.tasks.map(task => `
-            <div class="task-item" data-task-id="${task.id}">
-                <div class="task-header">
-                    <span class="task-title">${task.title}</span>
-                    ${task.needs_confirmation ? `
-                        <div class="task-actions">
-                            <button class="confirm-btn" onclick="taskManager.confirmTask(${task.id}, true)">✓</button>
-                            <button class="reject-btn" onclick="taskManager.confirmTask(${task.id}, false)">×</button>
-                        </div>
-                    ` : ''}
+        
+        // 如果API返回了数据，使用API数据
+        if (this.tasks.length > 0) {
+            tasksList.innerHTML = this.tasks.map(task => `
+                <div class="task-item" data-task-id="${task.id || ''}">
+                    <div class="task-title">${task.title || task.name || ''}</div>
+                    <div class="task-status ${task.status || 'executing'}">${this.getStatusText(task.status || 'executing')}</div>
+                    <div class="task-description">${task.description || task.desc || ''}</div>
                 </div>
-                <div class="task-description">${task.description}</div>
-                <div class="task-meta">
-                    <span class="task-status">${this.getStatusText(task.status)}</span>
-                    <span class="task-time">${new Date(task.created_at).toLocaleString()}</span>
-                </div>
-            </div>
-        `).join('');
+            `).join('');
+        }
+        // 否则保持HTML中的默认内容
     }
 
     async confirmTask(taskId, confirmed) {
@@ -101,12 +100,17 @@ class TaskManager {
 
     updateStats() {
         const pending = this.tasks.filter(t => t.status === 'pending' && t.needs_confirmation).length;
-        const inProgress = this.tasks.filter(t => t.status === 'in_progress').length;
+        const inProgress = this.tasks.filter(t => t.status === 'in_progress' || t.status === 'executing').length;
         const completed = this.tasks.filter(t => t.status === 'completed').length;
 
-        document.getElementById('pending-tasks').textContent = pending;
-        document.getElementById('in-progress-tasks').textContent = inProgress;
-        document.getElementById('completed-tasks').textContent = completed;
+        // 这些元素可能不存在，先检查
+        const pendingEl = document.getElementById('pending-tasks');
+        const inProgressEl = document.getElementById('in-progress-tasks');
+        const completedEl = document.getElementById('completed-tasks');
+        
+        if (pendingEl) pendingEl.textContent = pending;
+        if (inProgressEl) inProgressEl.textContent = inProgress;
+        if (completedEl) completedEl.textContent = completed;
     }
 
     getStatusText(status) {
