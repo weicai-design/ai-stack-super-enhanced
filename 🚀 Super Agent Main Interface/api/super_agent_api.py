@@ -426,31 +426,79 @@ async def confirm_plan(
 
 
 @router.post("/plans/{plan_id}/execute")
-async def execute_plan(plan_id: int):
-    """执行工作计划"""
+async def execute_plan(plan_id: int, concurrency: int = 2):
+    """执行工作计划（并发+依赖处理+简单重试）"""
     plan = next((p for p in task_planning.plans if p["id"] == plan_id), None)
     if not plan:
         raise HTTPException(status_code=404, detail="计划不存在")
-    
-    if plan["status"] != "confirmed":
-        raise HTTPException(status_code=400, detail="计划未确认")
-    
-    # 按顺序执行任务
-    execution_results = []
-    for task in plan["tasks"]:
-        if task.get("status") == "pending":
-            result = await task_planning.execute_task(task["id"])
-            execution_results.append(result)
-            
-            if not result.get("success"):
-                # 任务失败，停止执行
-                break
-    
+    # 若未确认则自动确认并将pending任务置为confirmed
+    if plan.get("status") != "confirmed":
+        plan["status"] = "confirmed"
+        plan["confirmed_at"] = datetime.now().isoformat()
+        for t in plan["tasks"]:
+            if t.get("status") == "pending":
+                t["status"] = "confirmed"
+    # 计划内任务ID集合
+    plan_task_ids = [t["id"] for t in plan["tasks"]]
+    id_to_task = {t["id"]: t for t in task_planning.tasks if t["id"] in plan_task_ids}
+    # 并发调度
+    import asyncio
+    sem = asyncio.Semaphore(max(1, min(10, concurrency)))
+    completed = set([tid for tid, t in id_to_task.items() if t.get("status") == "completed"])
+    failed: Dict[int, str] = {}
+    results: List[Dict[str, Any]] = []
+    in_progress: set[int] = set()
+
+    async def can_run(tid: int) -> bool:
+        t = id_to_task.get(tid) or {}
+        deps = t.get("dependencies") or []
+        return all((dep in completed) for dep in deps)
+
+    async def run_one(tid: int):
+        async with sem:
+            t = id_to_task.get(tid) or {}
+            max_retries = int(t.get("retries", 0) or 0)
+            backoff = float(t.get("retry_backoff_sec", 0.0) or 0.0)
+            attempt = 0
+            while True:
+                res = await task_planning.execute_task(tid)
+                results.append(res)
+                if res.get("success"):
+                    completed.add(tid)
+                    break
+                else:
+                    if attempt < max_retries:
+                        attempt += 1
+                        if backoff > 0:
+                            await asyncio.sleep(backoff * attempt)
+                        continue
+                    failed[tid] = res.get("error", "unknown")
+                    break
+
+    remaining = set(plan_task_ids) - completed
+    while remaining:
+        ready = [tid for tid in remaining if tid not in in_progress]
+        # 过滤依赖未满足的
+        ready = [tid for tid in ready if (await can_run(tid))]
+        if not ready and not in_progress:
+            break  # 阻塞
+        # 启动
+        import itertools
+        slots = max(0, max(1, min(concurrency, 10)) - len(in_progress))
+        for tid in itertools.islice(ready, 0, slots):
+            in_progress.add(tid)
+            asyncio.create_task(run_one(tid))
+        await asyncio.sleep(0.2)
+        # 清理已完成/失败
+        in_progress = {tid for tid in in_progress if tid not in completed and tid not in failed}
+        remaining = remaining - completed - set(failed.keys())
+
     return {
-        "success": True,
+        "success": True if not failed else False,
         "plan_id": plan_id,
-        "execution_results": execution_results,
-        "completed_tasks": len([r for r in execution_results if r.get("success")])
+        "completed_count": len(completed),
+        "failed": failed,
+        "results": results
     }
 
 

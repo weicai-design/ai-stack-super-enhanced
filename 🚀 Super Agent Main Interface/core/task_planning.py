@@ -464,6 +464,7 @@ class TaskPlanning:
         task["status"] = "in_progress"
         task["started_at"] = datetime.now().isoformat()
         task["progress"] = 0
+        task.setdefault("execution_log", [])
         
         # 执行任务步骤
         steps = task.get("steps", [])
@@ -474,34 +475,62 @@ class TaskPlanning:
             for step in sorted(steps, key=lambda x: x.get("order", 0)):
                 step_name = step.get("name", "未知步骤")
                 step_duration = step.get("estimated_duration", 0)
-                
-                try:
-                    # 执行步骤（这里可以调用实际的模块功能）
-                    # 根据任务类型和步骤名称路由到相应的执行器
-                    step_result = await self._execute_task_step(task, step)
-                    
-                    if step_result.get("success"):
-                        completed_steps += 1
-                        task["progress"] = int((completed_steps / total_steps) * 100)
-                    else:
-                        # 步骤失败，任务失败
+                # 重试控制
+                max_retries = int(step.get("retries", task.get("retries", 0)) or 0)
+                backoff = float(step.get("retry_backoff_sec", task.get("retry_backoff_sec", 0.0)) or 0.0)
+                attempt = 0
+                while True:
+                    try:
+                        step_result = await self._execute_task_step(task, step)
+                        # 记录日志
+                        task["execution_log"].append({
+                            "step": step_name,
+                            "attempt": attempt + 1,
+                            "success": step_result.get("success", False),
+                            "result": step_result.get("result"),
+                            "ts": datetime.now().isoformat()
+                        })
+                        if step_result.get("success"):
+                            completed_steps += 1
+                            task["progress"] = int((completed_steps / total_steps) * 100)
+                            break
+                        else:
+                            if attempt < max_retries:
+                                attempt += 1
+                                if backoff > 0:
+                                    import asyncio as _asyncio
+                                    await _asyncio.sleep(backoff * attempt)
+                                continue
+                            task["status"] = "failed"
+                            task["failed_at"] = datetime.now().isoformat()
+                            task["failure_reason"] = step_result.get("error", "步骤执行失败")
+                            return {
+                                "success": False,
+                                "error": f"步骤 '{step_name}' 执行失败",
+                                "task": task
+                            }
+                    except Exception as e:
+                        task["execution_log"].append({
+                            "step": step_name,
+                            "attempt": attempt + 1,
+                            "success": False,
+                            "error": str(e),
+                            "ts": datetime.now().isoformat()
+                        })
+                        if attempt < max_retries:
+                            attempt += 1
+                            if backoff > 0:
+                                import asyncio as _asyncio
+                                await _asyncio.sleep(backoff * attempt)
+                            continue
                         task["status"] = "failed"
                         task["failed_at"] = datetime.now().isoformat()
-                        task["failure_reason"] = step_result.get("error", "步骤执行失败")
+                        task["failure_reason"] = str(e)
                         return {
                             "success": False,
-                            "error": f"步骤 '{step_name}' 执行失败",
+                            "error": f"步骤 '{step_name}' 执行异常: {str(e)}",
                             "task": task
                         }
-                except Exception as e:
-                    task["status"] = "failed"
-                    task["failed_at"] = datetime.now().isoformat()
-                    task["failure_reason"] = str(e)
-                    return {
-                        "success": False,
-                        "error": f"步骤 '{step_name}' 执行异常: {str(e)}",
-                        "task": task
-                    }
         else:
             # 没有步骤，直接标记为完成
             task["progress"] = 100
