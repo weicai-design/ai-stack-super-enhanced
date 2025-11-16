@@ -820,6 +820,11 @@ class App {
                 const text = document.createElement('span');
                 text.className = 'activity-text';
                 text.textContent = `${t.id || ''} ${t.title || t.description || ''}`;
+                if (t.id !== undefined) {
+                    text.style.cursor = 'pointer';
+                    text.title = '点击查看任务详情';
+                    text.onclick = () => window.open(`task_detail.html?id=${encodeURIComponent(t.id)}`, '_blank');
+                }
                 const time = document.createElement('span');
                 time.className = 'activity-time';
                 time.textContent = t.created_at ? new Date(t.created_at).toLocaleTimeString('zh-CN', { hour12: false }) : '';

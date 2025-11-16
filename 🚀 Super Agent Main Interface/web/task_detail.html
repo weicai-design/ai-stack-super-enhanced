@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>任务详情</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <style>
+        .kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; margin: 8px 0; }
+        .kv div { padding: 4px 0; }
+        .log-item { border-left: 3px solid #4c8bf5; padding: 8px 12px; margin: 8px 0; background: #101010; }
+        .log-meta { color: #aaa; font-size: 12px; }
+        .section { margin-top: 16px; }
+        .badge { display:inline-block; padding:2px 6px; border-radius: 4px; background:#1e1e1e; margin-left:8px; font-size:12px; color:#bbb; }
+        .success { color:#26a269; }
+        .error { color:#e5534b; }
+        pre { background:#0d0d0d; color:#e6e6e6; padding:10px; overflow:auto; }
+    </style>
+</head>
+<body>
+    <div class="app-container" style="padding:16px;">
+        <h2>任务详情 <span id="taskTitle"></span></h2>
+        <div class="kv">
+            <div>任务ID</div><div id="taskId"></div>
+            <div>状态</div><div id="taskStatus"></div>
+            <div>优先级</div><div id="taskPriority"></div>
+            <div>来源</div><div id="taskSource"></div>
+            <div>创建时间</div><div id="taskCreated"></div>
+            <div>开始时间</div><div id="taskStarted"></div>
+            <div>完成时间</div><div id="taskCompleted"></div>
+            <div>进度</div><div id="taskProgress"></div>
+        </div>
+
+        <div class="section">
+            <h3>步骤与执行日志 <span class="badge" id="logCount">0</span></h3>
+            <div id="log"></div>
+        </div>
+
+        <div class="section">
+            <h3>复盘报告</h3>
+            <div id="retro">
+                <div class="kv">
+                    <div>是否成功</div><div id="retroSuccess">-</div>
+                    <div>总结</div><div id="retroSummary">-</div>
+                    <div>经验要点</div><div id="retroLessons">-</div>
+                    <div>指标</div><div><pre id="retroMetrics">-</pre></div>
+                    <div>复盘时间</div><div id="retroTs">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <button id="btnExec">执行任务</button>
+            <button id="btnRetro">填写复盘</button>
+        </div>
+    </div>
+    <script>
+        const API = '/api/super-agent';
+        const params = new URLSearchParams(location.search);
+        const idRaw = params.get('id');
+        const id = idRaw ? parseInt(idRaw, 10) : NaN;
+
+        function setText(id, text) { const el = document.getElementById(id); if (el) el.textContent = text ?? ''; }
+        async function load() {
+            if (!Number.isFinite(id)) { alert('缺少任务ID'); return; }
+            // 规划任务详情
+            const r = await fetch(`${API}/planning/tasks/${id}`);
+            const data = await r.json();
+            if (!data.task) { alert('未找到任务'); return; }
+            const t = data.task;
+            setText('taskTitle', t.title || '');
+            setText('taskId', String(t.id));
+            setText('taskStatus', t.status || '');
+            setText('taskPriority', t.priority || '');
+            setText('taskSource', t.source || 'memo');
+            setText('taskCreated', t.created_at || '');
+            setText('taskStarted', t.started_at || '-');
+            setText('taskCompleted', t.completed_at || '-');
+            setText('taskProgress', (t.progress ?? 0) + '%');
+            // 日志
+            const log = document.getElementById('log');
+            log.innerHTML = '';
+            const logs = (t.execution_log || []).slice().reverse();
+            document.getElementById('logCount').textContent = String(logs.length);
+            if (logs.length === 0) {
+                log.innerHTML = '<div class="log-item">暂无执行日志</div>';
+            } else {
+                logs.forEach(l => {
+                    const div = document.createElement('div');
+                    div.className = 'log-item';
+                    const ok = l.success ? 'success' : 'error';
+                    div.innerHTML = `
+                        <div><strong>${l.step || ''}</strong> <span class="${ok}">(${l.success ? '成功' : '失败'})</span></div>
+                        <div class="log-meta">尝试：${l.attempt || 1} · 时间：${l.ts || ''}</div>
+                        <div>${l.result || l.error || ''}</div>
+                    `;
+                    log.appendChild(div);
+                });
+            }
+            // 复盘
+            const retro = t.retrospect || {};
+            setText('retroSuccess', retro.success === true ? '是' : (retro.success === false ? '否' : '-'));
+            setText('retroSummary', retro.summary || '-');
+            setText('retroLessons', (retro.lessons || []).join('，') || '-');
+            document.getElementById('retroMetrics').textContent = JSON.stringify(retro.metrics || {}, null, 2);
+            setText('retroTs', retro.retrospected_at || '-');
+        }
+        document.getElementById('btnExec').onclick = async () => {
+            if (!Number.isFinite(id)) return;
+            const r = await fetch(`${API}/tasks/${id}/execute`, { method: 'POST' });
+            const data = await r.json();
+            if (r.ok && data.success) { alert('已执行'); load(); } else { alert('执行失败：' + (data.detail || data.error || '未知')); }
+        };
+        document.getElementById('btnRetro').onclick = async () => {
+            if (!Number.isFinite(id)) return;
+            const success = confirm('任务是否成功？确定=成功，取消=失败');
+            const summary = prompt('请输入复盘总结：', '') || '';
+            const lessonsRaw = prompt('请输入经验要点（用中文逗号分隔）：', '') || '';
+            const lessons = lessonsRaw ? lessonsRaw.split('，').map(s => s.trim()).filter(Boolean) : [];
+            const r = await fetch(`${API}/tasks/${id}/retrospect`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ success, summary, lessons, metrics: {} })
+            });
+            const data = await r.json();
+            if (r.ok && data.success) { alert('已保存复盘'); load(); } else { alert('复盘失败：' + (data.detail || '未知')); }
+        };
+        load();
+    </script>
+</body>
+</html>
+

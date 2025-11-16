@@ -796,6 +796,15 @@ async def list_tasks():
     orchestrator = _get_task_orchestrator()
     return {"tasks": orchestrator.list_tasks()}
 
+@router.get("/tasks/{task_id}")
+async def get_task_detail(task_id: str):
+    """获取编排任务详情（Orchestrator管理的任务）"""
+    orchestrator = _get_task_orchestrator()
+    data = orchestrator.get_task(task_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return {"task": data}
+
 
 @router.post("/tasks")
 async def create_task(request: TaskCreateRequest):
@@ -823,6 +832,13 @@ async def update_task_status(task_id: str, request: TaskStatusUpdateRequest):
         raise HTTPException(status_code=404, detail="任务不存在")
     return {"task": task}
 
+@router.get("/planning/tasks/{task_id}")
+async def get_planning_task_detail(task_id: int):
+    """获取规划系统中的任务详情（包含执行日志/复盘等）"""
+    task = next((t for t in task_planning.tasks if t.get("id") == task_id), None)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return {"task": task}
 
 @router.get("/erp/demo/dashboard")
 async def get_demo_dashboard():
