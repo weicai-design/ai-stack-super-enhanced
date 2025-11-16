@@ -14,6 +14,7 @@ class App {
         this.taskPageSize = 10;
         this.taskPageOrch = 1;
         this.taskPagePlan = 1;
+        this.selectedPlanTaskIds = new Set();
         
         // 立即初始化
         this.init();
@@ -283,6 +284,15 @@ class App {
         const nextBtn = document.getElementById('task-next');
         if (prevBtn) prevBtn.onclick = (e) => { e.preventDefault(); if (this.taskPage > 1) { this.taskPage--; this.refreshTasks(true); } };
         if (nextBtn) nextBtn.onclick = (e) => { e.preventDefault(); this.taskPage++; this.refreshTasks(true); };
+        // 批量操作
+        const bulkSel = document.getElementById('task-bulk-select-all');
+        const bulkClr = document.getElementById('task-bulk-clear');
+        const bulkCfm = document.getElementById('task-bulk-confirm');
+        const bulkExe = document.getElementById('task-bulk-execute');
+        if (bulkSel) bulkSel.onclick = (e) => { e.preventDefault(); this.bulkSelectCurrentPage(); };
+        if (bulkClr) bulkClr.onclick = (e) => { e.preventDefault(); this.selectedPlanTaskIds.clear(); this.updateBulkCount(); this.refreshTasks(true); };
+        if (bulkCfm) bulkCfm.onclick = async (e) => { e.preventDefault(); await this.bulkConfirm(true); };
+        if (bulkExe) bulkExe.onclick = async (e) => { e.preventDefault(); await this.bulkExecute(); };
         
         this.isInitialized = true;
         console.log('✅✅✅ 应用初始化完成！');
@@ -983,6 +993,13 @@ class App {
             planPage.forEach(t => {
                 const item = document.createElement('div');
                 item.className = 'activity-item';
+                // 勾选框（批量）
+                const sel = document.createElement('input');
+                sel.type = 'checkbox';
+                sel.checked = this.selectedPlanTaskIds.has(t.id);
+                sel.style.marginRight = '6px';
+                sel.onchange = () => { if (sel.checked) { this.selectedPlanTaskIds.add(t.id); } else { this.selectedPlanTaskIds.delete(t.id); } this.updateBulkCount(); };
+                item.appendChild(sel);
                 const icon = document.createElement('span');
                 icon.className = 'activity-icon';
                 icon.textContent = t.status === 'completed' ? '✅' : (t.needs_confirmation ? '⏳' : '📋');
@@ -1068,6 +1085,54 @@ class App {
         } catch (e) {
             // 静默
         }
+    }
+    updateBulkCount() {
+        const el = document.getElementById('task-bulk-count');
+        if (el) el.textContent = `已选 ${this.selectedPlanTaskIds.size} 项`;
+    }
+    bulkSelectCurrentPage() {
+        // 选中当前页“规划任务”区域展示的复选框
+        const listEl = document.getElementById('task-list');
+        if (!listEl) return;
+        const checkboxes = Array.from(listEl.querySelectorAll('.activity-item input[type="checkbox"]'));
+        checkboxes.forEach(cb => { cb.checked = true; });
+        // 收集ID（从相邻文本里解析或绑定自定义属性）
+        const items = Array.from(listEl.querySelectorAll('.activity-item'));
+        items.forEach(it => {
+            const text = it.querySelector('.activity-text');
+            if (!text) return;
+            const parts = (text.textContent || '').trim().split(' ');
+            const idStr = parts[0] || '';
+            const idNum = Number(idStr);
+            if (!Number.isNaN(idNum)) this.selectedPlanTaskIds.add(idNum);
+        });
+        this.updateBulkCount();
+    }
+    async bulkConfirm(confirmed) {
+        if (this.selectedPlanTaskIds.size === 0) { alert('请先选择任务'); return; }
+        const ids = Array.from(this.selectedPlanTaskIds);
+        for (const id of ids) {
+            try {
+                await fetch(`${API_BASE}/tasks/${id}/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirmed, reason: '' })
+                });
+            } catch (_) {}
+        }
+        this.addActivity('📋', `批量${confirmed ? '确认' : '拒绝'} ${ids.length} 项`);
+        this.refreshTasks(true);
+    }
+    async bulkExecute() {
+        if (this.selectedPlanTaskIds.size === 0) { alert('请先选择任务'); return; }
+        const ids = Array.from(this.selectedPlanTaskIds);
+        for (const id of ids) {
+            try {
+                await fetch(`${API_BASE}/tasks/${id}/execute`, { method: 'POST' });
+            } catch (_) {}
+        }
+        this.addActivity('⚙️', `批量执行 ${ids.length} 项`);
+        this.refreshTasks(true);
     }
 
     async pushStepsToOrchestratorInline(orchestratorTaskId) {
