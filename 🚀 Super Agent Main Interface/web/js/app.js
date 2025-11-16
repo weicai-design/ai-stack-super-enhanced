@@ -10,6 +10,8 @@ class App {
         this.currentModule = null;
         this.isInitialized = false;
         this.latestSecurityEventId = null;
+        this.taskPage = 1;
+        this.taskPageSize = 10;
         
         // 立即初始化
         this.init();
@@ -260,11 +262,25 @@ class App {
                 e.preventDefault();
                 const q = document.getElementById('task-filter-q'); if (q) q.value = '';
                 const s = document.getElementById('task-filter-status'); if (s) s.value = '';
+                this.taskPage = 1;
                 this.refreshTasks(true);
             };
             resetBtn.onclick = handler;
             resetBtn.addEventListener('click', handler);
         }
+        // 分页
+        const sizeSel = document.getElementById('task-page-size');
+        if (sizeSel) {
+            sizeSel.addEventListener('change', () => {
+                this.taskPageSize = parseInt(sizeSel.value || '10', 10);
+                this.taskPage = 1;
+                this.refreshTasks(true);
+            });
+        }
+        const prevBtn = document.getElementById('task-prev');
+        const nextBtn = document.getElementById('task-next');
+        if (prevBtn) prevBtn.onclick = (e) => { e.preventDefault(); if (this.taskPage > 1) { this.taskPage--; this.refreshTasks(true); } };
+        if (nextBtn) nextBtn.onclick = (e) => { e.preventDefault(); this.taskPage++; this.refreshTasks(true); };
         
         this.isInitialized = true;
         console.log('✅✅✅ 应用初始化完成！');
@@ -839,6 +855,21 @@ class App {
                 orchTasks = orchTasks.filter(t => contains(t.task_id) || contains(t.title) || contains(t.status));
                 tasks = tasks.filter(t => contains(t.id) || contains(t.title) || contains(t.description) || contains(t.status));
             }
+            // 分页应用到每个区块
+            const pageSize = this.taskPageSize || 10;
+            const page = Math.max(1, this.taskPage || 1);
+            const orchTotalPages = Math.max(1, Math.ceil(orchTasks.length / pageSize));
+            const planTotalPages = Math.max(1, Math.ceil(tasks.length / pageSize));
+            const totalPages = Math.max(orchTotalPages, planTotalPages);
+            const pageInfo = document.getElementById('task-pageinfo');
+            if (pageInfo) pageInfo.textContent = `第 ${Math.min(page, totalPages)} / ${totalPages} 页`;
+            const sliceByPage = (arr) => {
+                const p = Math.min(page, Math.max(1, Math.ceil(arr.length / pageSize)));
+                const start = (p - 1) * pageSize;
+                return arr.slice(start, start + pageSize);
+            };
+            const orchPage = sliceByPage(orchTasks);
+            const planPage = sliceByPage(tasks);
             listEl.innerHTML = '';
             if (orchTasks.length === 0 && tasks.length === 0) {
                 const empty = document.createElement('div');
@@ -853,7 +884,7 @@ class App {
             headerOrch.style.fontWeight = '600';
             headerOrch.textContent = '编排器任务';
             listEl.appendChild(headerOrch);
-            orchTasks.slice(-6).reverse().forEach(t => {
+            orchPage.forEach(t => {
                 const item = document.createElement('div');
                 item.className = 'activity-item';
                 const icon = document.createElement('span');
@@ -871,8 +902,42 @@ class App {
                 item.appendChild(icon);
                 item.appendChild(text);
                 item.appendChild(time);
+                // 状态彩色标签
+                const statusTag = document.createElement('span');
+                statusTag.className = 'tag';
+                statusTag.textContent = t.status || 'unknown';
+                statusTag.style.marginLeft = '8px';
+                statusTag.style.border = '1px solid #333';
+                statusTag.style.padding = '2px 6px';
+                statusTag.style.borderRadius = '999px';
+                statusTag.style.background = (t.status==='completed'?'#0b3d0b':t.status==='in_progress'?'#10345a':t.status==='blocked'?'#5a1010':'#262626');
+                item.appendChild(statusTag);
                 const actions = document.createElement('div');
                 actions.style.marginTop = '4px';
+                // 简易进度（基于执行历史步数推测）
+                const hist = (t.metadata && Array.isArray(t.metadata.execution_history)) ? t.metadata.execution_history : [];
+                const totalSteps = t.metadata && t.metadata.total_steps ? Number(t.metadata.total_steps) : null;
+                let percent = null;
+                if (totalSteps && totalSteps > 0) {
+                    percent = Math.min(100, Math.floor((hist.length / totalSteps) * 100));
+                } else if (hist.length > 0) {
+                    percent = Math.min(95, hist.length * 20); // 估算
+                }
+                if (percent !== null) {
+                    const barWrap = document.createElement('div');
+                    barWrap.style.margin = '4px 0';
+                    barWrap.style.background = '#1a1a1a';
+                    barWrap.style.border = '1px solid #333';
+                    barWrap.style.height = '8px';
+                    barWrap.style.borderRadius = '4px';
+                    const bar = document.createElement('div');
+                    bar.style.height = '100%';
+                    bar.style.width = `${percent}%`;
+                    bar.style.background = '#7fbf4d';
+                    bar.style.borderRadius = '4px';
+                    barWrap.appendChild(bar);
+                    actions.appendChild(barWrap);
+                }
                 const btnD = document.createElement('button');
                 btnD.className = 'action-btn-small';
                 btnD.textContent = '详情';
@@ -887,7 +952,7 @@ class App {
             headerPlan.style.fontWeight = '600';
             headerPlan.textContent = '规划任务';
             listEl.appendChild(headerPlan);
-            tasks.slice(-8).reverse().forEach(t => {
+            planPage.forEach(t => {
                 const item = document.createElement('div');
                 item.className = 'activity-item';
                 const icon = document.createElement('span');
@@ -910,6 +975,16 @@ class App {
                 // 操作区
                 const actions = document.createElement('div');
                 actions.style.marginTop = '4px';
+                // 状态彩色标签
+                const statusTag2 = document.createElement('span');
+                statusTag2.className = 'tag';
+                statusTag2.textContent = t.status || 'unknown';
+                statusTag2.style.marginLeft = '8px';
+                statusTag2.style.border = '1px solid #333';
+                statusTag2.style.padding = '2px 6px';
+                statusTag2.style.borderRadius = '999px';
+                statusTag2.style.background = (t.status==='completed'?'#0b3d0b':t.status==='in_progress'?'#10345a':t.status==='blocked'?'#5a1010':'#262626');
+                actions.appendChild(statusTag2);
                 // 进度条
                 if (typeof t.progress === 'number') {
                     const barWrap = document.createElement('div');

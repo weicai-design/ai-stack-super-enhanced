@@ -219,6 +219,18 @@
                         <button class="action-btn-small" id="task-filter-apply">筛选</button>
                         <button class="action-btn-small" id="task-filter-reset">重置</button>
                     </div>
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                        <label class="small">每页</label>
+                        <select id="task-page-size" style="width:80px;">
+                            <option value="6">6</option>
+                            <option value="8">8</option>
+                            <option value="10" selected>10</option>
+                            <option value="12">12</option>
+                        </select>
+                        <button class="action-btn-small" id="task-prev">上一页</button>
+                        <span id="task-pageinfo" class="small">第 1 页</span>
+                        <button class="action-btn-small" id="task-next">下一页</button>
+                    </div>
                     <div id="task-list" class="task-list">
                         <div class="activity-item">加载中...</div>
                     </div>
