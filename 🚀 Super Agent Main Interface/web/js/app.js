@@ -1115,6 +1115,11 @@ class App {
             }
             this.addActivity('🧩', `已推送步骤到 ${orchestratorTaskId}（total_steps=${(data.task && data.task.metadata && data.task.metadata.total_steps) || '未知'}）`);
             this.refreshTasks(true);
+            // 成功后询问是否打开详情页
+            const go = confirm('步骤已推送，是否立即打开该任务详情查看？');
+            if (go) {
+                window.open(`task_detail.html?oid=${encodeURIComponent(orchestratorTaskId)}`, '_blank');
+            }
         } catch (e) {
             alert('推送异常：' + e.message);
         }
