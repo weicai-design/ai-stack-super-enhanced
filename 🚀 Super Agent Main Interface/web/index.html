@@ -44,6 +44,10 @@
                             <span class="nav-icon">📚</span>
                             <span class="nav-label">RAG知识库</span>
                         </button>
+                        <button class="nav-btn" data-module="rag-tools">
+                            <span class="nav-icon">🛠️</span>
+                            <span class="nav-label">RAG工具</span>
+                        </button>
                         <button class="nav-btn" data-module="erp">
                             <span class="nav-icon">💼</span>
                             <span class="nav-label">ERP管理</span>
@@ -129,6 +133,21 @@
             <!-- 右侧信息面板 -->
             <aside class="info-panel">
                 <div class="panel-section">
+                    <h3 class="panel-title">终端（沙盒）</h3>
+                    <div class="terminal-panel">
+                        <div class="terminal-input-row">
+                            <input id="terminal-cwd" class="terminal-cwd" type="text" placeholder="工作目录（可选）" />
+                            <input id="terminal-command" class="terminal-input" type="text" placeholder="输入白名单命令，例如：ls -la" />
+                            <button id="terminal-run" class="action-btn-small">运行</button>
+                        </div>
+                        <pre id="terminal-output" class="terminal-output">// 输出将在此显示</pre>
+                        <div class="terminal-actions">
+                            <button id="terminal-clear" class="action-btn-small">清屏</button>
+                            <button id="terminal-history-btn" class="action-btn-small">历史</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-section">
                     <h3 class="panel-title">系统状态</h3>
                     <div class="status-grid">
                         <div class="status-item">
@@ -161,6 +180,22 @@
                         <button class="action-btn-small" id="quick-memo">📝 创建备忘录</button>
                         <button class="action-btn-small" id="quick-task">📋 新建任务</button>
                         <button class="action-btn-small" id="quick-file">📄 生成文件</button>
+                        <button class="action-btn-small" id="quick-trial">🧮 运营试算</button>
+                        <button class="action-btn-small" id="quick-douyin">🎬 抖音草稿</button>
+                        <button class="action-btn-small" id="quick-cursor">💻 Cursor桥接</button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3 class="panel-title">终端安全监控</h3>
+                    <div class="security-panel">
+                        <div class="security-status-row">
+                            <span class="security-status" id="terminal-security-status">待监控</span>
+                            <button class="security-refresh" id="terminal-security-refresh">刷新</button>
+                        </div>
+                        <div class="security-event-list" id="terminal-event-list">
+                            <div class="security-empty">暂无命令记录</div>
+                        </div>
                     </div>
                 </div>
 

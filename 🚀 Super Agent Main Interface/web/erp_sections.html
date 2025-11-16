@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ERP 关键三级页（最小可用）</title>
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <div class="app-container" style="padding:16px;">
+        <h2>ERP 关键三级页（最小可用）</h2>
+        <div style="margin:8px 0;">
+            <button onclick="loadOrders()">订单</button>
+            <button onclick="loadJobs()">生产工单</button>
+            <button onclick="loadProcs()">采购预警</button>
+            <button onclick="loadDash()">综合看板</button>
+        </div>
+        <pre id="out" style="height:70vh; overflow:auto; background:#111; color:#eee; padding:12px;"></pre>
+    </div>
+    <script>
+        const API = '/api/super-agent';
+        const out = document.getElementById('out');
+        async function loadOrders() {
+            const r = await fetch(`${API}/erp/demo/orders`);
+            out.textContent = JSON.stringify(await r.json(), null, 2);
+        }
+        async function loadJobs() {
+            const r = await fetch(`${API}/erp/demo/production-jobs`);
+            out.textContent = JSON.stringify(await r.json(), null, 2);
+        }
+        async function loadProcs() {
+            const r = await fetch(`${API}/erp/demo/procurements`);
+            out.textContent = JSON.stringify(await r.json(), null, 2);
+        }
+        async function loadDash() {
+            const r = await fetch(`${API}/erp/demo/dashboard`);
+            out.textContent = JSON.stringify(await r.json(), null, 2);
+        }
+    </script>
+</body>
+</html>
+

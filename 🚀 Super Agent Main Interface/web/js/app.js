@@ -9,6 +9,7 @@ class App {
         this.messages = [];
         this.currentModule = null;
         this.isInitialized = false;
+        this.latestSecurityEventId = null;
         
         // 立即初始化
         this.init();
@@ -164,6 +165,72 @@ class App {
             quickFile.onclick = () => this.generateFile();
             quickFile.addEventListener('click', () => this.generateFile());
         }
+        const quickTrial = document.getElementById('quick-trial');
+        if (quickTrial) {
+            const handler = async () => {
+                await this.openTrialDialog();
+            };
+            quickTrial.onclick = handler;
+            quickTrial.addEventListener('click', handler);
+        }
+        const quickDouyin = document.getElementById('quick-douyin');
+        if (quickDouyin) {
+            const handler = async () => {
+                await this.openDouyinDraftDialog();
+            };
+            quickDouyin.onclick = handler;
+            quickDouyin.addEventListener('click', handler);
+        }
+        const quickCursor = document.getElementById('quick-cursor');
+        if (quickCursor) {
+            const handler = async () => {
+                await this.cursorQuickActions();
+            };
+            quickCursor.onclick = handler;
+            quickCursor.addEventListener('click', handler);
+        }
+
+        // 终端运行绑定
+        const termRun = document.getElementById('terminal-run');
+        const termClear = document.getElementById('terminal-clear');
+        const termHistoryBtn = document.getElementById('terminal-history-btn');
+        if (termRun) {
+            const handler = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.runTerminalCommand();
+            };
+            termRun.onclick = handler;
+            termRun.addEventListener('click', handler);
+        }
+        if (termClear) {
+            const handler = (e) => {
+                e.preventDefault();
+                const out = document.getElementById('terminal-output');
+                if (out) out.textContent = '';
+            };
+            termClear.onclick = handler;
+            termClear.addEventListener('click', handler);
+        }
+        if (termHistoryBtn) {
+            const handler = async (e) => {
+                e.preventDefault();
+                await this.showTerminalHistory();
+            };
+            termHistoryBtn.onclick = handler;
+            termHistoryBtn.addEventListener('click', handler);
+        }
+
+        const securityRefreshBtn = document.getElementById('terminal-security-refresh');
+        if (securityRefreshBtn) {
+            const handler = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.updateTerminalSecurity(true);
+            };
+            securityRefreshBtn.onclick = handler;
+            securityRefreshBtn.addEventListener('click', handler);
+        }
         
         // 模型选择器
         const modelSelector = document.getElementById('model-selector');
@@ -174,6 +241,8 @@ class App {
         // 更新系统状态
         this.updateSystemStatus();
         setInterval(() => this.updateSystemStatus(), 5000);
+        this.updateTerminalSecurity(true);
+        setInterval(() => this.updateTerminalSecurity(), 4000);
         
         this.isInitialized = true;
         console.log('✅✅✅ 应用初始化完成！');
@@ -294,6 +363,16 @@ class App {
                             this.playTTS(result.response, this.ttsLanguage);
                         }
                         
+                        // RAG双检索摘要提示
+                        if (result.rag_retrievals) {
+                            const firstCount = (result.rag_retrievals.first?.knowledge?.length) || (result.rag_retrievals.first?.count) || 0;
+                            const secondExp = (result.rag_retrievals.second?.experience?.length) || 0;
+                            const secondCases = (result.rag_retrievals.second?.similar_cases?.length) || 0;
+                            const secondBest = (result.rag_retrievals.second?.best_practices?.length) || 0;
+                            const summary = `📚 RAG检索摘要：首检${firstCount}条；二检 经验${secondExp} / 案例${secondCases} / 最佳实践${secondBest}`;
+                            this.addMessage('assistant', summary);
+                        }
+
                         // 检查是否需要显示弹窗（如备忘录创建）
                         if (result.memo_created && window.modalSystem) {
                             window.modalSystem.showSystemNotification(
@@ -393,6 +472,8 @@ class App {
             window.open('http://localhost:8011/rag-management', '_blank');
         } else if (module === 'erp') {
             window.open('http://localhost:8012', '_blank');
+        } else if (module === 'rag-tools') {
+            window.open('erp_bpmn.html'.replace('erp_bpmn','rag_tools'), '_blank');
         }
     }
     
@@ -663,6 +744,175 @@ class App {
         this.addMessage('assistant', '任务管理功能开发中...');
     }
     
+    async runTerminalCommand() {
+        const cmdInput = document.getElementById('terminal-command');
+        const cwdInput = document.getElementById('terminal-cwd');
+        const out = document.getElementById('terminal-output');
+        const command = (cmdInput?.value || '').trim();
+        const cwd = (cwdInput?.value || '').trim() || null;
+        if (!command) {
+            this.addActivity('🛠️', '请输入命令');
+            return;
+        }
+        if (out) {
+            out.textContent += `\n$ ${command}\n`;
+        }
+        try {
+            const resp = await fetch(`${API_BASE}/terminal/execute`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command, timeout: 30, cwd })
+            });
+            if (resp.ok) {
+                const result = await resp.json();
+                if (out) {
+                    if (result.stdout) out.textContent += result.stdout + '\n';
+                    if (result.stderr) out.textContent += result.stderr + '\n';
+                }
+                this.addActivity(result.success ? '🖥️' : '⚠️', `终端：${command}`);
+            } else {
+                if (out) out.textContent += `执行失败：HTTP ${resp.status}\n`;
+            }
+        } catch (e) {
+            if (out) out.textContent += `执行异常：${e.message}\n`;
+        }
+    }
+
+    async openDouyinDraftDialog() {
+        try {
+            // 检查授权状态
+            let r = await fetch(`${API_BASE}/douyin/status`);
+            let s = await r.json();
+            if (!s.authorized) {
+                const go = confirm('抖音未授权，是否进行授权（模拟）？');
+                if (go) {
+                    const auth = await fetch(`${API_BASE}/douyin/begin-auth`, { method: 'POST' });
+                    if (auth.ok) {
+                        this.addMessage('assistant', '🎬 抖音授权完成（模拟）。');
+                    }
+                } else {
+                    return;
+                }
+            }
+            const title = prompt('输入草稿标题：', '我的视频草稿');
+            if (!title) return;
+            const content = prompt('输入草稿正文（用于合规检测）：', '');
+            if (!content) return;
+            const minOriginality = parseFloat(prompt('最低原创度（0-100，默认60）：', '60') || '60');
+
+            const resp = await fetch(`${API_BASE}/douyin/create-draft`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title,
+                    content,
+                    tags: [],
+                    references: [],
+                    min_originality: isNaN(minOriginality) ? 60 : minOriginality,
+                    block_sensitive: true
+                })
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+                this.addMessage('assistant', `❌ 草稿创建失败：${data.detail || '未知错误'}`);
+                return;
+            }
+            if (data.blocked) {
+                this.addMessage('assistant', `⛔ 已拦截草稿发布：${data.reason}\n原创度：${data.compliance?.originality_percent}% 敏感词：${(data.compliance?.sensitive_hits||[]).join(',')}`);
+                return;
+            }
+            this.addMessage('assistant', `✅ 草稿创建成功（模拟）：${data.draft?.draft_id}\n原创度：${data.compliance?.originality_percent}%`);
+            this.addActivity('🎬', '抖音草稿已创建');
+        } catch (e) {
+            this.addMessage('assistant', `❌ 抖音草稿失败：${e.message}`);
+        }
+    }
+
+    async cursorQuickActions() {
+        try {
+            const st = await (await fetch(`${API_BASE}/coding/cursor/status`)).json();
+            if (!st.available) {
+                this.addMessage('assistant', '❌ 未检测到Cursor可用，请确认本机已安装。');
+                return;
+            }
+            const action = prompt('Cursor操作：\n1. 打开文件\n2. 打开项目\n3. 代码补全\n4. 语法检查\n（输入数字）', '1');
+            if (!action) return;
+            if (action === '1') {
+                const fp = prompt('输入文件绝对路径：', '');
+                if (!fp) return;
+                const ln = parseInt(prompt('行号（可选）', ''), 10);
+                const r = await fetch(`${API_BASE}/coding/cursor/open-file`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_path: fp, line_number: isNaN(ln) ? null : ln })
+                });
+                const data = await r.json();
+                this.addMessage('assistant', r.ok ? `✅ ${data.message || '已打开'}` : `❌ 打开失败：${data.detail || '未知错误'}`);
+            } else if (action === '2') {
+                const pp = prompt('输入项目根目录绝对路径：', '');
+                if (!pp) return;
+                const r = await fetch(`${API_BASE}/coding/cursor/open-project`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ project_path: pp })
+                });
+                const data = await r.json();
+                this.addMessage('assistant', r.ok ? `✅ ${data.message || '项目已打开'}` : `❌ 打开失败：${data.detail || '未知错误'}`);
+            } else if (action === '3') {
+                const fp = prompt('文件路径：', '');
+                const ln = parseInt(prompt('行号：', '1'), 10);
+                const col = parseInt(prompt('列号：', '1'), 10);
+                if (!fp || isNaN(ln) || isNaN(col)) return;
+                const r = await fetch(`${API_BASE}/coding/cursor/completion`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_path: fp, line_number: ln, column: col })
+                });
+                const data = await r.json();
+                if (r.ok) {
+                    const suggestions = (data.suggestions || []).map(s => s.text).join(', ');
+                    this.addMessage('assistant', `💡 补全建议：${suggestions || '无'}`);
+                } else {
+                    this.addMessage('assistant', `❌ 补全失败：${data.detail || '未知错误'}`);
+                }
+            } else if (action === '4') {
+                const fp = prompt('文件路径：', '');
+                if (!fp) return;
+                const r = await fetch(`${API_BASE}/coding/cursor/detect-errors`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_path: fp })
+                });
+                const data = await r.json();
+                if (r.ok) {
+                    this.addMessage('assistant', `🔍 错误：${data.error_count}，警告：${data.warning_count}`);
+                } else {
+                    this.addMessage('assistant', `❌ 检查失败：${data.detail || '未知错误'}`);
+                }
+            }
+        } catch (e) {
+            this.addMessage('assistant', `❌ Cursor操作失败：${e.message}`);
+        }
+    }
+
+    async showTerminalHistory() {
+        const out = document.getElementById('terminal-output');
+        try {
+            const resp = await fetch(`${API_BASE}/terminal/history?limit=10`);
+            if (!resp.ok) return;
+            const payload = await resp.json();
+            const history = payload.history || [];
+            if (out) {
+                out.textContent += '\n== 命令历史 ==\n';
+                history.forEach(h => {
+                    out.textContent += `[${h.timestamp}] ${h.command} (${h.success ? '成功' : '失败'})\n`;
+                });
+            }
+        } catch (e) {
+            if (out) out.textContent += `获取历史失败：${e.message}\n`;
+        }
+    }
+
     async generateFile() {
         console.log('📄 生成文件');
         
@@ -738,6 +988,48 @@ class App {
             console.error('文件生成失败:', error);
             this.removeMessage(loadingId);
             this.addMessage('assistant', `❌ 文件生成失败: ${error.message}`);
+        }
+    }
+
+    async openTrialDialog() {
+        const mode = prompt('运营试算：\n1. 按周营收目标试算（输入金额）\n2. 按日产能试算（输入件数）\n\n请输入 1 或 2：', '1');
+        if (!mode) return;
+        const productCode = prompt('请输入产品编码（可选）：', '') || null;
+        try {
+            let body = { product_code: productCode };
+            if (mode.trim() === '1') {
+                const rev = prompt('请输入周营收目标金额（数字）：', '');
+                if (!rev) return;
+                body.target_weekly_revenue = parseFloat(rev);
+            } else {
+                const units = prompt('请输入目标日产量（件）：', '');
+                if (!units) return;
+                body.target_daily_units = parseInt(units, 10);
+            }
+            const resp = await fetch(`${API_BASE}/erp/trial/calc`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                let msg = '🧮 试算结果：\n';
+                if (data.trial?.type === 'by_weekly_revenue') {
+                    msg += `建议日产量：${data.trial.required_units_per_day} 件（按单价 ${data.product?.unit_price} 元，7天周）`;
+                } else if (data.trial?.type === 'by_daily_units') {
+                    msg += `预计周营收：¥${data.trial.expected_weekly_revenue}`;
+                } else if (data.trial?.type === 'by_order_quantity') {
+                    msg += `按订单数量倒算建议日产量：${data.trial.required_units_per_day} 件（可用天数 ${data.trial.assumptions?.available_days}）`;
+                } else {
+                    msg += data.trial?.message || '参数不足，无法计算';
+                }
+                this.addMessage('assistant', msg);
+                this.addActivity('🧮', '运营试算完成');
+            } else {
+                this.addMessage('assistant', `❌ 试算失败：HTTP ${resp.status}`);
+            }
+        } catch (e) {
+            this.addMessage('assistant', `❌ 试算失败：${e.message}`);
         }
     }
     
@@ -847,6 +1139,74 @@ class App {
             }
         } catch (error) {
             // 静默失败，不影响主功能
+        }
+    }
+
+    async updateTerminalSecurity(force = false) {
+        const statusEl = document.getElementById('terminal-security-status');
+        const listEl = document.getElementById('terminal-event-list');
+        if (!statusEl || !listEl) return;
+
+        try {
+            const response = await fetch(`${API_BASE}/workflow/system-events?event_type=terminal_command&limit=5`);
+            if (!response.ok) return;
+            const payload = await response.json();
+            const events = payload.events || [];
+            listEl.innerHTML = '';
+
+            if (events.length === 0) {
+                statusEl.textContent = '待监控';
+                statusEl.classList.remove('alert');
+                listEl.innerHTML = '<div class="security-empty">暂无命令记录</div>';
+                return;
+            }
+
+            const latest = events[0];
+            statusEl.textContent = latest.success ? '安全' : '异常';
+            statusEl.classList.toggle('alert', !latest.success);
+
+            events.forEach((event) => {
+                const item = document.createElement('div');
+                item.className = `security-event ${event.success ? 'success' : 'error'}`;
+
+                const header = document.createElement('div');
+                header.className = 'event-header';
+                const time = new Date(event.timestamp).toLocaleTimeString('zh-CN', { hour12: false });
+                header.innerHTML = `<span>${time}</span><span>${event.data?.phase || ''}</span>`;
+
+                const command = document.createElement('div');
+                command.className = 'event-command';
+                command.textContent = event.data?.command || '';
+
+                const meta = document.createElement('div');
+                meta.className = 'event-meta';
+                const returnCode = event.data?.metadata?.return_code;
+                const duration = event.data?.metadata?.duration;
+                const extra = [
+                    returnCode !== undefined ? `返回码 ${returnCode}` : null,
+                    duration !== undefined ? `耗时 ${duration.toFixed(2)}s` : null,
+                    event.error ? `错误: ${event.error}` : null
+                ].filter(Boolean).join(' · ');
+                meta.textContent = extra || '执行完成';
+
+                item.appendChild(header);
+                item.appendChild(command);
+                item.appendChild(meta);
+                listEl.appendChild(item);
+            });
+
+            const latestId = latest.event_id;
+            if (latestId && latestId !== this.latestSecurityEventId) {
+                this.latestSecurityEventId = latestId;
+                if (!latest.success) {
+                    const cmd = latest.data?.command || '未知命令';
+                    this.addActivity('🛡️', `终端告警：${cmd}`);
+                } else if (force) {
+                    this.addActivity('🛡️', '终端已开始监控');
+                }
+            }
+        } catch (error) {
+            // 静默处理
         }
     }
 }

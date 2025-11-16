@@ -11,6 +11,7 @@ import json
 
 from .workflow_monitor import WorkflowMonitor
 from .resource_auto_adjuster import ResourceAutoAdjuster
+from .learning_events import LearningEventBus, LearningEventType
 
 class SelfLearningMonitor:
     """
@@ -23,14 +24,26 @@ class SelfLearningMonitor:
     4. 将问题和解决方案存入RAG
     """
     
-    def __init__(self, rag_service=None, coding_assistant=None, resource_manager=None):
+    def __init__(self, rag_service=None, coding_assistant=None, resource_manager=None, event_bus: Optional[LearningEventBus] = None):
         self.rag_service = rag_service
         self.coding_assistant = coding_assistant
         self.resource_manager = resource_manager
+        self.event_bus = event_bus
         self.workflow_logs = []
         self.problems = []
         self.solutions = []
-        
+    def set_event_bus(self, event_bus: LearningEventBus):
+        self.event_bus = event_bus
+
+    async def _publish_event(self, event_type: LearningEventType, severity: str, payload: Dict[str, Any]):
+        if self.event_bus:
+            await self.event_bus.publish_event(
+                event_type=event_type,
+                source="self_learning_monitor",
+                severity=severity,
+                payload=payload
+            )
+
         # 如果coding_assistant是URL，创建HTTP客户端
         if isinstance(coding_assistant, str):
             self.coding_assistant_url = coding_assistant
@@ -349,6 +362,12 @@ class SelfLearningMonitor:
                 "timestamp": datetime.now().isoformat()
             })
             
+            await self._publish_event(
+                LearningEventType.WORKFLOW_ANOMALY,
+                severity=problem.get("severity", "medium"),
+                payload={"problem": problem, "workflow": workflow_data}
+            )
+            
             # 尝试自动解决
             if problem["severity"] in ["high", "medium"]:
                 solution = await self._auto_fix_problem(problem, workflow_data)
@@ -537,6 +556,12 @@ class SelfLearningMonitor:
             "solution": solution,
             "timestamp": datetime.now().isoformat()
         })
+        
+        await self._publish_event(
+            LearningEventType.PERFORMANCE,
+            severity=problem.get("severity", "info"),
+            payload={"problem": problem, "solution": solution}
+        )
     
     async def _record_performance_issue(self, response_time: float, workflow_data: Dict):
         """记录性能问题"""
@@ -548,6 +573,11 @@ class SelfLearningMonitor:
             "timestamp": datetime.now().isoformat()
         }
         self.problems.append(issue)
+        await self._publish_event(
+            LearningEventType.PERFORMANCE,
+            severity="medium",
+            payload=issue
+        )
     
     async def record_error(self, error_info: Dict):
         """记录错误"""
@@ -557,6 +587,11 @@ class SelfLearningMonitor:
             **error_info
         }
         self.problems.append(error_entry)
+        await self._publish_event(
+            LearningEventType.WORKFLOW_ANOMALY,
+            severity="high",
+            payload=error_entry
+        )
         
         # 存入RAG
         if self.rag_service:

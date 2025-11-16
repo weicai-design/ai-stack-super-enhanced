@@ -9,19 +9,23 @@ from typing import Dict, List, Optional, Any
 from sqlalchemy.orm import Session
 
 from core.trial_balance import TrialBalanceCalculator
+from core.trial_data_source import DemoFactoryTrialDataSource
 from core.trial_history import TrialHistoryManager
 from core.database import get_db
 
 router = APIRouter(prefix="/api/trial-balance", tags=["Trial Balance API"])
 
 # 初始化试算器
-calculator = TrialBalanceCalculator()
+trial_data_source = DemoFactoryTrialDataSource()
+calculator = TrialBalanceCalculator(erp_data_source=trial_data_source)
 
 
 class DailyDeliveryRequest(BaseModel):
     """每日交付量试算请求"""
     target_weekly_revenue: float
     product_id: Optional[int] = None
+    product_code: Optional[str] = None
+    order_id: Optional[str] = None
     start_date: Optional[str] = None
 
 
@@ -47,6 +51,8 @@ async def calculate_daily_delivery(request: DailyDeliveryRequest):
         result = await calculator.calculate_daily_delivery(
             target_weekly_revenue=request.target_weekly_revenue,
             product_id=request.product_id,
+            product_code=request.product_code,
+            order_id=request.order_id,
             start_date=request.start_date
         )
         return {"success": True, "result": result}

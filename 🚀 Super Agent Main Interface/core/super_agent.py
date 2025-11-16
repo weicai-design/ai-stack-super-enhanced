@@ -10,6 +10,8 @@ import json
 import time
 
 from .workflow_monitor import WorkflowMonitor
+from .learning_events import LearningEventBus
+from .task_orchestrator import TaskOrchestrator
 
 class SuperAgent:
     """
@@ -36,6 +38,8 @@ class SuperAgent:
         self.resource_monitor = None  # 资源监控
         self.task_planning = None  # 任务规划系统
         self.workflow_monitor = None  # 工作流监控器
+        self.event_bus = LearningEventBus()
+        self.task_orchestrator: Optional[TaskOrchestrator] = None
         
         # 自动初始化依赖
         self._initialize_dependencies()
@@ -941,6 +945,8 @@ class SuperAgent:
     def set_learning_monitor(self, learning_monitor):
         """设置学习监控"""
         self.learning_monitor = learning_monitor
+        if self.learning_monitor and hasattr(self.learning_monitor, "set_event_bus"):
+            self.learning_monitor.set_event_bus(self.event_bus)
     
     def set_resource_monitor(self, resource_monitor):
         """设置资源监控"""
@@ -949,6 +955,14 @@ class SuperAgent:
     def set_task_planning(self, task_planning):
         """设置任务规划系统"""
         self.task_planning = task_planning
+        self._initialize_task_orchestrator()
+
+    def _initialize_task_orchestrator(self):
+        if self.task_planning:
+            self.task_orchestrator = TaskOrchestrator(
+                task_planning=self.task_planning,
+                event_bus=self.event_bus
+            )
     
     def _cache_rag_result(self, cache_key: str, result: Dict):
         """缓存RAG检索结果"""

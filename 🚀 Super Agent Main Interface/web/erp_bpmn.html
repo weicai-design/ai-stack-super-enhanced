@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ERP 流程编辑器（轻量）</title>
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <div class="app-container" style="padding:16px;">
+        <h2>ERP 流程编辑器（轻量 JSON）</h2>
+        <div style="margin:12px 0;">
+            <button id="btn-new">新建</button>
+            <button id="btn-save">保存</button>
+            <button id="btn-load">加载</button>
+            <button id="btn-delete">删除</button>
+            <select id="process-list"></select>
+        </div>
+        <textarea id="editor" style="width:100%; height:60vh; font-family:monospace;"></textarea>
+        <div style="margin-top:12px;" id="tips">提示：此为轻量JSON流程定义。后续可替换为bpmn-js或更专业编辑器。</div>
+    </div>
+    <script>
+        const API = '/api/super-agent/erp/bpmn';
+        const editor = document.getElementById('editor');
+        const list = document.getElementById('process-list');
+
+        async function refreshList() {
+            const r = await fetch(`${API}/processes`);
+            const data = await r.json();
+            list.innerHTML = '';
+            data.processes.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `${p.id} (${p.updated_at.slice(0,19).replace('T',' ')})`;
+                list.appendChild(opt);
+            });
+        }
+
+        document.getElementById('btn-new').onclick = () => {
+            editor.value = JSON.stringify({
+                name: "New Process",
+                version: 1,
+                nodes: [],
+                edges: []
+            }, null, 2);
+        };
+
+        document.getElementById('btn-save').onclick = async () => {
+            let pid = prompt('输入流程ID（留空则自动生成）：', list.value || '');
+            try {
+                const body = { id: pid || null, data: JSON.parse(editor.value) };
+                const r = await fetch(`${API}/process`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!r.ok) throw new Error('保存失败');
+                const res = await r.json();
+                alert(`已保存：${res.id}`);
+                await refreshList();
+            } catch (e) {
+                alert('保存失败：' + e.message);
+            }
+        };
+
+        document.getElementById('btn-load').onclick = async () => {
+            const pid = list.value;
+            if (!pid) return;
+            const r = await fetch(`${API}/process/${pid}`);
+            if (!r.ok) { alert('加载失败'); return; }
+            const data = await r.json();
+            editor.value = JSON.stringify(data.data, null, 2);
+        };
+
+        document.getElementById('btn-delete').onclick = async () => {
+            const pid = list.value;
+            if (!pid) return;
+            if (!confirm(`确定删除流程 ${pid} ?`)) return;
+            const r = await fetch(`${API}/process/${pid}`, { method: 'DELETE' });
+            if (!r.ok) { alert('删除失败'); return; }
+            await refreshList();
+        };
+
+        refreshList();
+        editor.value = JSON.stringify({ name:"流程示例", version:1, nodes:[], edges:[] }, null, 2);
+    </script>
+</body>
+<</html>
+

@@ -12,6 +12,8 @@ from datetime import datetime
 
 import sys
 from pathlib import Path
+import json
+import os
 
 # 添加项目根目录到路径（如果还没有）
 project_root = Path(__file__).parent.parent
@@ -32,6 +34,25 @@ from core.file_format_handler import FileFormatHandler
 from core.terminal_executor import TerminalExecutor
 from core.performance_monitor import performance_monitor, response_time_optimizer
 from core.llm_service import get_llm_service, LLMProvider
+from core.task_orchestrator import TaskStatus
+from core.learning_events import LearningEventType
+from core.data_sources.factory_data_source import FactoryDataSource
+from core.integrations.external_status import ExternalIntegrationStatus
+from 💼 Intelligent ERP & Business Management.core.trial_data_source import DemoFactoryTrialDataSource
+from 💼 Intelligent ERP & Business Management.core.erp_8d_analysis import analyze_8d
+from core.strategy_engine import StrategyEngine
+from core.content_compliance import ContentComplianceService
+from core.stock_gateway import StockGateway
+from core.stock_simulator import StockSimulator
+from core.integrations.douyin import DouyinIntegration
+from 📚 Enhanced RAG & Knowledge Graph.core.rag_tools import (
+    clean_text as rag_clean,
+    standardize_text as rag_standardize,
+    deduplicate as rag_dedup,
+    validate as rag_validate,
+    authenticity_score as rag_auth_score
+)
+from 💻 AI Programming Assistant.core.cursor_bridge import CursorBridge
 
 router = APIRouter(prefix="/api/super-agent", tags=["Super Agent"])
 
@@ -39,7 +60,7 @@ router = APIRouter(prefix="/api/super-agent", tags=["Super Agent"])
 super_agent = SuperAgent()
 memo_system = MemoSystem()
 task_planning = TaskPlanning(memo_system)
-learning_monitor = SelfLearningMonitor(resource_manager=None)
+learning_monitor = SelfLearningMonitor(resource_manager=None, event_bus=super_agent.event_bus)
 resource_monitor = ResourceMonitor()
 resource_adjuster = ResourceAutoAdjuster(resource_manager=None)  # 资源自动调节器
 voice_interaction = VoiceInteraction()
@@ -47,7 +68,26 @@ translation_service = TranslationService()
 file_generation = FileGenerationService()
 web_search = WebSearchService()
 file_format_handler = FileFormatHandler()  # 文件格式处理器
-terminal_executor = TerminalExecutor()  # 终端执行器
+terminal_executor = TerminalExecutor(workflow_monitor=super_agent.workflow_monitor)  # 终端执行器
+external_status = ExternalIntegrationStatus()
+strategy_engine = StrategyEngine()
+content_compliance = ContentComplianceService()
+stock_gateway = StockGateway()
+stock_sim = StockSimulator()
+douyin = DouyinIntegration()
+cursor_bridge = CursorBridge()
+try:
+    factory_data_source = FactoryDataSource()
+    factory_data_source_error = None
+except FileNotFoundError as exc:
+    factory_data_source = None
+    factory_data_source_error = str(exc)
+try:
+    trial_data_source = DemoFactoryTrialDataSource()
+    trial_data_source_error = None
+except FileNotFoundError as exc:
+    trial_data_source = None
+    trial_data_source_error = str(exc)
 
 # 设置依赖
 super_agent.set_memo_system(memo_system)
@@ -59,6 +99,40 @@ super_agent.set_task_planning(task_planning)
 import asyncio
 asyncio.create_task(resource_monitor.start_monitoring(interval=5))
 
+# 启动ERP监听（轻量轮询对比）
+_erp_last_order_count = {"count": 0}
+async def _erp_listener():
+    """每20秒轮询一次订单/工单变化，写入系统事件，供自学习/主界面使用"""
+    ds = None
+    try:
+        ds = _get_factory_data_source()
+    except Exception:
+        return
+    while True:
+        try:
+            orders = ds.get_orders()
+            count = len(orders)
+            if count != _erp_last_order_count["count"]:
+                _erp_last_order_count["count"] = count
+                if super_agent.workflow_monitor:
+                    await super_agent.workflow_monitor.record_system_event(
+                        event_type="erp_change",
+                        source="erp_listener",
+                        severity="info",
+                        success=True,
+                        data={"orders_count": count},
+                        error=None
+                    )
+            await asyncio.sleep(20)
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            await asyncio.sleep(20)
+
+asyncio.create_task(_erp_listener())
+
+bpmn_dir = Path(project_root) / "data" / "bpmn"
+bpmn_dir.mkdir(parents=True, exist_ok=True)
 
 class ChatRequest(BaseModel):
     """聊天请求"""
@@ -74,6 +148,27 @@ class ChatResponse(BaseModel):
     response_time: float
     rag_retrievals: Optional[Dict] = None
     timestamp: str
+
+
+class TaskCreateRequest(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    priority: str = "medium"
+    metadata: Optional[Dict[str, Any]] = None
+    dependencies: Optional[List[str]] = None
+
+
+class TaskStatusUpdateRequest(BaseModel):
+    status: TaskStatus
+    updates: Optional[Dict[str, Any]] = None
+
+
+class TaskRetrospectRequest(BaseModel):
+    """任务复盘请求"""
+    success: bool
+    summary: Optional[str] = ""
+    lessons: Optional[List[str]] = None
+    metrics: Optional[Dict[str, Any]] = None
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -97,7 +192,10 @@ async def chat(request: ChatRequest):
             if file_result.get("success") and file_result.get("text"):
                 request.message = f"{request.message}\n\n文件内容:\n{file_result['text']}"
         
-        # 使用性能优化器执行（带超时和缓存）
+        # 策略决策（SLO/降级/预算）
+        decision = strategy_engine.decide(request.message, request.input_type)
+
+        # 使用性能优化器执行（带超时和缓存），应用策略时间预算
         start_time = time.time()
         
         # 创建异步函数
@@ -110,7 +208,7 @@ async def chat(request: ChatRequest):
         
         result = await response_time_optimizer.optimize_with_timeout(
             process_input,
-            timeout=8.0,  # 优化：减少超时到8秒（优化后应该更快）
+            timeout=decision.timeout_seconds,
             cache_key=f"chat:{request.message}:{request.input_type}" if len(request.message) < 200 else None
         )
         
@@ -127,6 +225,8 @@ async def chat(request: ChatRequest):
         # 记录响应时间
         response_time = time.time() - start_time
         performance_monitor.record_response_time(response_time, from_cache=result.get("from_cache", False) if result else False)
+        # 释放预算占用
+        strategy_engine.release()
         
         return ChatResponse(
             success=result.get("success", False) if result else False,
@@ -136,6 +236,7 @@ async def chat(request: ChatRequest):
             timestamp=result.get("timestamp", datetime.now().isoformat()) if result else datetime.now().isoformat()
         )
     except Exception as e:
+        strategy_engine.release()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -219,6 +320,37 @@ async def execute_task(task_id: int):
         return result
     else:
         raise HTTPException(status_code=400, detail=result.get("error", "任务执行失败"))
+
+
+@router.post("/tasks/{task_id}/retrospect")
+async def retrospect_task(task_id: int, request: TaskRetrospectRequest):
+    """任务复盘：记录总结/经验/指标并完成生命周期闭环"""
+    # 复盘数据结构直接附加到任务（利用已有task_planning存储）
+    tasks = task_planning.get_tasks()
+    task = next((t for t in tasks if t.get("id") == task_id), None)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    task.setdefault("retrospect", {})
+    task["retrospect"].update({
+        "success": request.success,
+        "summary": request.summary or "",
+        "lessons": request.lessons or [],
+        "metrics": request.metrics or {},
+        "retrospected_at": datetime.now().isoformat()
+    })
+    # 可选：将经验写回学习系统/RAG
+    if hasattr(super_agent, "learning_monitor") and super_agent.learning_monitor:
+        try:
+            await super_agent.learning_monitor.record_insight({
+                "type": "task_retrospect",
+                "task_id": task_id,
+                "success": request.success,
+                "lessons": request.lessons or [],
+                "timestamp": datetime.now().isoformat()
+            })
+        except Exception:
+            pass
+    return {"success": True, "task": task}
 
 
 @router.get("/tasks/statistics")
@@ -556,6 +688,284 @@ async def change_terminal_directory(path: str = Body(..., embed=True)):
     return result
 
 
+@router.get("/workflow/system-events")
+async def get_system_events(limit: int = 20, event_type: Optional[str] = None):
+    """获取系统级事件（如终端命令、安全日志）"""
+    monitor = super_agent.workflow_monitor
+    if not monitor:
+        return {"events": [], "count": 0, "summary": {}}
+    events = monitor.get_recent_system_events(limit=limit, event_type=event_type)
+    summary = monitor.get_system_event_summary(event_type=event_type)
+    return {"events": events, "count": len(events), "summary": summary}
+
+
+@router.get("/learning/events")
+async def get_learning_events(limit: int = 50, event_type: Optional[str] = None):
+    """获取学习事件总线中的事件"""
+    bus = super_agent.event_bus
+    try:
+        event_type_enum = LearningEventType(event_type) if event_type else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"未知的事件类型: {event_type}")
+    events = [
+        event.__dict__
+        for event in bus.get_recent_events(limit=limit, event_type=event_type_enum)
+    ]
+    return {"events": events, "count": len(events), "stats": bus.get_statistics()}
+
+
+def _get_task_orchestrator():
+    orchestrator = super_agent.task_orchestrator
+    if not orchestrator:
+        raise HTTPException(status_code=503, detail="任务编排器尚未初始化")
+    return orchestrator
+
+
+def _get_factory_data_source():
+    if factory_data_source:
+        return factory_data_source
+    raise HTTPException(
+        status_code=503,
+        detail=factory_data_source_error or "demo_factory 数据源尚未准备，请先生成数据库",
+    )
+
+def _get_trial_data_source():
+    if trial_data_source:
+        return trial_data_source
+    raise HTTPException(
+        status_code=503,
+        detail=trial_data_source_error or "trial 数据源尚未准备，请先生成 demo_factory 数据库",
+    )
+
+
+@router.get("/tasks")
+async def list_tasks():
+    orchestrator = _get_task_orchestrator()
+    return {"tasks": orchestrator.list_tasks()}
+
+
+@router.post("/tasks")
+async def create_task(request: TaskCreateRequest):
+    orchestrator = _get_task_orchestrator()
+    task = await orchestrator.register_task(
+        title=request.title,
+        description=request.description or "",
+        priority=request.priority,
+        metadata=request.metadata,
+        dependencies=request.dependencies,
+        source="api",
+    )
+    return {"task": task}
+
+
+@router.post("/tasks/{task_id}/status")
+async def update_task_status(task_id: str, request: TaskStatusUpdateRequest):
+    orchestrator = _get_task_orchestrator()
+    task = await orchestrator.update_task_status(
+        task_id=task_id,
+        status=request.status,
+        updates=request.updates,
+    )
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return {"task": task}
+
+
+@router.get("/erp/demo/dashboard")
+async def get_demo_dashboard():
+    ds = _get_factory_data_source()
+    return ds.get_dashboards()
+
+
+@router.get("/erp/demo/orders")
+async def get_demo_orders(status: Optional[str] = None):
+    ds = _get_factory_data_source()
+    return {"orders": ds.get_orders(status=status)}
+
+
+@router.get("/erp/demo/production-jobs")
+async def get_production_jobs(order_id: Optional[str] = None):
+    ds = _get_factory_data_source()
+    return {"jobs": ds.get_production_jobs(order_id=order_id)}
+
+
+@router.get("/erp/demo/procurements")
+async def get_procurement_alerts():
+    ds = _get_factory_data_source()
+    return {"procurements": ds.get_procurement_alerts()}
+
+
+@router.get("/erp/demo/cash-flow")
+async def get_cash_flow_summary():
+    ds = _get_factory_data_source()
+    return ds.get_cash_flow_summary()
+
+@router.post("/erp/trial/calc")
+async def trial_calculation(
+    target_weekly_revenue: Optional[float] = Body(None, embed=True),
+    target_daily_units: Optional[int] = Body(None, embed=True),
+    product_code: Optional[str] = Body(None, embed=True),
+    order_id: Optional[str] = Body(None, embed=True)
+):
+    """
+    运营试算器：为达到目标（周营收或日产量），需要的日均产出/订单配置建议
+    - 若提供 target_weekly_revenue：根据产品单价与可用天数，倒推出建议日产量
+    - 若提供 target_daily_units：计算预计周营收
+    """
+    ds = _get_trial_data_source()
+    product = await ds.get_product_data(
+        order_id=order_id,
+        product_code=product_code,
+        legacy_identifier=product_code or order_id
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="未找到可用于试算的订单/产品数据")
+
+    unit_price = float(product.get("unit_price") or 0.0)
+    available_days = product.get("available_days") or 7
+    available_days = max(1, int(available_days))
+
+    result: Dict[str, Any] = {
+        "product": {
+            "order_id": product.get("order_id"),
+            "product_code": product.get("product_code"),
+            "product_name": product.get("product_name"),
+            "unit_price": unit_price,
+            "available_days": available_days,
+            "promise_date": product.get("promise_date"),
+            "requested_date": product.get("requested_date"),
+            "priority": product.get("priority"),
+        },
+        "inputs": {
+            "target_weekly_revenue": target_weekly_revenue,
+            "target_daily_units": target_daily_units
+        }
+    }
+
+    if target_weekly_revenue and unit_price > 0:
+        # 按周营收目标倒推建议日产量
+        required_units_week = target_weekly_revenue / unit_price
+        required_units_day = required_units_week / 7.0
+        result["trial"] = {
+            "type": "by_weekly_revenue",
+            "required_units_per_day": round(required_units_day, 2),
+            "assumptions": {
+                "unit_price": unit_price,
+                "days_per_week": 7
+            }
+        }
+    elif target_daily_units:
+        # 按日产量推算预计周营收
+        expected_week_revenue = target_daily_units * unit_price * 7.0
+        result["trial"] = {
+            "type": "by_daily_units",
+            "expected_weekly_revenue": round(expected_week_revenue, 2),
+            "assumptions": {
+                "unit_price": unit_price,
+                "days_per_week": 7
+            }
+        }
+    else:
+        # 默认按订单窗口与单价，给出达成订单的建议日产量
+        quantity = int(product.get("quantity") or 0)
+        if quantity > 0:
+            required_units_day = quantity / available_days
+            result["trial"] = {
+                "type": "by_order_quantity",
+                "required_units_per_day": round(required_units_day, 2),
+                "assumptions": {
+                    "available_days": available_days,
+                    "order_quantity": quantity
+                }
+            }
+        else:
+            result["trial"] = {
+                "type": "insufficient_data",
+                "message": "缺少目标或订单数量，无法计算"
+            }
+
+    # 附带历史交付作为参考
+    history = await ds.get_historical_delivery_data(
+        order_id=product.get("order_id"),
+        product_code=product.get("product_code"),
+        days=30
+    )
+    result["history"] = history
+    result["success"] = True
+    result["timestamp"] = datetime.now().isoformat()
+    return result
+
+@router.post("/erp/8d/analyze")
+async def erp_8d_analyze(payload: Dict[str, Any] = Body(...)):
+    """
+    ERP八维度分析：质量/成本/交期/安全/利润/效率/管理/技术
+    传入各维度必要指标（可缺省，采用保守默认），返回指标与总览评分
+    """
+    try:
+        result = analyze_8d(payload)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"8D分析失败: {str(e)}")
+
+# ====== ERP BPMN 流程编辑/管理 ======
+@router.get("/erp/bpmn/processes")
+async def list_bpmn_processes():
+    items = []
+    for file in bpmn_dir.glob("*.json"):
+        try:
+            items.append({
+                "id": file.stem,
+                "filename": file.name,
+                "size": file.stat().st_size,
+                "updated_at": datetime.fromtimestamp(file.stat().st_mtime).isoformat()
+            })
+        except Exception:
+            continue
+    return {"processes": sorted(items, key=lambda x: x["updated_at"], reverse=True)}
+
+@router.get("/erp/bpmn/process/{process_id}")
+async def get_bpmn_process(process_id: str):
+    path = bpmn_dir / f"{process_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="流程不存在")
+    try:
+        content = path.read_text(encoding="utf-8")
+        data = json.loads(content)
+        return {"id": process_id, "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class SaveBPMNRequest(BaseModel):
+    id: Optional[str] = None
+    data: Dict[str, Any]
+
+@router.post("/erp/bpmn/process")
+async def save_bpmn_process(req: SaveBPMNRequest):
+    pid = req.id or f"proc_{int(datetime.now().timestamp())}"
+    path = bpmn_dir / f"{pid}.json"
+    try:
+        path.write_text(json.dumps(req.data, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"success": True, "id": pid}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/erp/bpmn/process/{process_id}")
+async def delete_bpmn_process(process_id: str):
+    path = bpmn_dir / f"{process_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="流程不存在")
+    try:
+        path.unlink()
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/integrations/status")
+async def get_external_integrations():
+    return {"integrations": external_status.get_status()}
+
+
 @router.get("/workflow/statistics")
 async def get_workflow_statistics():
     """获取工作流统计信息"""
@@ -676,7 +1086,8 @@ async def get_performance_stats():
     stats = performance_monitor.get_performance_stats()
     return {
         "success": True,
-        **stats
+        **stats,
+        "strategy": strategy_engine.get_stats()
     }
 
 
@@ -944,3 +1355,199 @@ async def get_llm_providers():
         ]
     }
 
+@router.post("/content/compliance/check")
+async def check_content_compliance(
+    text: str = Body(..., embed=True),
+    references: Optional[List[str]] = Body(None, embed=True)
+):
+    """内容合规检查：原创度/相似度/敏感词（轻量版）"""
+    result = await content_compliance.check_text(text, references or [])
+    return result
+
+# ====== 股票量化：数据源网关与模拟撮合 ======
+@router.get("/stock/sources")
+async def list_stock_sources():
+    return stock_gateway.list_sources()
+
+@router.post("/stock/switch-source")
+async def switch_stock_source(source: str = Body(..., embed=True)):
+    ok = stock_gateway.switch(source)
+    if not ok:
+        raise HTTPException(status_code=400, detail="数据源不存在")
+    return {"success": True, "active": source}
+
+@router.get("/stock/quote")
+async def get_stock_quote(symbol: str, market: str = "A"):
+    data = await stock_gateway.quote(symbol, market)
+    # 同步给模拟器撮合（若有挂单）
+    fills = stock_sim.mark_to_market_and_fill(symbol, data["price"])
+    return {"quote": data, "sim_fills": fills}
+
+@router.post("/stock/sim/place-order")
+async def sim_place_order(
+    symbol: str = Body(..., embed=True),
+    side: str = Body(..., embed=True),  # buy/sell
+    qty: int = Body(..., embed=True),
+    order_type: str = Body("market", embed=True),  # market/limit
+    price: Optional[float] = Body(None, embed=True)
+):
+    result = stock_sim.place_order(symbol, side, qty, order_type, price)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "下单失败"))
+    return result
+
+@router.post("/stock/sim/cancel")
+async def sim_cancel(order_id: str = Body(..., embed=True)):
+    result = stock_sim.cancel_order(order_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "撤单失败"))
+    return result
+
+@router.get("/stock/sim/state")
+async def sim_state():
+    return stock_sim.get_state()
+
+# ====== 抖音集成：授权与草稿发布（合规前置） ======
+@router.get("/douyin/status")
+async def douyin_status():
+    return douyin.get_status()
+
+@router.post("/douyin/begin-auth")
+async def douyin_begin_auth():
+    return douyin.begin_auth()
+
+@router.post("/douyin/revoke")
+async def douyin_revoke():
+    return douyin.revoke()
+
+class DouyinDraftRequest(BaseModel):
+    title: str
+    content: str
+    tags: Optional[List[str]] = None
+    references: Optional[List[str]] = None
+    min_originality: float = 60.0
+    block_sensitive: bool = True
+
+@router.post("/douyin/create-draft")
+async def douyin_create_draft(req: DouyinDraftRequest):
+    # 合规前置检查
+    compliance = await content_compliance.check_text(req.content, req.references or [])
+    if not compliance.get("success"):
+        raise HTTPException(status_code=400, detail=f"合规检测失败：{compliance.get('error','未知错误')}")
+    if compliance["originality_percent"] < req.min_originality:
+        return {
+            "success": False,
+            "blocked": True,
+            "reason": "原创度不足",
+            "compliance": compliance
+        }
+    if req.block_sensitive and compliance.get("sensitive_hits"):
+        return {
+            "success": False,
+            "blocked": True,
+            "reason": "命中敏感词",
+            "compliance": compliance
+        }
+    # 通过则创建抖音草稿
+    draft = await douyin.create_draft(req.title, req.content, req.tags or [])
+    if not draft.get("success"):
+        raise HTTPException(status_code=400, detail=draft.get("error", "草稿创建失败"))
+    return {
+        "success": True,
+        "draft": draft,
+        "compliance": compliance
+    }
+
+# ====== RAG 预处理与真实性验证 ======
+class RagPreprocessRequest(BaseModel):
+    text: str
+
+@router.post("/rag/preprocess/clean")
+async def rag_preprocess_clean(req: RagPreprocessRequest):
+    return {"success": True, "text": rag_clean(req.text)}
+
+@router.post("/rag/preprocess/standardize")
+async def rag_preprocess_standardize(req: RagPreprocessRequest):
+    return {"success": True, "text": rag_standardize(req.text)}
+
+@router.post("/rag/preprocess/deduplicate")
+async def rag_preprocess_deduplicate(req: RagPreprocessRequest):
+    res = rag_dedup(req.text)
+    return {"success": True, **res}
+
+@router.post("/rag/preprocess/validate")
+async def rag_preprocess_validate(req: RagPreprocessRequest):
+    res = rag_validate(req.text)
+    return {"success": True, **res}
+
+@router.post("/rag/authenticity/check")
+async def rag_authenticity_check(req: RagPreprocessRequest):
+    res = rag_auth_score(req.text)
+    return res
+
+# ====== 编程助手：Cursor 桥接 ======
+@router.get("/coding/cursor/status")
+async def cursor_status():
+    return cursor_bridge.get_status()
+
+class CursorOpenRequest(BaseModel):
+    file_path: str
+    line_number: Optional[int] = None
+
+@router.post("/coding/cursor/open-file")
+async def cursor_open_file(req: CursorOpenRequest):
+    result = await cursor_bridge.open_in_cursor(req.file_path, req.line_number)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "打开失败"))
+    return result
+
+class CursorSyncRequest(BaseModel):
+    file_path: str
+    code: str
+
+@router.post("/coding/cursor/sync-code")
+async def cursor_sync_code(req: CursorSyncRequest):
+    return await cursor_bridge.sync_code(req.file_path, req.code)
+
+class CursorEdit(BaseModel):
+    type: str
+    start_line: int
+    end_line: int
+    content: Optional[str] = ""
+
+class CursorEditRequest(BaseModel):
+    file_path: str
+    edits: List[CursorEdit]
+
+@router.post("/coding/cursor/edit-code")
+async def cursor_edit_code(req: CursorEditRequest):
+    edits = [e.dict() for e in req.edits]
+    return await cursor_bridge.edit_code(req.file_path, edits)
+
+class CursorCompletionRequest(BaseModel):
+    file_path: str
+    line_number: int
+    column: int
+    context_lines: int = 5
+
+@router.post("/coding/cursor/completion")
+async def cursor_completion(req: CursorCompletionRequest):
+    return await cursor_bridge.get_code_completion(req.file_path, req.line_number, req.column, req.context_lines)
+
+class CursorDetectRequest(BaseModel):
+    file_path: str
+
+@router.post("/coding/cursor/detect-errors")
+async def cursor_detect_errors(req: CursorDetectRequest):
+    return await cursor_bridge.detect_errors(req.file_path)
+
+class CursorProjectRequest(BaseModel):
+    project_path: str
+    files: Optional[List[str]] = None
+
+@router.post("/coding/cursor/open-project")
+async def cursor_open_project(req: CursorProjectRequest):
+    result = await cursor_bridge.sync_project(req.project_path, req.files)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "打开项目失败"))
+    return result

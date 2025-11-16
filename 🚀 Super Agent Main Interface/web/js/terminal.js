@@ -115,22 +115,34 @@ class TerminalManager {
 
             const result = await response.json();
 
+            if (result.command_id) {
+                this.addOutputLine(`[命令ID] ${result.command_id}`, 'meta');
+            }
+
             if (result.success) {
-                // 显示输出
                 if (result.stdout) {
                     this.addOutputLine(result.stdout, 'output');
+                    if (result.stdout_truncated) {
+                        this.addOutputLine('提示: 输出已截断，使用更精确的过滤条件以减少结果。', 'warning');
+                    }
                 }
                 if (result.stderr) {
                     this.addOutputLine(result.stderr, 'error');
+                    if (result.stderr_truncated) {
+                        this.addOutputLine('提示: 错误输出已截断。', 'warning');
+                    }
                 }
-                
-                // 更新工作目录（如果是cd命令）
+                if (typeof result.duration === 'number') {
+                    this.addOutputLine(`耗时: ${result.duration.toFixed(2)} 秒`, 'meta');
+                }
+
                 if (result.work_directory) {
                     this.currentDirectory = result.work_directory;
                     document.getElementById('terminal-cwd').textContent = this.currentDirectory;
                 }
             } else {
-                this.addOutputLine(`错误: ${result.error || '命令执行失败'}`, 'error');
+                const errorMsg = result.error || '命令执行失败';
+                this.addOutputLine(`错误: ${errorMsg}`, 'error');
             }
         } catch (error) {
             this.addOutputLine(`错误: ${error.message}`, 'error');

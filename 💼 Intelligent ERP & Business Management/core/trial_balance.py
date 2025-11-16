@@ -25,6 +25,8 @@ class TrialBalanceCalculator:
         self,
         target_weekly_revenue: float,
         product_id: Optional[int] = None,
+        product_code: Optional[str] = None,
+        order_id: Optional[str] = None,
         start_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -39,24 +41,26 @@ class TrialBalanceCalculator:
             试算结果
         """
         # 从ERP获取关联数据
-        if self.erp_data_source:
-            product_data = await self.erp_data_source.get_product_data(product_id)
-            historical_data = await self.erp_data_source.get_historical_delivery_data(
-                product_id=product_id,
-                days=30
-            )
-        else:
-            product_data = {}
-            historical_data = []
+        product_data = await self._fetch_product_data(
+            product_id=product_id,
+            product_code=product_code,
+            order_id=order_id
+        )
+        historical_data = await self._fetch_historical_delivery_data(
+            product_id=product_id,
+            product_code=product_code,
+            order_id=order_id
+        )
         
         # 获取产品单价
         unit_price = product_data.get("unit_price", 100.0)
+        resolved_order_id = product_data.get("resolved_order_id")
         
         # 计算需要的总交付量
         total_quantity_needed = target_weekly_revenue / unit_price
         
-        # 计算每日交付量（假设5个工作日）
-        working_days = 5
+        # 计算每日交付量（根据承诺交付窗口自动调整工作日）
+        working_days = self._determine_working_days(product_data, start_date)
         daily_quantity = total_quantity_needed / working_days
         
         # 分析历史数据
@@ -75,9 +79,12 @@ class TrialBalanceCalculator:
             "historical_average": round(avg_daily, 2),
             "historical_max": round(max_daily, 2),
             "feasibility": feasibility,
+            "order_context": self._build_order_context(product_data),
+            "historical_series": historical_data[:10],
             "recommendations": self._generate_recommendations(
                 daily_quantity, avg_daily, max_daily
             ),
+            "source_order_id": resolved_order_id,
             "calculated_at": datetime.now().isoformat()
         }
     
@@ -102,6 +109,8 @@ class TrialBalanceCalculator:
             return await self.calculate_daily_delivery(
                 target_weekly_revenue=target_value,
                 product_id=parameters.get("product_id"),
+                product_code=parameters.get("product_code"),
+                order_id=parameters.get("order_id"),
                 start_date=parameters.get("start_date")
             )
         elif calculation_type == "production_capacity":
@@ -179,6 +188,92 @@ class TrialBalanceCalculator:
             recommendations.append("目标交付量在可达成范围内")
         
         return recommendations
+
+    async def _fetch_product_data(
+        self,
+        product_id: Optional[int],
+        product_code: Optional[str],
+        order_id: Optional[str]
+    ) -> Dict[str, Any]:
+        if not self.erp_data_source:
+            return {}
+
+        legacy_identifier = str(product_id) if product_id is not None else None
+        return await self.erp_data_source.get_product_data(
+            order_id=order_id,
+            product_code=product_code,
+            legacy_identifier=legacy_identifier
+        )
+
+    async def _fetch_historical_delivery_data(
+        self,
+        product_id: Optional[int],
+        product_code: Optional[str],
+        order_id: Optional[str],
+        days: int = 30
+    ) -> List[Dict[str, Any]]:
+        if not self.erp_data_source:
+            return []
+
+        legacy_identifier = str(product_id) if product_id is not None else None
+        return await self.erp_data_source.get_historical_delivery_data(
+            order_id=order_id,
+            product_code=product_code,
+            legacy_identifier=legacy_identifier,
+            days=days
+        )
+
+    def _determine_working_days(
+        self,
+        product_data: Dict[str, Any],
+        start_date: Optional[str]
+    ) -> int:
+        default_days = 5
+        if not product_data:
+            return default_days
+
+        try:
+            if start_date:
+                start = datetime.fromisoformat(start_date).date()
+            else:
+                start = datetime.now().date()
+        except ValueError:
+            start = datetime.now().date()
+
+        promise = product_data.get("promise_date")
+        available_days = product_data.get("available_days")
+
+        if promise:
+            try:
+                promise_date = datetime.fromisoformat(str(promise)).date()
+                delta_days = max((promise_date - start).days, 1)
+                return max(delta_days, 1)
+            except ValueError:
+                pass
+
+        if available_days:
+            return max(int(available_days), 1)
+
+        window = product_data.get("order_window_days")
+        if window:
+            return max(int(window), 1)
+
+        return default_days
+
+    def _build_order_context(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        if not product_data:
+            return {}
+
+        return {
+            "order_id": product_data.get("order_id"),
+            "product_code": product_data.get("product_code"),
+            "product_name": product_data.get("product_name"),
+            "customer": product_data.get("customer"),
+            "priority": product_data.get("priority"),
+            "status": product_data.get("status"),
+            "promise_date": product_data.get("promise_date"),
+            "requested_date": product_data.get("requested_date"),
+        }
     
     async def _calculate_production_capacity(
         self,

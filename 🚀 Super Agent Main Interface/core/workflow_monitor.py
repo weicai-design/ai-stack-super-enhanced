@@ -7,6 +7,7 @@ import asyncio
 import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from uuid import uuid4
 from dataclasses import dataclass, field
 from enum import Enum
 import json
@@ -44,6 +45,7 @@ class WorkflowMonitor:
         self.workflows = []  # 完整工作流记录
         self.current_workflow = None
         self.step_times = {}  # 各步骤平均耗时统计
+        self.system_events: List[Dict[str, Any]] = []  # 系统级事件（终端、安全等）
         
     async def start_workflow(self, user_input: str, context: Dict[str, Any] = None) -> str:
         """
@@ -303,6 +305,66 @@ class WorkflowMonitor:
     def get_recent_workflows(self, limit: int = 10) -> List[Dict]:
         """获取最近的工作流记录"""
         return self.workflows[-limit:] if self.workflows else []
+
+    async def record_system_event(
+        self,
+        event_type: str,
+        source: str,
+        severity: str = "info",
+        success: bool = True,
+        data: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """记录系统级事件（终端命令、安全告警等）"""
+        event = {
+            "event_id": f"evt_{uuid4()}",
+            "event_type": event_type,
+            "source": source,
+            "severity": severity,
+            "success": success,
+            "data": data or {},
+            "error": error,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.system_events.append(event)
+
+        if len(self.system_events) > 500:
+            self.system_events = self.system_events[-500:]
+
+        return event
+
+    def get_recent_system_events(
+        self,
+        limit: int = 50,
+        event_type: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """获取系统级事件"""
+        events = self.system_events
+        if event_type:
+            events = [event for event in events if event.get("event_type") == event_type]
+        return events[-limit:][::-1]  # 返回按时间倒序排列
+
+    def get_system_event_summary(
+        self,
+        event_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """获取系统级事件的汇总信息"""
+        events = self.get_recent_system_events(limit=100, event_type=event_type)
+        if not events:
+            return {
+                "total": 0,
+                "success_rate": 100.0,
+                "recent_event": None
+            }
+
+        success_count = sum(1 for event in events if event.get("success"))
+        recent_event = events[0] if events else None
+        return {
+            "total": len(events),
+            "success_rate": round(success_count / len(events) * 100, 2),
+            "recent_event": recent_event
+        }
+
 
 
 

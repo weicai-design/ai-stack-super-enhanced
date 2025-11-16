@@ -20,7 +20,7 @@ sys.path.append(str(Path(__file__).parent.parent / "analytics"))
 
 from datetime import date, timedelta
 from typing import Dict, List, Optional, Any
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, Body
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
