@@ -25,6 +25,20 @@
         <div id="steps" class="section"></div>
         <div id="exec" class="section"></div>
         <div id="retro" class="section"></div>
+        <div id="push-steps" class="section" style="display:none;">
+            <h3>推送步骤数组到编排器任务</h3>
+            <div class="small">说明：可将规划任务的 steps 或自行编辑的 steps 数组写入到当前编排器任务的元数据中（自动更新 total_steps）。</div>
+            <div style="margin:8px 0;">
+                <button id="btn-import-planning" class="action-btn-small">从规划任务导入步骤</button>
+                <span class="small">（输入规划任务ID后，将读取其 steps 并填入下方）</span>
+            </div>
+            <textarea id="push-steps-text" placeholder='在此粘贴步骤数组（JSON），如：[{"name":"步骤A","estimated_duration":10},{"name":"步骤B"}]' style="width:100%;height:20vh;font-family:monospace;"></textarea>
+            <div style="margin-top:8px;display:flex;gap:8px;">
+                <button id="btn-push-steps" class="action-btn-small">推送到当前编排器任务</button>
+                <button id="btn-reload-task" class="action-btn-small">刷新当前详情</button>
+            </div>
+            <div id="push-steps-tip" class="small" style="margin-top:6px;color:#aaa;"></div>
+        </div>
     </div>
     <script>
         const API = '/api/super-agent';
@@ -55,7 +69,8 @@
                     renderKV('basic', [
                         ['任务ID', data.task_id], ['标题', data.title], ['状态', data.status],
                         ['优先级', data.priority], ['来源', data.source],
-                        ['创建时间', data.created_at], ['更新时间', data.updated_at]
+                        ['创建时间', data.created_at], ['更新时间', data.updated_at],
+                        ['total_steps（元数据）', (data.metadata && data.metadata.total_steps) || '—']
                     ]);
                     renderDeps(data.dependencies||[]);
                     // Orchestrator侧可能有 execution_history
@@ -63,6 +78,10 @@
                     renderExecLog((data.metadata && data.metadata.execution_history) || []);
                     // 无复盘位
                     renderRetro(null);
+                    // 显示推送步骤UI
+                    document.getElementById('push-steps').style.display = '';
+                    const tip = document.getElementById('push-steps-tip');
+                    if (tip) tip.textContent = '建议先“从规划任务导入步骤”，或直接粘贴steps数组后点击“推送”。';
                 } else {
                     // planning 任务
                     const r = await fetch(`${API}/planning/tasks/${encodeURIComponent(id)}`);
@@ -83,6 +102,50 @@
                 document.getElementById('basic').innerHTML = `<div class="log err">加载失败：${e.message}</div>`;
             }
         }
+        // 推送步骤逻辑
+        async function importFromPlanning() {
+            try {
+                const pid = prompt('输入规划任务ID（数字）：', '');
+                if (!pid) return;
+                const r = await fetch(`${API}/planning/tasks/${encodeURIComponent(pid)}`);
+                const j = await r.json();
+                if (!r.ok || !j.task) { alert('未找到该规划任务'); return; }
+                const steps = j.task.steps || [];
+                document.getElementById('push-steps-text').value = JSON.stringify(steps, null, 2);
+            } catch (e) {
+                alert('导入失败：' + e.message);
+            }
+        }
+        async function pushStepsToOrchestrator() {
+            try {
+                const txt = document.getElementById('push-steps-text').value.trim();
+                if (!txt) { alert('请先填写步骤数组（JSON）'); return; }
+                let steps;
+                try { steps = JSON.parse(txt); } catch(e) { alert('JSON解析失败'); return; }
+                if (!Array.isArray(steps)) { alert('必须是数组'); return; }
+                const body = { updates: { steps } };
+                const r = await fetch(`${API}/tasks/${encodeURIComponent(id)}/metadata`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const j = await r.json();
+                if (!r.ok) { alert('推送失败：' + (j.detail || '未知错误')); return; }
+                alert('✅ 已推送步骤并更新 total_steps=' + ((j.task && j.task.metadata && j.task.metadata.total_steps) || '未知'));
+                load();
+            } catch (e) {
+                alert('推送异常：' + e.message);
+            }
+        }
+        function bindPushUI(){
+            const btnImport = document.getElementById('btn-import-planning');
+            const btnPush = document.getElementById('btn-push-steps');
+            const btnReload = document.getElementById('btn-reload-task');
+            if (btnImport) btnImport.onclick = importFromPlanning;
+            if (btnPush) btnPush.onclick = pushStepsToOrchestrator;
+            if (btnReload) btnReload.onclick = load;
+        }
+        bindPushUI();
         load();
     </script>
 </body>
