@@ -484,6 +484,8 @@ class App {
             window.open('stock_backtest.html', '_blank');
         } else if (module === 'bpmn-runtime') {
             window.open('bpmn_runtime.html', '_blank');
+        } else if (module === 'erp-orders') {
+            window.open('erp_orders.html', '_blank');
         }
     }
     

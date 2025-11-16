@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ERP 订单 - 分页/筛选/图表（最小可用）</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <style>
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 6px 8px; border-bottom: 1px solid #333; }
+        thead th { text-align: left; }
+        .pager { margin-top: 8px; display: flex; gap: 8px; align-items: center; }
+        .chart-bar { background: var(--primary-color, #4c8bf5); height: 12px; }
+        .chart-row { display: flex; gap: 8px; align-items: center; }
+        .chart-label { width: 120px; }
+        .chart-value { color: #ccc; }
+    </style>
+    </head>
+<body>
+    <div class="app-container" style="padding:16px;">
+        <h2>ERP 订单 - 分页/筛选/图表</h2>
+        <div style="margin:8px 0;">
+            <input id="q" placeholder="关键词：订单/客户/物料/产品名" style="width:240px;" />
+            <select id="status">
+                <option value="">全部状态</option>
+                <option value="new">new</option>
+                <option value="planned">planned</option>
+                <option value="in_production">in_production</option>
+                <option value="delivered">delivered</option>
+            </select>
+            <label>每页<input id="ps" type="number" value="20" style="width:64px;"></label>
+            <button id="search">查询</button>
+        </div>
+        <div id="chart"></div>
+        <table>
+            <thead>
+                <tr>
+                    <th>订单号</th>
+                    <th>客户</th>
+                    <th>物料</th>
+                    <th>产品名</th>
+                    <th>数量</th>
+                    <th>单价</th>
+                    <th>状态</th>
+                    <th>需求日期</th>
+                    <th>承诺日期</th>
+                </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+        </table>
+        <div class="pager">
+            <button id="prev">上一页</button>
+            <span id="pageinfo"></span>
+            <button id="next">下一页</button>
+        </div>
+    </div>
+    <script>
+        const API = '/api/super-agent/erp/demo/orders';
+        let page = 1;
+        async function load() {
+            const qs = new URLSearchParams({
+                page: String(page),
+                page_size: document.getElementById('ps').value || '20'
+            });
+            const status = document.getElementById('status').value;
+            const q = document.getElementById('q').value.trim();
+            if (status) qs.set('status', status);
+            if (q) qs.set('q', q);
+            const r = await fetch(`${API}?${qs.toString()}`);
+            const data = await r.json();
+            const tbody = document.getElementById('tbody');
+            tbody.innerHTML = '';
+            (data.orders || []).forEach(o => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${o.order_id || ''}</td>
+                    <td>${o.customer || ''}</td>
+                    <td>${o.product_code || ''}</td>
+                    <td>${o.product_name || ''}</td>
+                    <td>${o.quantity ?? ''}</td>
+                    <td>${o.unit_price ?? ''}</td>
+                    <td>${o.status || ''}</td>
+                    <td>${o.requested_date || ''}</td>
+                    <td>${o.promise_date || ''}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('pageinfo').textContent = `第 ${data.page} / ${Math.max(1, Math.ceil((data.total || 0) / (data.page_size || 20)))} 页（共 ${data.total || 0} 条）`;
+            // 简易状态分布图
+            const chart = document.getElementById('chart');
+            chart.innerHTML = '';
+            const dist = data.status_distribution || {};
+            const maxVal = Math.max(1, ...Object.values(dist));
+            Object.entries(dist).forEach(([k, v]) => {
+                const row = document.createElement('div');
+                row.className = 'chart-row';
+                const label = document.createElement('div');
+                label.className = 'chart-label';
+                label.textContent = k;
+                const bar = document.createElement('div');
+                bar.className = 'chart-bar';
+                bar.style.width = `${(v / maxVal) * 60 + 10}%`;
+                const val = document.createElement('div');
+                val.className = 'chart-value';
+                val.textContent = v;
+                row.appendChild(label);
+                row.appendChild(bar);
+                row.appendChild(val);
+                chart.appendChild(row);
+            });
+        }
+        document.getElementById('search').onclick = () => { page = 1; load(); };
+        document.getElementById('prev').onclick = () => { if (page > 1) { page--; load(); } };
+        document.getElementById('next').onclick = () => { page++; load(); };
+        load();
+    </script>
+</body>
+</html>
+

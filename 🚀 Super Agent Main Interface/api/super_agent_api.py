@@ -783,9 +783,47 @@ async def get_demo_dashboard():
 
 
 @router.get("/erp/demo/orders")
-async def get_demo_orders(status: Optional[str] = None):
+async def get_demo_orders(
+    status: Optional[str] = None,
+    q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20
+):
+    """
+    订单列表（支持状态筛选/关键词过滤/分页）
+    关键词匹配字段：order_id / customer / product_code / product_name
+    """
     ds = _get_factory_data_source()
-    return {"orders": ds.get_orders(status=status)}
+    items = ds.get_orders(status=status)
+    # 关键词过滤（简化）
+    if q:
+        ql = q.lower()
+        def match(o):
+            for k in ["order_id", "customer", "product_code", "product_name"]:
+                v = str(o.get(k, "")).lower()
+                if ql in v:
+                    return True
+            return False
+        items = [o for o in items if match(o)]
+    total = len(items)
+    # 分页
+    page = max(1, page)
+    page_size = max(1, min(200, page_size))
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_items = items[start:end]
+    # 状态分布（简易图表数据）
+    status_dist = {}
+    for o in items:
+        s = o.get("status", "unknown")
+        status_dist[s] = status_dist.get(s, 0) + 1
+    return {
+        "orders": page_items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "status_distribution": status_dist
+    }
 
 
 @router.get("/erp/demo/production-jobs")
