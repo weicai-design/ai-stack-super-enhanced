@@ -247,6 +247,24 @@ class App {
         setInterval(() => this.updateTerminalSecurity(), 4000);
         this.updateSecurityAudit();
         setInterval(() => this.updateSecurityAudit(), 8000);
+        // 任务筛选按钮
+        const filterBtn = document.getElementById('task-filter-apply');
+        if (filterBtn) {
+            const handler = (e) => { e.preventDefault(); this.refreshTasks(true); };
+            filterBtn.onclick = handler;
+            filterBtn.addEventListener('click', handler);
+        }
+        const resetBtn = document.getElementById('task-filter-reset');
+        if (resetBtn) {
+            const handler = (e) => {
+                e.preventDefault();
+                const q = document.getElementById('task-filter-q'); if (q) q.value = '';
+                const s = document.getElementById('task-filter-status'); if (s) s.value = '';
+                this.refreshTasks(true);
+            };
+            resetBtn.onclick = handler;
+            resetBtn.addEventListener('click', handler);
+        }
         
         this.isInitialized = true;
         console.log('✅✅✅ 应用初始化完成！');
@@ -796,19 +814,31 @@ class App {
         }
     }
 
-    async refreshTasks() {
+    async refreshTasks(force = false) {
         try {
             const listEl = document.getElementById('task-list');
             if (!listEl) return;
             // 并行拉取：编排器任务 + 规划任务
+            const qEl = document.getElementById('task-filter-q');
+            const sEl = document.getElementById('task-filter-status');
+            const q = qEl ? (qEl.value || '').toLowerCase() : '';
+            const statusFilter = sEl ? (sEl.value || '') : '';
+            const planUrl = new URL(`${location.origin}${API_BASE}/planning/tasks`);
+            if (statusFilter) planUrl.searchParams.set('status', statusFilter);
             const [rOrch, rPlan] = await Promise.all([
                 fetch(`${API_BASE}/tasks`),
-                fetch(`${API_BASE}/planning/tasks`)
+                fetch(planUrl.toString())
             ]);
             const orchPayload = await rOrch.json();
             const planPayload = await rPlan.json();
-            const orchTasks = orchPayload.tasks || [];
-            const tasks = planPayload.tasks || [];
+            // 过滤
+            let orchTasks = orchPayload.tasks || [];
+            let tasks = planPayload.tasks || [];
+            if (q) {
+                const contains = (txt) => (String(txt || '').toLowerCase().includes(q));
+                orchTasks = orchTasks.filter(t => contains(t.task_id) || contains(t.title) || contains(t.status));
+                tasks = tasks.filter(t => contains(t.id) || contains(t.title) || contains(t.description) || contains(t.status));
+            }
             listEl.innerHTML = '';
             if (orchTasks.length === 0 && tasks.length === 0) {
                 const empty = document.createElement('div');
@@ -880,6 +910,22 @@ class App {
                 // 操作区
                 const actions = document.createElement('div');
                 actions.style.marginTop = '4px';
+                // 进度条
+                if (typeof t.progress === 'number') {
+                    const barWrap = document.createElement('div');
+                    barWrap.style.margin = '4px 0';
+                    barWrap.style.background = '#1a1a1a';
+                    barWrap.style.border = '1px solid #333';
+                    barWrap.style.height = '8px';
+                    barWrap.style.borderRadius = '4px';
+                    const bar = document.createElement('div');
+                    bar.style.height = '100%';
+                    bar.style.width = `${Math.max(0, Math.min(100, t.progress))}%`;
+                    bar.style.background = '#4c8bf5';
+                    bar.style.borderRadius = '4px';
+                    barWrap.appendChild(bar);
+                    actions.appendChild(barWrap);
+                }
                 if (t.needs_confirmation && t.id !== undefined) {
                     const btnC = document.createElement('button');
                     btnC.className = 'action-btn-small';

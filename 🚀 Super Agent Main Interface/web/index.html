@@ -204,6 +204,21 @@
 
                 <div class="panel-section">
                     <h3 class="panel-title">任务中心</h3>
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                        <input id="task-filter-q" placeholder="关键字（标题/描述/ID）" style="flex:1;">
+                        <select id="task-filter-status">
+                            <option value="">全部状态</option>
+                            <option value="pending">pending</option>
+                            <option value="confirmed">confirmed</option>
+                            <option value="in_progress">in_progress</option>
+                            <option value="completed">completed</option>
+                            <option value="failed">failed</option>
+                            <option value="blocked">blocked</option>
+                            <option value="rejected">rejected</option>
+                        </select>
+                        <button class="action-btn-small" id="task-filter-apply">筛选</button>
+                        <button class="action-btn-small" id="task-filter-reset">重置</button>
+                    </div>
                     <div id="task-list" class="task-list">
                         <div class="activity-item">加载中...</div>
                     </div>
