@@ -956,6 +956,12 @@ class App {
                 btnD.textContent = '详情';
                 btnD.onclick = () => window.open(`task_detail.html?oid=${encodeURIComponent(t.task_id)}`, '_blank');
                 actions.appendChild(btnD);
+                // 推送步骤（从规划任务导入或手动输入JSON）
+                const btnPush = document.createElement('button');
+                btnPush.className = 'action-btn-small';
+                btnPush.textContent = '推送步骤';
+                btnPush.onclick = () => this.pushStepsToOrchestratorInline(t.task_id);
+                actions.appendChild(btnPush);
                 item.appendChild(actions);
                 listEl.appendChild(item);
             });
@@ -1061,6 +1067,56 @@ class App {
             });
         } catch (e) {
             // 静默
+        }
+    }
+
+    async pushStepsToOrchestratorInline(orchestratorTaskId) {
+        try {
+            const mode = prompt('输入模式：1=从规划任务导入  2=手动粘贴JSON（默认1）', '1');
+            let steps = [];
+            if (mode === null) return;
+            if (mode === '2') {
+                const txt = prompt('粘贴步骤数组（JSON）：', '');
+                if (!txt) return;
+                try {
+                    steps = JSON.parse(txt);
+                } catch (e) {
+                    alert('JSON解析失败');
+                    return;
+                }
+                if (!Array.isArray(steps)) {
+                    alert('必须为数组');
+                    return;
+                }
+            } else {
+                const pid = prompt('输入规划任务ID（数字）：', '');
+                if (!pid) return;
+                const r = await fetch(`${API_BASE}/planning/tasks/${encodeURIComponent(pid)}`);
+                const j = await r.json();
+                if (!r.ok || !j.task) {
+                    alert('未找到该规划任务');
+                    return;
+                }
+                steps = j.task.steps || [];
+                if (!Array.isArray(steps) || steps.length === 0) {
+                    alert('该规划任务没有可用的 steps');
+                    return;
+                }
+            }
+            const resp = await fetch(`${API_BASE}/tasks/${encodeURIComponent(orchestratorTaskId)}/metadata`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ updates: { steps } })
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+                alert('推送失败：' + (data.detail || '未知错误'));
+                return;
+            }
+            this.addActivity('🧩', `已推送步骤到 ${orchestratorTaskId}（total_steps=${(data.task && data.task.metadata && data.task.metadata.total_steps) || '未知'}）`);
+            this.refreshTasks(true);
+        } catch (e) {
+            alert('推送异常：' + e.message);
         }
     }
 
