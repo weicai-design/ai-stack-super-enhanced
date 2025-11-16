@@ -1,3 +1,43 @@
+# Changelog
+
+## v5.9.0 (2025-11-16)
+
+### 新增
+- SLO 策略引擎（请求预算、超时与降级、可观测统计）与性能面板集成
+- 终端沙盒执行：白名单+符号限制+工作区约束+系统事件审计；前端终端面板
+- 文件生成 API：Word/Excel/PDF（缺库回退HTML/CSV），前端一键下载
+- ERP 8 维度分析 API 与轻量 ERP 监听（订单变化写入系统事件）
+- 运营试算器 API（周营收↔日产量倒推）与主界面快捷入口
+- 股票数据源网关（可插拔热切换）与模拟撮合+基础风控（止损/仓位/滑点）
+- 抖音集成占位：OAuth 模拟、合规前置检测、草稿发布通路；前端提交入口
+- RAG 预处理四项（清洗/标准化/去重/验证）与真实性评分 API；RAG 工具页
+- ERP BPMN 流程管理 API + 轻量 JSON 编辑页面；关键三级页最小可用视图
+- Cursor 桥接端到端：打开文件/项目、代码补全、错误检测 API；主界面快捷操作
+
+### 变更
+- chat 流程应用策略引擎超时预算，提升 2 秒响应命中率
+- 性能统计接口返回策略预算状态（供前端展示）
+
+### 路由概览（节选）
+- `/api/super-agent/performance/*`、`/api/super-agent/terminal/*`
+- `/api/super-agent/generate/file`
+- `/api/super-agent/erp/8d/analyze`、`/api/super-agent/erp/trial/calc`
+- `/api/super-agent/stock/*`
+- `/api/super-agent/douyin/*`
+- `/api/super-agent/rag/*`
+- `/api/super-agent/erp/bpmn/*`
+- `/api/super-agent/coding/cursor/*`
+
+### 前端新页面
+- `web/erp_bpmn.html`（流程编辑）
+- `web/erp_sections.html`（关键三级页最小视图）
+- `web/rag_tools.html`（RAG 工具）
+
+### 升级指引
+1. `git pull && pip install -r requirements-v2.7.0.txt`（如有新增依赖）
+2. 后端启动后访问主界面，使用左侧“RAG工具”、右侧“终端（沙盒）”和“快速操作”按钮体验新增能力
+3. 首次使用抖音草稿：先在“快速操作”中进行授权（模拟）再创建草稿
+
 # 📝 更新日志
 
 所有重要变更都将记录在此文件中。
