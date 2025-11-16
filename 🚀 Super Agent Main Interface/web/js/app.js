@@ -1152,8 +1152,22 @@ class App {
             if (r.ok && data.success) {
                 this.addActivity('⚙️', `任务已执行 #${taskId}`);
                 this.refreshTasks();
-                // 可选：执行后提示复盘
-                setTimeout(() => this.retrospectTask(taskId), 500);
+                // 执行后提示复盘或查看详情
+                setTimeout(async () => {
+                    const doRetro = confirm('任务已执行完成。是否立即进行复盘？（取消=稍后再说）');
+                    if (doRetro) {
+                        await this.retrospectTask(taskId);
+                        const openDetail = confirm('复盘已提交。是否打开任务详情查看？');
+                        if (openDetail) {
+                            window.open(`task_detail.html?pid=${encodeURIComponent(taskId)}`, '_blank');
+                        }
+                    } else {
+                        const openDetail = confirm('是否直接打开任务详情查看执行结果？');
+                        if (openDetail) {
+                            window.open(`task_detail.html?pid=${encodeURIComponent(taskId)}`, '_blank');
+                        }
+                    }
+                }, 400);
             } else {
                 this.addMessage('assistant', `❌ 执行失败：${data.detail || data.error || '未知错误'}`);
             }
