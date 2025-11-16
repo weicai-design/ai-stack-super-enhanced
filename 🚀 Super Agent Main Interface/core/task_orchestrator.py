@@ -70,6 +70,14 @@ class TaskOrchestrator:
         metadata: Optional[Dict[str, Any]] = None,
         dependencies: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
+        # 预处理元数据：若包含步骤，自动填充 total_steps
+        safe_meta: Dict[str, Any] = (metadata or {}).copy()
+        try:
+            steps = safe_meta.get("steps")
+            if isinstance(steps, list) and "total_steps" not in safe_meta:
+                safe_meta["total_steps"] = len(steps)
+        except Exception:
+            pass
         task_id = f"task_{uuid4()}"
         task = OrchestratedTask(
             task_id=task_id,
@@ -77,7 +85,7 @@ class TaskOrchestrator:
             description=description,
             priority=priority,
             source=source,
-            metadata=metadata or {},
+            metadata=safe_meta,
             dependencies=dependencies or [],
         )
         self.tasks[task_id] = task
@@ -87,6 +95,28 @@ class TaskOrchestrator:
             source="task_orchestrator",
             severity="info",
             payload={"task": task.__dict__},
+        )
+        return task.__dict__
+
+    async def update_task_metadata(self, task_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """更新任务元数据（合并）"""
+        task = self.tasks.get(task_id)
+        if not task:
+            return None
+        task.metadata.update(updates or {})
+        # 若包含steps则刷新total_steps
+        try:
+            steps = task.metadata.get("steps")
+            if isinstance(steps, list):
+                task.metadata["total_steps"] = len(steps)
+        except Exception:
+            pass
+        task.updated_at = datetime.now().isoformat()
+        await self.event_bus.publish_event(
+            LearningEventType.TASK_UPDATED,
+            source="task_orchestrator",
+            severity="info",
+            payload={"task": task.__dict__, "metadata_updated": True},
         )
         return task.__dict__
 

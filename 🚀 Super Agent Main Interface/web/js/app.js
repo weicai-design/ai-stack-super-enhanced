@@ -12,6 +12,8 @@ class App {
         this.latestSecurityEventId = null;
         this.taskPage = 1;
         this.taskPageSize = 10;
+        this.taskPageOrch = 1;
+        this.taskPagePlan = 1;
         
         // 立即初始化
         this.init();
@@ -863,13 +865,15 @@ class App {
             const totalPages = Math.max(orchTotalPages, planTotalPages);
             const pageInfo = document.getElementById('task-pageinfo');
             if (pageInfo) pageInfo.textContent = `第 ${Math.min(page, totalPages)} / ${totalPages} 页`;
-            const sliceByPage = (arr) => {
-                const p = Math.min(page, Math.max(1, Math.ceil(arr.length / pageSize)));
+            // 独立页码
+            this.taskPageOrch = Math.min(Math.max(1, this.taskPageOrch), orchTotalPages);
+            this.taskPagePlan = Math.min(Math.max(1, this.taskPagePlan), planTotalPages);
+            const sliceByPage = (arr, p) => {
                 const start = (p - 1) * pageSize;
                 return arr.slice(start, start + pageSize);
             };
-            const orchPage = sliceByPage(orchTasks);
-            const planPage = sliceByPage(tasks);
+            const orchPage = sliceByPage(orchTasks, this.taskPageOrch);
+            const planPage = sliceByPage(tasks, this.taskPagePlan);
             listEl.innerHTML = '';
             if (orchTasks.length === 0 && tasks.length === 0) {
                 const empty = document.createElement('div');
@@ -882,8 +886,17 @@ class App {
             const headerOrch = document.createElement('div');
             headerOrch.className = 'activity-item';
             headerOrch.style.fontWeight = '600';
-            headerOrch.textContent = '编排器任务';
+            headerOrch.textContent = `编排器任务（第 ${this.taskPageOrch}/${orchTotalPages} 页）`;
             listEl.appendChild(headerOrch);
+            // 分页控制（编排器）
+            const orchPager = document.createElement('div');
+            orchPager.className = 'activity-item';
+            const orchPrev = document.createElement('button'); orchPrev.className='action-btn-small'; orchPrev.textContent='上一页';
+            orchPrev.onclick = () => { if (this.taskPageOrch > 1) { this.taskPageOrch--; this.refreshTasks(true); } };
+            const orchNext = document.createElement('button'); orchNext.className='action-btn-small'; orchNext.textContent='下一页';
+            orchNext.onclick = () => { if (this.taskPageOrch < orchTotalPages) { this.taskPageOrch++; this.refreshTasks(true); } };
+            orchPager.appendChild(orchPrev); orchPager.appendChild(orchNext);
+            listEl.appendChild(orchPager);
             orchPage.forEach(t => {
                 const item = document.createElement('div');
                 item.className = 'activity-item';
@@ -950,8 +963,17 @@ class App {
             const headerPlan = document.createElement('div');
             headerPlan.className = 'activity-item';
             headerPlan.style.fontWeight = '600';
-            headerPlan.textContent = '规划任务';
+            headerPlan.textContent = `规划任务（第 ${this.taskPagePlan}/${planTotalPages} 页）`;
             listEl.appendChild(headerPlan);
+            // 分页控制（规划）
+            const planPager = document.createElement('div');
+            planPager.className = 'activity-item';
+            const planPrev = document.createElement('button'); planPrev.className='action-btn-small'; planPrev.textContent='上一页';
+            planPrev.onclick = () => { if (this.taskPagePlan > 1) { this.taskPagePlan--; this.refreshTasks(true); } };
+            const planNext = document.createElement('button'); planNext.className='action-btn-small'; planNext.textContent='下一页';
+            planNext.onclick = () => { if (this.taskPagePlan < planTotalPages) { this.taskPagePlan++; this.refreshTasks(true); } };
+            planPager.appendChild(planPrev); planPager.appendChild(planNext);
+            listEl.appendChild(planPager);
             planPage.forEach(t => {
                 const item = document.createElement('div');
                 item.className = 'activity-item';

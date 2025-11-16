@@ -796,6 +796,17 @@ async def list_tasks():
     orchestrator = _get_task_orchestrator()
     return {"tasks": orchestrator.list_tasks()}
 
+class TaskMetadataUpdateRequest(BaseModel):
+    updates: Dict[str, Any]
+
+@router.post("/tasks/{task_id}/metadata")
+async def update_task_metadata(task_id: str, req: TaskMetadataUpdateRequest):
+    """更新编排器任务的元数据（可用于设置 steps/total_steps 等）"""
+    orchestrator = _get_task_orchestrator()
+    data = await orchestrator.update_task_metadata(task_id, req.updates or {})
+    if not data:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return {"task": data}
 @router.get("/tasks/{task_id}")
 async def get_task_detail(task_id: str):
     """获取编排任务详情（Orchestrator管理的任务）"""
