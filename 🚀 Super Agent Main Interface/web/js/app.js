@@ -241,8 +241,12 @@ class App {
         // 更新系统状态
         this.updateSystemStatus();
         setInterval(() => this.updateSystemStatus(), 5000);
+        this.refreshTasks();
+        setInterval(() => this.refreshTasks(), 7000);
         this.updateTerminalSecurity(true);
         setInterval(() => this.updateTerminalSecurity(), 4000);
+        this.updateSecurityAudit();
+        setInterval(() => this.updateSecurityAudit(), 8000);
         
         this.isInitialized = true;
         console.log('✅✅✅ 应用初始化完成！');
@@ -474,6 +478,12 @@ class App {
             window.open('http://localhost:8012', '_blank');
         } else if (module === 'rag-tools') {
             window.open('erp_bpmn.html'.replace('erp_bpmn','rag_tools'), '_blank');
+        } else if (module === 'rag-ingest') {
+            window.open('rag_ingest.html', '_blank');
+        } else if (module === 'stock-backtest') {
+            window.open('stock_backtest.html', '_blank');
+        } else if (module === 'bpmn-runtime') {
+            window.open('bpmn_runtime.html', '_blank');
         }
     }
     
@@ -778,6 +788,130 @@ class App {
         }
     }
 
+    async refreshTasks() {
+        try {
+            const listEl = document.getElementById('task-list');
+            if (!listEl) return;
+            const r = await fetch(`${API_BASE}/tasks`);
+            const payload = await r.json();
+            const tasks = payload.tasks || [];
+            listEl.innerHTML = '';
+            if (tasks.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'activity-item';
+                empty.textContent = '暂无任务';
+                listEl.appendChild(empty);
+                return;
+            }
+            tasks.slice(-8).reverse().forEach(t => {
+                const item = document.createElement('div');
+                item.className = 'activity-item';
+                const icon = document.createElement('span');
+                icon.className = 'activity-icon';
+                icon.textContent = t.status === 'completed' ? '✅' : (t.needs_confirmation ? '⏳' : '📋');
+                const text = document.createElement('span');
+                text.className = 'activity-text';
+                text.textContent = `${t.id || ''} ${t.title || t.description || ''}`;
+                const time = document.createElement('span');
+                time.className = 'activity-time';
+                time.textContent = t.created_at ? new Date(t.created_at).toLocaleTimeString('zh-CN', { hour12: false }) : '';
+                item.appendChild(icon);
+                item.appendChild(text);
+                item.appendChild(time);
+                // 操作区
+                const actions = document.createElement('div');
+                actions.style.marginTop = '4px';
+                if (t.needs_confirmation && t.id !== undefined) {
+                    const btnC = document.createElement('button');
+                    btnC.className = 'action-btn-small';
+                    btnC.textContent = '确认';
+                    btnC.onclick = () => this.confirmTask(t.id, true);
+                    const btnR = document.createElement('button');
+                    btnR.className = 'action-btn-small';
+                    btnR.textContent = '拒绝';
+                    btnR.onclick = () => this.confirmTask(t.id, false);
+                    actions.appendChild(btnC);
+                    actions.appendChild(btnR);
+                } else if ((t.status === 'pending' || t.status === 'created') && t.id !== undefined) {
+                    const btnE = document.createElement('button');
+                    btnE.className = 'action-btn-small';
+                    btnE.textContent = '执行';
+                    btnE.onclick = () => this.executeTask(t.id);
+                    actions.appendChild(btnE);
+                } else if (t.status === 'completed' && t.id !== undefined) {
+                    const btnRp = document.createElement('button');
+                    btnRp.className = 'action-btn-small';
+                    btnRp.textContent = '复盘';
+                    btnRp.onclick = () => this.retrospectTask(t.id);
+                    actions.appendChild(btnRp);
+                }
+                item.appendChild(actions);
+                listEl.appendChild(item);
+            });
+        } catch (e) {
+            // 静默
+        }
+    }
+
+    async confirmTask(taskId, confirmed) {
+        try {
+            const reason = confirmed ? '' : (prompt('请输入拒绝原因（可选）：', '') || '');
+            const r = await fetch(`${API_BASE}/tasks/${taskId}/confirm`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirmed, reason })
+            });
+            if (r.ok) {
+                this.addActivity(confirmed ? '✅' : '🚫', `任务${confirmed ? '已确认' : '已拒绝'} #${taskId}`);
+                this.refreshTasks();
+            } else {
+                const data = await r.json();
+                this.addMessage('assistant', `❌ 任务确认失败：${data.detail || '未知错误'}`);
+            }
+        } catch (e) {
+            this.addMessage('assistant', `❌ 任务确认异常：${e.message}`);
+        }
+    }
+
+    async executeTask(taskId) {
+        try {
+            const r = await fetch(`${API_BASE}/tasks/${taskId}/execute`, { method: 'POST' });
+            const data = await r.json();
+            if (r.ok && data.success) {
+                this.addActivity('⚙️', `任务已执行 #${taskId}`);
+                this.refreshTasks();
+                // 可选：执行后提示复盘
+                setTimeout(() => this.retrospectTask(taskId), 500);
+            } else {
+                this.addMessage('assistant', `❌ 执行失败：${data.detail || data.error || '未知错误'}`);
+            }
+        } catch (e) {
+            this.addMessage('assistant', `❌ 执行异常：${e.message}`);
+        }
+    }
+
+    async retrospectTask(taskId) {
+        try {
+            const success = confirm('任务是否成功完成？点击“确定”为成功，“取消”为失败。');
+            const summary = prompt('请填写简要复盘总结：', '') || '';
+            const lessonsRaw = prompt('关键经验要点（用中文逗号分隔，可留空）：', '') || '';
+            const lessons = lessonsRaw ? lessonsRaw.split('，').map(s => s.trim()).filter(Boolean) : [];
+            const r = await fetch(`${API_BASE}/tasks/${taskId}/retrospect`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ success, summary, lessons, metrics: {} })
+            });
+            const data = await r.json();
+            if (r.ok && data.success) {
+                this.addActivity('🧠', `已复盘任务 #${taskId}`);
+                this.refreshTasks();
+            } else {
+                this.addMessage('assistant', `❌ 复盘失败：${data.detail || '未知错误'}`);
+            }
+        } catch (e) {
+            this.addMessage('assistant', `❌ 复盘异常：${e.message}`);
+        }
+    }
     async openDouyinDraftDialog() {
         try {
             // 检查授权状态
@@ -1207,6 +1341,38 @@ class App {
             }
         } catch (error) {
             // 静默处理
+        }
+    }
+
+    async updateSecurityAudit() {
+        const listEl = document.getElementById('security-audit-list');
+        if (!listEl) return;
+        try {
+            const r = await fetch(`${API_BASE}/security/audit/overview?limit=10`);
+            if (!r.ok) return;
+            const data = await r.json();
+            listEl.innerHTML = '';
+            const events = data.events || [];
+            if (events.length === 0) {
+                listEl.innerHTML = '<div class="security-empty">暂无审计事件</div>';
+                return;
+            }
+            events.forEach(e => {
+                const item = document.createElement('div');
+                item.className = `security-event ${e.success ? 'success' : 'error'}`;
+                const header = document.createElement('div');
+                header.className = 'event-header';
+                const time = new Date(e.timestamp).toLocaleTimeString('zh-CN', { hour12: false });
+                header.innerHTML = `<span>${time}</span><span>${e.type}/${e.severity}</span>`;
+                const detail = document.createElement('div');
+                detail.className = 'event-meta';
+                detail.textContent = `${e.source} · ${e.short}`;
+                item.appendChild(header);
+                item.appendChild(detail);
+                listEl.appendChild(item);
+            });
+        } catch (e) {
+            // 静默
         }
     }
 }

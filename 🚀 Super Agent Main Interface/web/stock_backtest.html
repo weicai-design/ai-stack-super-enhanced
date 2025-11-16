@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>股票策略回测（最小可用）</title>
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <div class="app-container" style="padding:16px;">
+        <h2>股票策略回测（最小可用）</h2>
+        <div style="margin:8px 0;">
+            <input id="symbol" placeholder="代码（如000001）" value="000001" />
+            <label>天数 <input id="days" type="number" value="60" style="width:80px;"></label>
+            <label>seed <input id="seed" type="number" value="7" style="width:80px;"></label>
+            <button id="run">运行回测</button>
+        </div>
+        <pre id="out" style="height:70vh;overflow:auto;background:#111;color:#eee;padding:12px;"></pre>
+    </div>
+    <script>
+        const API = '/api/super-agent';
+        document.getElementById('run').onclick = async () => {
+            const symbol = document.getElementById('symbol').value || '000001';
+            const days = parseInt(document.getElementById('days').value || '60', 10);
+            const seed = parseInt(document.getElementById('seed').value || '7', 10);
+            const r = await fetch(`${API}/stock/backtest?symbol=${encodeURIComponent(symbol)}&days=${days}&seed=${seed}`);
+            const data = await r.json();
+            document.getElementById('out').textContent = JSON.stringify(data, null, 2);
+        };
+    </script>
+</body>
+</html>
+

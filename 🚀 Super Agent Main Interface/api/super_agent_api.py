@@ -44,6 +44,7 @@ from core.strategy_engine import StrategyEngine
 from core.content_compliance import ContentComplianceService
 from core.stock_gateway import StockGateway
 from core.stock_simulator import StockSimulator
+from core.stock_backtest import BacktestEngine
 from core.integrations.douyin import DouyinIntegration
 from 📚 Enhanced RAG & Knowledge Graph.core.rag_tools import (
     clean_text as rag_clean,
@@ -76,6 +77,7 @@ stock_gateway = StockGateway()
 stock_sim = StockSimulator()
 douyin = DouyinIntegration()
 cursor_bridge = CursorBridge()
+backtest_engine = BacktestEngine()
 try:
     factory_data_source = FactoryDataSource()
     factory_data_source_error = None
@@ -133,6 +135,9 @@ asyncio.create_task(_erp_listener())
 
 bpmn_dir = Path(project_root) / "data" / "bpmn"
 bpmn_dir.mkdir(parents=True, exist_ok=True)
+rag_dir = Path(project_root) / "data" / "rag"
+rag_dir.mkdir(parents=True, exist_ok=True)
+rag_store_path = rag_dir / "documents.jsonl"
 
 class ChatRequest(BaseModel):
     """聊天请求"""
@@ -960,6 +965,63 @@ async def delete_bpmn_process(process_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ====== BPMN 运行时追踪（最小可用） ======
+runtime_path = bpmn_dir / "runtime.jsonl"
+
+class BpmnRuntimeEvent(BaseModel):
+    instance_id: str
+    process_id: str
+    node_id: str
+    node_name: Optional[str] = None
+    status: str  # started/completed/error
+    message: Optional[str] = None
+
+@router.post("/erp/bpmn/runtime/event")
+async def bpmn_runtime_event(ev: BpmnRuntimeEvent):
+    """记录流程实例节点事件"""
+    rec = ev.dict()
+    rec["timestamp"] = datetime.now().isoformat()
+    try:
+        with open(runtime_path, "a", encoding="utf-8") as f:
+            import json as _json
+            f.write(_json.dumps(rec, ensure_ascii=False) + "\n")
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/erp/bpmn/runtime/instances")
+async def bpmn_runtime_instances(limit: int = 50):
+    """按实例聚合最近事件（最小可用）"""
+    from collections import defaultdict
+    agg = defaultdict(list)
+    try:
+        if runtime_path.exists():
+            with open(runtime_path, "r", encoding="utf-8") as f:
+                import json as _json
+                lines = f.readlines()[-1000:]
+                for line in lines:
+                    try:
+                        e = _json.loads(line)
+                        agg[e["instance_id"]].append(e)
+                    except Exception:
+                        continue
+        instances = []
+        for iid, events in agg.items():
+            events_sorted = sorted(events, key=lambda x: x.get("timestamp", ""))
+            last = events_sorted[-1]
+            instances.append({
+                "instance_id": iid,
+                "process_id": last.get("process_id"),
+                "last_node": last.get("node_id"),
+                "last_status": last.get("status"),
+                "events_count": len(events_sorted),
+                "updated_at": last.get("timestamp")
+            })
+        instances = sorted(instances, key=lambda x: x["updated_at"], reverse=True)[:limit]
+        return {"instances": instances, "count": len(instances)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/integrations/status")
 async def get_external_integrations():
@@ -1090,6 +1152,29 @@ async def get_performance_stats():
         "strategy": strategy_engine.get_stats()
     }
 
+@router.get("/dashboard/overview")
+async def get_dashboard_overview():
+    """统一遥测总览：性能/策略/资源/学习/工作流统计"""
+    perf = performance_monitor.get_performance_stats()
+    strategy = strategy_engine.get_stats()
+    resource = resource_monitor.get_current_status()
+    alerts = resource_monitor.get_alerts()
+    workflow_stats = super_agent.workflow_monitor.get_statistics() if super_agent.workflow_monitor else {}
+    learning_stats = learning_monitor.get_statistics() if learning_monitor else {}
+    return {
+        "success": True,
+        "performance": perf,
+        "strategy": strategy,
+        "resource": {
+            "status": resource,
+            "alerts": alerts,
+            "alerts_count": len(alerts)
+        },
+        "workflow": workflow_stats,
+        "learning": learning_stats,
+        "timestamp": datetime.now().isoformat()
+    }
+
 
 @router.get("/performance/slow-queries")
 async def get_slow_queries(limit: int = 10):
@@ -1111,6 +1196,27 @@ async def get_bottlenecks():
         "bottlenecks": bottlenecks,
         "count": len(bottlenecks)
     }
+
+@router.get("/security/audit/overview")
+async def security_audit_overview(limit: int = 20):
+    """统一安全与合规审计总览（终端/系统事件）"""
+    monitor = super_agent.workflow_monitor
+    if not monitor:
+        return {"events": [], "count": 0}
+    events = monitor.get_recent_system_events(limit=limit, event_type=None)
+    # 仅提取部分字段
+    simplified = []
+    for e in events:
+        simplified.append({
+            "event_id": getattr(e, "event_id", None),
+            "type": getattr(e, "event_type", ""),
+            "source": getattr(e, "source", ""),
+            "success": getattr(e, "success", True),
+            "severity": getattr(e, "severity", "info"),
+            "timestamp": getattr(e, "timestamp", datetime.now()).isoformat(),
+            "short": str(getattr(e, "data", {}))[:120]
+        })
+    return {"events": simplified, "count": len(simplified)}
 
 
 @router.get("/performance/cache-stats")
@@ -1407,6 +1513,9 @@ async def sim_cancel(order_id: str = Body(..., embed=True)):
 async def sim_state():
     return stock_sim.get_state()
 
+@router.get("/stock/backtest")
+async def stock_backtest(symbol: str = "000001", days: int = 60, seed: int = 7):
+    return backtest_engine.run(symbol, days, seed)
 # ====== 抖音集成：授权与草稿发布（合规前置） ======
 @router.get("/douyin/status")
 async def douyin_status():
@@ -1484,6 +1593,99 @@ async def rag_preprocess_validate(req: RagPreprocessRequest):
 async def rag_authenticity_check(req: RagPreprocessRequest):
     res = rag_auth_score(req.text)
     return res
+
+# ====== RAG 流水线化：上传→预处理→真实性→入库（最小可用） ======
+class RagIngestRequest(BaseModel):
+    text: Optional[str] = None
+    title: Optional[str] = None
+    run_clean: bool = True
+    run_standardize: bool = True
+    run_dedup: bool = True
+    min_authenticity: float = 55.0
+
+@router.post("/rag/pipeline/ingest")
+async def rag_pipeline_ingest(req: RagIngestRequest):
+    if not req.text:
+        raise HTTPException(status_code=400, detail="缺少文本")
+    text = req.text
+    steps = {}
+    if req.run_clean:
+        text = rag_clean(text); steps["clean"] = True
+    if req.run_standardize:
+        text = rag_standardize(text); steps["standardize"] = True
+    if req.run_dedup:
+        d = rag_dedup(text); text = d["unique_text"]; steps["deduplicate"] = {"removed": d["removed"], "kept": d["kept"]}
+    valid = rag_validate(text)
+    auth = rag_auth_score(text)
+    accepted = auth.get("score", 0) >= req.min_authenticity and valid.get("valid", True)
+    # TODO: 入库到RAG（此处占位，仅返回拟入库的文档数据）
+    doc = {
+        "id": f"doc_{int(datetime.now().timestamp()*1000)}",
+        "title": req.title or (text[:30] if text else "文档"),
+        "content": text,
+        "ingested_at": datetime.now().isoformat(),
+        "authenticity": auth,
+        "validation": valid
+    }
+    # 持久化入库（JSONL占位），并写入简易倒排索引（按关键词拆分写meta）
+    try:
+        with open(rag_store_path, "a", encoding="utf-8") as f:
+            import json as _json
+            f.write(_json.dumps(doc, ensure_ascii=False) + "\n")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f\"持久化失败: {str(e)}\")
+    return {
+        "success": True,
+        "accepted": accepted,
+        "document": doc,
+        "steps": steps
+    }
+
+@router.get("/rag/pipeline/documents")
+async def rag_pipeline_list_docs(limit: int = 20):
+    """列出最近入库的RAG文档（占位存储）"""
+    items = []
+    try:
+        if rag_store_path.exists():
+            with open(rag_store_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()[-limit:]
+                import json as _json
+                for line in reversed(lines):
+                    try:
+                        items.append(_json.loads(line))
+                    except Exception:
+                        continue
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"documents": items, "count": len(items)}
+
+@router.get("/rag/pipeline/search")
+async def rag_pipeline_search(q: str, limit: int = 10):
+    """占位检索：基于子串与简单关键词匹配"""
+    results = []
+    try:
+        if not rag_store_path.exists():
+            return {"results": [], "count": 0}
+        with open(rag_store_path, "r", encoding="utf-8") as f:
+            import json as _json, re as _re
+            kws = [k for k in _re.split(r\"\\W+\", q) if k]
+            for line in reversed(f.readlines()):
+                try:
+                    doc = _json.loads(line)
+                except Exception:
+                    continue
+                text = (doc.get(\"title\", \"\") + \"\\n\" + doc.get(\"content\", \"\"))
+                score = 0
+                if q in text:
+                    score += 2
+                score += sum(1 for k in kws if k and k in text)
+                if score > 0:
+                    results.append({\"id\": doc.get(\"id\"), \"title\": doc.get(\"title\"), \"score\": score})
+                if len(results) >= limit:
+                    break
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {\"results\": results, \"count\": len(results)}
 
 # ====== 编程助手：Cursor 桥接 ======
 @router.get("/coding/cursor/status")

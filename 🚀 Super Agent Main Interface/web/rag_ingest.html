@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RAG 流水线 - 上传→预处理→真实性→入库</title>
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <div class="app-container" style="padding:16px;">
+        <h2>RAG 流水线（最小可用）</h2>
+        <input id="title" type="text" placeholder="标题（可选）" style="width:100%;margin-bottom:8px;">
+        <textarea id="text" placeholder="粘贴文本..." style="width:100%;height:40vh;font-family:monospace;"></textarea>
+        <div style="margin:8px 0;">
+            <label><input type="checkbox" id="clean" checked> 清洗</label>
+            <label><input type="checkbox" id="std" checked> 标准化</label>
+            <label><input type="checkbox" id="dedup" checked> 去重</label>
+            <label>最低真实性 <input type="number" id="minAuth" value="55" style="width:64px;"> 分</label>
+            <button id="run">运行流水线</button>
+        </div>
+        <pre id="out" style="height:40vh;overflow:auto;background:#111;color:#eee;padding:12px;"></pre>
+    </div>
+    <script>
+        const API = '/api/super-agent';
+        const qs = s => document.querySelector(s);
+        qs('#run').onclick = async () => {
+            const body = {
+                title: qs('#title').value || null,
+                text: qs('#text').value || '',
+                run_clean: qs('#clean').checked,
+                run_standardize: qs('#std').checked,
+                run_dedup: qs('#dedup').checked,
+                min_authenticity: parseFloat(qs('#minAuth').value || '55')
+            };
+            const r = await fetch(`${API}/rag/pipeline/ingest`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(body)
+            });
+            const data = await r.json();
+            qs('#out').textContent = JSON.stringify(data, null, 2);
+            if (data.success && data.accepted) {
+                alert('✅ 流水线通过（已达到最低真实性与验证要求）');
+            } else {
+                alert('⛔ 未达到最低要求，请调整文本后重试');
+            }
+        };
+    </script>
+</body>
+</html>
+

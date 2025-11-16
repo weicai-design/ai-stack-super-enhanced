@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BPMN 运行时追踪（最小可用）</title>
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <div class="app-container" style="padding:16px;">
+        <h2>BPMN 运行时追踪（最小可用）</h2>
+        <div style="margin:8px 0;">
+            <button id="refresh">刷新</button>
+        </div>
+        <pre id="out" style="height:70vh;overflow:auto;background:#111;color:#eee;padding:12px;"></pre>
+    </div>
+    <script>
+        const API = '/api/super-agent';
+        async function load() {
+            const r = await fetch(`${API}/erp/bpmn/runtime/instances`);
+            const data = await r.json();
+            document.getElementById('out').textContent = JSON.stringify(data, null, 2);
+        }
+        document.getElementById('refresh').onclick = load;
+        load();
+    </script>
+</body>
+</html>
+

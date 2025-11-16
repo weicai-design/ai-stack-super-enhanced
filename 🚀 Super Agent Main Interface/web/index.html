@@ -48,9 +48,17 @@
                             <span class="nav-icon">🛠️</span>
                             <span class="nav-label">RAG工具</span>
                         </button>
+                        <button class="nav-btn" data-module="rag-ingest">
+                            <span class="nav-icon">📥</span>
+                            <span class="nav-label">RAG流水线</span>
+                        </button>
                         <button class="nav-btn" data-module="erp">
                             <span class="nav-icon">💼</span>
                             <span class="nav-label">ERP管理</span>
+                        </button>
+                        <button class="nav-btn" data-module="bpmn-runtime">
+                            <span class="nav-icon">⏱️</span>
+                            <span class="nav-label">流程追踪</span>
                         </button>
                         <button class="nav-btn" data-module="content">
                             <span class="nav-icon">✍️</span>
@@ -71,6 +79,10 @@
                         <button class="nav-btn" data-module="coding">
                             <span class="nav-icon">💻</span>
                             <span class="nav-label">AI编程</span>
+                        </button>
+                        <button class="nav-btn" data-module="stock-backtest">
+                            <span class="nav-icon">🧪</span>
+                            <span class="nav-label">策略回测</span>
                         </button>
                     </nav>
                 </div>
@@ -175,6 +187,13 @@
                 </div>
 
                 <div class="panel-section">
+                    <h3 class="panel-title">任务中心</h3>
+                    <div id="task-list" class="task-list">
+                        <div class="activity-item">加载中...</div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
                     <h3 class="panel-title">快速操作</h3>
                     <div class="quick-actions">
                         <button class="action-btn-small" id="quick-memo">📝 创建备忘录</button>
@@ -195,6 +214,14 @@
                         </div>
                         <div class="security-event-list" id="terminal-event-list">
                             <div class="security-empty">暂无命令记录</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-section">
+                    <h3 class="panel-title">安全与合规总览</h3>
+                    <div class="security-panel">
+                        <div class="security-event-list" id="security-audit-list">
+                            <div class="security-empty">加载中...</div>
                         </div>
                     </div>
                 </div>
