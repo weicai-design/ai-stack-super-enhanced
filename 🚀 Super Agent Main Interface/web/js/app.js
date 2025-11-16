@@ -800,17 +800,63 @@ class App {
         try {
             const listEl = document.getElementById('task-list');
             if (!listEl) return;
-            const r = await fetch(`${API_BASE}/tasks`);
-            const payload = await r.json();
-            const tasks = payload.tasks || [];
+            // 并行拉取：编排器任务 + 规划任务
+            const [rOrch, rPlan] = await Promise.all([
+                fetch(`${API_BASE}/tasks`),
+                fetch(`${API_BASE}/planning/tasks`)
+            ]);
+            const orchPayload = await rOrch.json();
+            const planPayload = await rPlan.json();
+            const orchTasks = orchPayload.tasks || [];
+            const tasks = planPayload.tasks || [];
             listEl.innerHTML = '';
-            if (tasks.length === 0) {
+            if (orchTasks.length === 0 && tasks.length === 0) {
                 const empty = document.createElement('div');
                 empty.className = 'activity-item';
                 empty.textContent = '暂无任务';
                 listEl.appendChild(empty);
                 return;
             }
+            // 编排器任务区
+            const headerOrch = document.createElement('div');
+            headerOrch.className = 'activity-item';
+            headerOrch.style.fontWeight = '600';
+            headerOrch.textContent = '编排器任务';
+            listEl.appendChild(headerOrch);
+            orchTasks.slice(-6).reverse().forEach(t => {
+                const item = document.createElement('div');
+                item.className = 'activity-item';
+                const icon = document.createElement('span');
+                icon.className = 'activity-icon';
+                icon.textContent = t.status === 'completed' ? '✅' : (t.status === 'blocked' ? '⛔' : '🧩');
+                const text = document.createElement('span');
+                text.className = 'activity-text';
+                text.textContent = `${t.task_id || ''} ${t.title || ''}`;
+                text.style.cursor = 'pointer';
+                text.title = '点击查看任务详情';
+                if (t.task_id) text.onclick = () => window.open(`task_detail.html?oid=${encodeURIComponent(t.task_id)}`, '_blank');
+                const time = document.createElement('span');
+                time.className = 'activity-time';
+                time.textContent = t.updated_at ? new Date(t.updated_at).toLocaleTimeString('zh-CN', { hour12: false }) : '';
+                item.appendChild(icon);
+                item.appendChild(text);
+                item.appendChild(time);
+                const actions = document.createElement('div');
+                actions.style.marginTop = '4px';
+                const btnD = document.createElement('button');
+                btnD.className = 'action-btn-small';
+                btnD.textContent = '详情';
+                btnD.onclick = () => window.open(`task_detail.html?oid=${encodeURIComponent(t.task_id)}`, '_blank');
+                actions.appendChild(btnD);
+                item.appendChild(actions);
+                listEl.appendChild(item);
+            });
+            // 规划任务区
+            const headerPlan = document.createElement('div');
+            headerPlan.className = 'activity-item';
+            headerPlan.style.fontWeight = '600';
+            headerPlan.textContent = '规划任务';
+            listEl.appendChild(headerPlan);
             tasks.slice(-8).reverse().forEach(t => {
                 const item = document.createElement('div');
                 item.className = 'activity-item';
@@ -823,7 +869,7 @@ class App {
                 if (t.id !== undefined) {
                     text.style.cursor = 'pointer';
                     text.title = '点击查看任务详情';
-                    text.onclick = () => window.open(`task_detail.html?id=${encodeURIComponent(t.id)}`, '_blank');
+                    text.onclick = () => window.open(`task_detail.html?pid=${encodeURIComponent(t.id)}`, '_blank');
                 }
                 const time = document.createElement('span');
                 time.className = 'activity-time';
@@ -852,16 +898,15 @@ class App {
                     btnE.onclick = () => this.executeTask(t.id);
                     actions.appendChild(btnE);
                 }
-                // 通用：详情（尝试作为orchestrator任务查看；若为规划任务请在上方按钮打开并输入数字ID）
+                // 详情（规划任务）
                 {
                     const btnD = document.createElement('button');
                     btnD.className = 'action-btn-small';
                     btnD.textContent = '详情';
-                    // orchestrator任务ID在列表中为 task.task_id，但列表使用的是 orchestrator.list_tasks() → 每个是扁平字典
-                    const oid = t.task_id || t.id;
-                    btnD.onclick = () => window.open(`task_detail.html?id=${encodeURIComponent(oid)}`, '_blank');
+                    btnD.onclick = () => window.open(`task_detail.html?pid=${encodeURIComponent(t.id)}`, '_blank');
                     actions.appendChild(btnD);
-                } else if (t.status === 'completed' && t.id !== undefined) {
+                }
+                if (t.status === 'completed' && t.id !== undefined) {
                     const btnRp = document.createElement('button');
                     btnRp.className = 'action-btn-small';
                     btnRp.textContent = '复盘';
