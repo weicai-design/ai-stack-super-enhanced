@@ -827,15 +827,91 @@ async def get_demo_orders(
 
 
 @router.get("/erp/demo/production-jobs")
-async def get_production_jobs(order_id: Optional[str] = None):
+async def get_production_jobs(
+    order_id: Optional[str] = None,
+    q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20
+):
     ds = _get_factory_data_source()
-    return {"jobs": ds.get_production_jobs(order_id=order_id)}
+    items = ds.get_production_jobs(order_id=order_id)
+    # 关键词过滤（job_id/order_id/machine/operation等字段）
+    if q:
+        ql = q.lower()
+        def match(o):
+            for k in ["job_id", "order_id", "machine", "operation"]:
+                v = str(o.get(k, "")).lower()
+                if ql in v:
+                    return True
+            return False
+        items = [o for o in items if match(o)]
+    total = len(items)
+    page = max(1, page); page_size = max(1, min(200, page_size))
+    start = (page - 1) * page_size; end = start + page_size
+    page_items = items[start:end]
+    # 状态分布
+    state_dist = {}
+    for j in items:
+        s = j.get("status", "unknown")
+        state_dist[s] = state_dist.get(s, 0) + 1
+    return {"jobs": page_items, "total": total, "page": page, "page_size": page_size, "status_distribution": state_dist}
 
 
 @router.get("/erp/demo/procurements")
-async def get_procurement_alerts():
+async def get_procurement_alerts(
+    q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20
+):
     ds = _get_factory_data_source()
-    return {"procurements": ds.get_procurement_alerts()}
+    items = ds.get_procurement_alerts()
+    if q:
+        ql = q.lower()
+        def match(o):
+            for k in ["po_id", "supplier", "material_code", "material_name", "alert", "status"]:
+                v = str(o.get(k, "")).lower()
+                if ql in v:
+                    return True
+            return False
+        items = [o for o in items if match(o)]
+    total = len(items)
+    page = max(1, page); page_size = max(1, min(200, page_size))
+    start = (page - 1) * page_size; end = start + page_size
+    page_items = items[start:end]
+    # 状态分布
+    state_dist = {}
+    for p in items:
+        s = p.get("status", "unknown")
+        state_dist[s] = state_dist.get(s, 0) + 1
+    return {"procurements": page_items, "total": total, "page": page, "page_size": page_size, "status_distribution": state_dist}
+
+@router.get("/erp/demo/inventory")
+async def get_inventory(
+    q: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20
+):
+    ds = _get_factory_data_source()
+    items = ds.get_inventory_status()
+    if q:
+        ql = q.lower()
+        def match(o):
+            for k in ["material_code", "material_name", "status_flag"]:
+                v = str(o.get(k, "")).lower()
+                if ql in v:
+                    return True
+            return False
+        items = [o for o in items if match(o)]
+    total = len(items)
+    page = max(1, page); page_size = max(1, min(200, page_size))
+    start = (page - 1) * page_size; end = start + page_size
+    page_items = items[start:end]
+    # 状态分布（低于安全/正常）
+    flag_dist = {}
+    for it in items:
+        s = it.get("status_flag", "normal")
+        flag_dist[s] = flag_dist.get(s, 0) + 1
+    return {"inventory": page_items, "total": total, "page": page, "page_size": page_size, "status_distribution": flag_dist}
 
 
 @router.get("/erp/demo/cash-flow")

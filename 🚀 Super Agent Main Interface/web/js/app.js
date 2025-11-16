@@ -486,6 +486,12 @@ class App {
             window.open('bpmn_runtime.html', '_blank');
         } else if (module === 'erp-orders') {
             window.open('erp_orders.html', '_blank');
+        } else if (module === 'erp-production') {
+            window.open('erp_production.html', '_blank');
+        } else if (module === 'erp-procurements') {
+            window.open('erp_procurements.html', '_blank');
+        } else if (module === 'erp-inventory') {
+            window.open('erp_inventory.html', '_blank');
         }
     }
     
