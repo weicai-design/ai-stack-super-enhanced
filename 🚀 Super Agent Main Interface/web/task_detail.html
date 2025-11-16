@@ -6,6 +6,95 @@
     <title>任务详情</title>
     <link rel="stylesheet" href="css/style.css" />
     <style>
+        .kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; margin: 8px 0; }
+        .kv .k { color: #aaa; }
+        .section { margin: 12px 0; }
+        .log { background: #0f0f0f; border: 1px solid #222; padding: 8px; border-radius: 6px; }
+        .tag { display: inline-block; padding: 2px 6px; border-radius: 999px; font-size: 12px; margin-right: 6px; background:#222; }
+        .ok { color: #7CFC00; } .err { color: #ff6b6b; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 6px 8px; border-bottom: 1px solid #333; text-align: left; }
+        .small { color:#aaa; font-size:12px; }
+    </style>
+    </head>
+<body>
+    <div class="app-container" style="padding:16px;">
+        <h2>任务详情</h2>
+        <div id="basic" class="section"></div>
+        <div id="deps" class="section"></div>
+        <div id="steps" class="section"></div>
+        <div id="exec" class="section"></div>
+        <div id="retro" class="section"></div>
+    </div>
+    <script>
+        const API = '/api/super-agent';
+        const url = new URL(location.href);
+        const oid = url.searchParams.get('oid'); // orchestrator task id (如 task_xxx)
+        const pid = url.searchParams.get('pid'); // planning task id (数字)
+        const anyId = url.searchParams.get('id'); // 自动识别：task_ 前缀→orchestrator，否则当作数字planning
+        let mode = null, id = null;
+        if (oid) { mode = 'orchestrator'; id = oid; }
+        else if (pid) { mode = 'planning'; id = parseInt(pid, 10); }
+        else if (anyId) { if (String(anyId).startsWith('task_')) { mode='orchestrator'; id = anyId; } else { mode='planning'; id=parseInt(anyId,10);} }
+        else { alert('缺少参数：?id= 或 ?oid= / ?pid='); }
+
+        function el(tag, cls, text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!==undefined) e.textContent=text; return e; }
+        function renderKV(target, kvs){ const wrap = document.getElementById(target); wrap.innerHTML=''; const grid = el('div','kv'); kvs.forEach(([k,v])=>{ grid.appendChild(el('div','k',k)); grid.appendChild(el('div',null,String(v??'')));}); wrap.appendChild(grid);}
+        function renderDeps(deps){ const wrap=document.getElementById('deps'); wrap.innerHTML='<h3>依赖</h3>'; if(!deps||deps.length===0){ wrap.appendChild(el('div','small','无')); return;} const ul=el('ul'); deps.forEach(d=>{ const li=el('li'); li.textContent=String(d); ul.appendChild(li);}); wrap.appendChild(ul);}
+        function renderSteps(steps){ const wrap=document.getElementById('steps'); wrap.innerHTML='<h3>步骤</h3>'; if(!steps||steps.length===0){ wrap.appendChild(el('div','small','无')); return;} const table=document.createElement('table'); table.innerHTML='<thead><tr><th>#</th><th>名称</th><th>预计时长</th><th>属性</th></tr></thead>'; const tb=el('tbody'); steps.forEach((s,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${i+1}</td><td>${s.name||s.description||''}</td><td>${s.estimated_duration??s.duration??''}</td><td class="small">${s.retries?('retries='+s.retries+' '):''}${s.retry_backoff_sec?('backoff='+s.retry_backoff_sec+'s'):''}</td>`; tb.appendChild(tr);}); table.appendChild(tb); wrap.appendChild(table);}
+        function renderExecLog(log){ const wrap=document.getElementById('exec'); wrap.innerHTML='<h3>执行日志</h3>'; if(!log||log.length===0){ wrap.appendChild(el('div','small','暂无执行日志')); return;} const box=el('div','log'); log.forEach(item=>{ const line=el('div'); const ok=item.success; line.innerHTML = `<span class="${ok?'ok':'err'}">${ok?'✔':'✖'}</span> [${item.ts||''}] ${item.step||item.step_name||''} (attempt ${item.attempt||1}) - ${ok?(item.result||'成功'):(item.error||'失败')}`; box.appendChild(line);}); wrap.appendChild(box);}
+        function renderRetro(retro){ const wrap=document.getElementById('retro'); wrap.innerHTML='<h3>复盘</h3>'; if(!retro){ wrap.appendChild(el('div','small','未复盘')); return;} const box=el('div','log'); box.appendChild(el('div',null,`结果：${retro.success ? '成功' : '失败'}`)); if (retro.summary) box.appendChild(el('div',null,'总结：'+retro.summary)); if (retro.lessons && retro.lessons.length) box.appendChild(el('div',null,'经验：'+retro.lessons.join('，'))); box.appendChild(el('div','small','时间：'+(retro.retrospected_at||''))); wrap.appendChild(box);}
+
+        async function load(){
+            try{
+                let data=null;
+                if (mode==='orchestrator'){
+                    const r = await fetch(`${API}/tasks/${encodeURIComponent(id)}`);
+                    if (!r.ok) throw new Error('编排器任务不存在');
+                    const j = await r.json(); data = j.task || {};
+                    renderKV('basic', [
+                        ['任务ID', data.task_id], ['标题', data.title], ['状态', data.status],
+                        ['优先级', data.priority], ['来源', data.source],
+                        ['创建时间', data.created_at], ['更新时间', data.updated_at]
+                    ]);
+                    renderDeps(data.dependencies||[]);
+                    // Orchestrator侧可能有 execution_history
+                    renderSteps([]);
+                    renderExecLog((data.metadata && data.metadata.execution_history) || []);
+                    // 无复盘位
+                    renderRetro(null);
+                } else {
+                    // planning 任务
+                    const r = await fetch(`${API}/planning/tasks/${encodeURIComponent(id)}`);
+                    if (!r.ok) throw new Error('任务不存在');
+                    const j = await r.json(); data = j.task || {};
+                    renderKV('basic', [
+                        ['任务ID', data.id], ['标题', data.title], ['状态', data.status],
+                        ['优先级', data.priority], ['来源', data.source],
+                        ['创建时间', data.created_at], ['开始时间', data.started_at||''], ['完成时间', data.completed_at||''],
+                        ['进度', (data.progress!=null?data.progress+'%':'')]
+                    ]);
+                    renderDeps(data.dependencies||[]);
+                    renderSteps(data.steps||[]);
+                    renderExecLog(data.execution_log||[]);
+                    renderRetro(data.retrospect||null);
+                }
+            }catch(e){
+                document.getElementById('basic').innerHTML = `<div class="log err">加载失败：${e.message}</div>`;
+            }
+        }
+        load();
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>任务详情</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <style>
         .kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; margin: 8px 0; }
         .kv div { padding: 4px 0; }
         .log-item { border-left: 3px solid #4c8bf5; padding: 8px 12px; margin: 8px 0; background: #101010; }

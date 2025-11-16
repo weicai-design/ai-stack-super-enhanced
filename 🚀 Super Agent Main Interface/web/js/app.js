@@ -851,6 +851,16 @@ class App {
                     btnE.textContent = '执行';
                     btnE.onclick = () => this.executeTask(t.id);
                     actions.appendChild(btnE);
+                }
+                // 通用：详情（尝试作为orchestrator任务查看；若为规划任务请在上方按钮打开并输入数字ID）
+                {
+                    const btnD = document.createElement('button');
+                    btnD.className = 'action-btn-small';
+                    btnD.textContent = '详情';
+                    // orchestrator任务ID在列表中为 task.task_id，但列表使用的是 orchestrator.list_tasks() → 每个是扁平字典
+                    const oid = t.task_id || t.id;
+                    btnD.onclick = () => window.open(`task_detail.html?id=${encodeURIComponent(oid)}`, '_blank');
+                    actions.appendChild(btnD);
                 } else if (t.status === 'completed' && t.id !== undefined) {
                     const btnRp = document.createElement('button');
                     btnRp.className = 'action-btn-small';
