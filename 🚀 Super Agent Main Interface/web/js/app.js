@@ -289,10 +289,12 @@ class App {
         const bulkClr = document.getElementById('task-bulk-clear');
         const bulkCfm = document.getElementById('task-bulk-confirm');
         const bulkExe = document.getElementById('task-bulk-execute');
+        const bulkRetro = document.getElementById('task-bulk-retro');
         if (bulkSel) bulkSel.onclick = (e) => { e.preventDefault(); this.bulkSelectCurrentPage(); };
         if (bulkClr) bulkClr.onclick = (e) => { e.preventDefault(); this.selectedPlanTaskIds.clear(); this.updateBulkCount(); this.refreshTasks(true); };
         if (bulkCfm) bulkCfm.onclick = async (e) => { e.preventDefault(); await this.bulkConfirm(true); };
         if (bulkExe) bulkExe.onclick = async (e) => { e.preventDefault(); await this.bulkExecute(); };
+        if (bulkRetro) bulkRetro.onclick = async (e) => { e.preventDefault(); await this.bulkRetrospect(); };
         
         this.isInitialized = true;
         console.log('✅✅✅ 应用初始化完成！');
@@ -1132,6 +1134,29 @@ class App {
             } catch (_) {}
         }
         this.addActivity('⚙️', `批量执行 ${ids.length} 项`);
+        this.refreshTasks(true);
+    }
+    async bulkRetrospect() {
+        if (this.selectedPlanTaskIds.size === 0) { alert('请先选择任务'); return; }
+        const ok = confirm('批量复盘将为已选择的任务提交相同复盘内容，继续？');
+        if (!ok) return;
+        const success = confirm('复盘结果：确定=成功，取消=失败');
+        const summary = prompt('复盘总结（将应用于所有选中任务）：', '') || '';
+        const lessonsRaw = prompt('关键经验要点（中文逗号分隔，可留空）：', '') || '';
+        const lessons = lessonsRaw ? lessonsRaw.split('，').map(s => s.trim()).filter(Boolean) : [];
+        const ids = Array.from(this.selectedPlanTaskIds);
+        let done = 0;
+        for (const id of ids) {
+            try {
+                await fetch(`${API_BASE}/tasks/${id}/retrospect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ success, summary, lessons, metrics: {} })
+                });
+                done++;
+            } catch (_) {}
+        }
+        this.addActivity('🧠', `批量复盘完成：${done}/${ids.length}`);
         this.refreshTasks(true);
     }
 
