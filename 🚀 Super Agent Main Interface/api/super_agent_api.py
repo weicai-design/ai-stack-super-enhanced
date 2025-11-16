@@ -830,6 +830,24 @@ async def get_planning_task(task_id: int):
     if not t:
         raise HTTPException(status_code=404, detail="任务不存在")
     return {"task": t}
+
+@router.delete("/planning/tasks/{task_id}")
+async def delete_planning_task(task_id: int):
+    """删除任务规划系统中的任务（最小可用）"""
+    tasks = task_planning.get_tasks()
+    idx = None
+    for i, t in enumerate(tasks):
+        if t.get("id") == task_id:
+            idx = i
+            break
+    if idx is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    try:
+        # 从内部列表移除
+        del task_planning.tasks[idx]
+        return {"success": True, "deleted_id": task_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 @router.get("/tasks/{task_id}")
 async def get_task_detail(task_id: str):
     """获取编排任务详情（Orchestrator管理的任务）"""

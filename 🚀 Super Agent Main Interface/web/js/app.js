@@ -290,11 +290,15 @@ class App {
         const bulkCfm = document.getElementById('task-bulk-confirm');
         const bulkExe = document.getElementById('task-bulk-execute');
         const bulkRetro = document.getElementById('task-bulk-retro');
+        const bulkReject = document.getElementById('task-bulk-reject');
+        const bulkDelete = document.getElementById('task-bulk-delete');
         if (bulkSel) bulkSel.onclick = (e) => { e.preventDefault(); this.bulkSelectCurrentPage(); };
         if (bulkClr) bulkClr.onclick = (e) => { e.preventDefault(); this.selectedPlanTaskIds.clear(); this.updateBulkCount(); this.refreshTasks(true); };
         if (bulkCfm) bulkCfm.onclick = async (e) => { e.preventDefault(); await this.bulkConfirm(true); };
         if (bulkExe) bulkExe.onclick = async (e) => { e.preventDefault(); await this.bulkExecute(); };
         if (bulkRetro) bulkRetro.onclick = async (e) => { e.preventDefault(); await this.bulkRetrospect(); };
+        if (bulkReject) bulkReject.onclick = async (e) => { e.preventDefault(); await this.bulkReject(); };
+        if (bulkDelete) bulkDelete.onclick = async (e) => { e.preventDefault(); await this.bulkDelete(); };
         
         this.isInitialized = true;
         console.log('✅✅✅ 应用初始化完成！');
@@ -1134,6 +1138,41 @@ class App {
             } catch (_) {}
         }
         this.addActivity('⚙️', `批量执行 ${ids.length} 项`);
+        this.refreshTasks(true);
+    }
+    async bulkReject() {
+        if (this.selectedPlanTaskIds.size === 0) { alert('请先选择任务'); return; }
+        const reason = prompt('请输入批量拒绝原因（将作用于所有选中任务）：', '') || '';
+        const ids = Array.from(this.selectedPlanTaskIds);
+        let done = 0;
+        for (const id of ids) {
+            try {
+                await fetch(`${API_BASE}/tasks/${id}/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirmed: false, reason })
+                });
+                done++;
+            } catch (_) {}
+        }
+        this.addActivity('🚫', `批量拒绝完成：${done}/${ids.length}`);
+        this.refreshTasks(true);
+    }
+    async bulkDelete() {
+        if (this.selectedPlanTaskIds.size === 0) { alert('请先选择任务'); return; }
+        const ok = confirm('确认删除所选规划任务？该操作不可恢复。');
+        if (!ok) return;
+        const ids = Array.from(this.selectedPlanTaskIds);
+        let done = 0;
+        for (const id of ids) {
+            try {
+                await fetch(`${API_BASE}/planning/tasks/${id}`, { method: 'DELETE' });
+                done++;
+            } catch (_) {}
+        }
+        this.selectedPlanTaskIds.clear();
+        this.updateBulkCount();
+        this.addActivity('🗑️', `批量删除完成：${done}/${ids.length}`);
         this.refreshTasks(true);
     }
     async bulkRetrospect() {
