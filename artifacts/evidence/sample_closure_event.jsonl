@@ -1,0 +1,7 @@
+{"event_id":"closure_sample_1","phase":"accept","status":"success","source":"task_orchestrator","task_id":"task_demo_001","module":"task_orchestrator","timestamp":"2025-11-18T00:00:00Z","metadata":{"title":"生成行业周报","source":"memo"}}
+{"event_id":"closure_sample_2","phase":"execute","status":"success","source":"task_orchestrator","task_id":"task_demo_001","module":"task_orchestrator","timestamp":"2025-11-18T00:00:05Z","metadata":{"module":"trend_engine","result":"数据采集完成"}}
+{"event_id":"closure_sample_3","phase":"check","status":"success","source":"task_orchestrator","task_id":"task_demo_001","module":"task_orchestrator","timestamp":"2025-11-18T00:00:12Z","metadata":{"checks":["数据完整性","指标阈值"]}}
+{"event_id":"closure_sample_4","phase":"feedback","status":"failed","source":"task_orchestrator","task_id":"task_demo_001","module":"task_orchestrator","timestamp":"2025-11-18T00:00:18Z","metadata":{"module":"trend_engine","result":"预测误差过大"}}
+{"event_id":"closure_sample_5","phase":"reexecute","status":"success","source":"task_orchestrator","task_id":"task_demo_001","module":"task_orchestrator","timestamp":"2025-11-18T00:00:30Z","metadata":{"module":"trend_engine","result":"重新拟合模型后通过"}}***
+
+

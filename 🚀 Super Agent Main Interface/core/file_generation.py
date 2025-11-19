@@ -19,9 +19,18 @@ class FileGenerationService:
     4. PDF文档生成
     5. 图片生成
     6. 模板管理
+    7. 与RAG知识库集成（自动保存生成的文件内容）
+    8. 与内容创作模块集成（导出生成的内容）
     """
     
-    def __init__(self):
+    def __init__(self, rag_service=None, content_service=None):
+        """
+        初始化文件生成服务
+        
+        Args:
+            rag_service: RAG服务适配器（可选）
+            content_service: 内容创作服务（可选）
+        """
         self.templates = {}
         self.use_libraries = {
             "word": False,  # python-docx
@@ -29,6 +38,8 @@ class FileGenerationService:
             "ppt": False,   # python-pptx
             "pdf": False    # reportlab/weasyprint
         }
+        self.rag_service = rag_service  # RAG服务（用于自动保存）
+        self.content_service = content_service  # 内容服务（用于导出）
         
     async def generate_word(
         self,
@@ -97,7 +108,7 @@ class FileGenerationService:
                 buffer.seek(0)
                 file_data = buffer.read()
                 
-                return {
+                result = {
                     "success": True,
                     "file_data": file_data,
                     "format": "docx",
@@ -105,6 +116,15 @@ class FileGenerationService:
                     "size": len(file_data),
                     "timestamp": datetime.now().isoformat()
                 }
+                
+                # 自动保存到RAG知识库
+                if self.rag_service:
+                    try:
+                        await self._save_to_rag(content, title or "Word文档", "docx", result)
+                    except Exception as e:
+                        result["rag_save_warning"] = f"保存到RAG失败: {str(e)}"
+                
+                return result
             else:
                 # 备用方案：返回HTML格式（浏览器可以打开）
                 html_content = self._markdown_to_html(content, title)
@@ -228,7 +248,7 @@ class FileGenerationService:
                 buffer.seek(0)
                 file_data = buffer.read()
                 
-                return {
+                result = {
                     "success": True,
                     "file_data": file_data,
                     "format": "xlsx",
@@ -238,6 +258,16 @@ class FileGenerationService:
                     "columns": len(headers) if headers else (len(data[0]) if data else 0),
                     "timestamp": datetime.now().isoformat()
                 }
+                
+                # 自动保存到RAG知识库（将表格数据转换为文本）
+                if self.rag_service:
+                    try:
+                        table_text = self._table_to_text(headers, data)
+                        await self._save_to_rag(table_text, f"Excel表格-{sheet_name}", "xlsx", result)
+                    except Exception as e:
+                        result["rag_save_warning"] = f"保存到RAG失败: {str(e)}"
+                
+                return result
             else:
                 # 备用方案：返回CSV格式
                 csv_lines = []
@@ -267,21 +297,151 @@ class FileGenerationService:
         slides: List[Dict[str, Any]],
         template: Optional[str] = None,
         output_path: Optional[str] = None
-    ) -> bytes:
+    ) -> Dict[str, Any]:
         """
         生成PPT演示文稿
         
         Args:
-            slides: 幻灯片列表
+            slides: 幻灯片列表，每个slide包含：
+                - title: 标题
+                - content: 内容（文本或列表）
+                - bullet_points: 要点列表（可选）
             template: 模板名称
             output_path: 输出路径
             
         Returns:
-            PPT文件字节流
+            包含文件数据和元数据的字典
         """
-        # TODO: 使用python-pptx库生成PPT
+        try:
+            # 检查是否安装了python-pptx
+            try:
+                from pptx import Presentation
+                from pptx.util import Inches, Pt
+                from pptx.enum.text import PP_ALIGN
+                self.use_libraries["ppt"] = True
+            except ImportError:
+                self.use_libraries["ppt"] = False
+            
+            if self.use_libraries["ppt"]:
+                # 使用python-pptx生成PPT
+                prs = Presentation()
+                
+                # 设置幻灯片尺寸（16:9）
+                prs.slide_width = Inches(10)
+                prs.slide_height = Inches(5.625)
+                
+                # 为每个slide创建幻灯片
+                for slide_data in slides:
+                    # 使用标题和内容布局
+                    slide_layout = prs.slide_layouts[1]  # 标题和内容布局
+                    slide = prs.slides.add_slide(slide_layout)
+                    
+                    # 设置标题
+                    title = slide.shapes.title
+                    title.text = slide_data.get("title", "无标题")
+                    
+                    # 设置内容
+                    content = slide_data.get("content", "")
+                    bullet_points = slide_data.get("bullet_points", [])
+                    
+                    # 获取内容占位符
+                    if len(slide.placeholders) > 1:
+                        content_placeholder = slide.placeholders[1]
+                        tf = content_placeholder.text_frame
+                        tf.text = content
+                        
+                        # 添加要点
+                        if bullet_points:
+                            for point in bullet_points:
+                                p = tf.add_paragraph()
+                                p.text = point
+                                p.level = 0
+                
+                # 保存到内存
+                buffer = io.BytesIO()
+                prs.save(buffer)
+                buffer.seek(0)
+                file_data = buffer.read()
+                
+                result = {
+                    "success": True,
+                    "file_data": file_data,
+                    "format": "pptx",
+                    "filename": output_path or f"presentation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx",
+                    "size": len(file_data),
+                    "slides_count": len(slides),
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                # 自动保存到RAG知识库（将幻灯片内容转换为文本）
+                if self.rag_service:
+                    try:
+                        slides_text = self._slides_to_text(slides)
+                        await self._save_to_rag(slides_text, "PPT演示文稿", "pptx", result)
+                    except Exception as e:
+                        result["rag_save_warning"] = f"保存到RAG失败: {str(e)}"
+                
+                return result
+            else:
+                # 备用方案：返回HTML格式（浏览器可以打开）
+                html_content = self._slides_to_html(slides)
+                return {
+                    "success": True,
+                    "file_data": html_content.encode('utf-8'),
+                    "format": "html",
+                    "filename": output_path or f"presentation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
+                    "note": "python-pptx未安装，返回HTML格式",
+                    "slides_count": len(slides),
+                    "timestamp": datetime.now().isoformat()
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    def _slides_to_html(self, slides: List[Dict[str, Any]]) -> str:
+        """将幻灯片转换为HTML格式"""
+        html = """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>演示文稿</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .slide { page-break-after: always; margin-bottom: 50px; }
+        h1 { color: #333; border-bottom: 2px solid #333; }
+        h2 { color: #555; margin-top: 20px; }
+        ul { margin-left: 20px; }
+        .slide-number { position: absolute; bottom: 10px; right: 10px; color: #999; }
+    </style>
+</head>
+<body>
+"""
+        for idx, slide_data in enumerate(slides, 1):
+            html += f'<div class="slide">\n'
+            html += f'<h1>{slide_data.get("title", "无标题")}</h1>\n'
+            
+            content = slide_data.get("content", "")
+            if content:
+                html += f'<p>{content}</p>\n'
+            
+            bullet_points = slide_data.get("bullet_points", [])
+            if bullet_points:
+                html += '<ul>\n'
+                for point in bullet_points:
+                    html += f'<li>{point}</li>\n'
+                html += '</ul>\n'
+            
+            html += f'<div class="slide-number">第 {idx} 页</div>\n'
+            html += '</div>\n'
         
-        return b""
+        html += """
+</body>
+</html>
+"""
+        return html
     
     async def generate_pdf(
         self,
@@ -325,7 +485,7 @@ class FileGenerationService:
                 html_content = self._markdown_to_html(content, title)
                 pdf_bytes = HTML(string=html_content).write_pdf()
                 
-                return {
+                result = {
                     "success": True,
                     "file_data": pdf_bytes,
                     "format": "pdf",
@@ -334,6 +494,15 @@ class FileGenerationService:
                     "method": "weasyprint",
                     "timestamp": datetime.now().isoformat()
                 }
+                
+                # 自动保存到RAG知识库
+                if self.rag_service:
+                    try:
+                        await self._save_to_rag(content, title or "PDF文档", "pdf", result)
+                    except Exception as e:
+                        result["rag_save_warning"] = f"保存到RAG失败: {str(e)}"
+                
+                return result
             elif self.use_libraries["pdf"] and pdf_method == "reportlab":
                 # 使用reportlab生成PDF
                 buffer = io.BytesIO()
@@ -358,7 +527,7 @@ class FileGenerationService:
                 buffer.seek(0)
                 pdf_bytes = buffer.read()
                 
-                return {
+                result = {
                     "success": True,
                     "file_data": pdf_bytes,
                     "format": "pdf",
@@ -367,6 +536,15 @@ class FileGenerationService:
                     "method": "reportlab",
                     "timestamp": datetime.now().isoformat()
                 }
+                
+                # 自动保存到RAG知识库
+                if self.rag_service:
+                    try:
+                        await self._save_to_rag(content, title or "PDF文档", "pdf", result)
+                    except Exception as e:
+                        result["rag_save_warning"] = f"保存到RAG失败: {str(e)}"
+                
+                return result
             else:
                 # 备用方案：返回HTML格式（浏览器可以打印为PDF）
                 html_content = self._markdown_to_html(content, title)
@@ -407,4 +585,121 @@ class FileGenerationService:
         # TODO: 使用PIL/Pillow生成图片
         
         return b""
+    
+    def _table_to_text(self, headers: Optional[List[str]], data: List[List[Any]]) -> str:
+        """将表格数据转换为文本格式"""
+        text_lines = []
+        if headers:
+            text_lines.append(" | ".join(str(h) for h in headers))
+            text_lines.append("-" * (sum(len(str(h)) for h in headers) + len(headers) * 3))
+        for row in data:
+            text_lines.append(" | ".join(str(v) for v in row))
+        return "\n".join(text_lines)
+    
+    def _slides_to_text(self, slides: List[Dict[str, Any]]) -> str:
+        """将幻灯片内容转换为文本格式"""
+        text_lines = []
+        for idx, slide_data in enumerate(slides, 1):
+            text_lines.append(f"\n=== 幻灯片 {idx}: {slide_data.get('title', '无标题')} ===\n")
+            content = slide_data.get("content", "")
+            if content:
+                text_lines.append(content)
+            bullet_points = slide_data.get("bullet_points", [])
+            if bullet_points:
+                for point in bullet_points:
+                    text_lines.append(f"  • {point}")
+        return "\n".join(text_lines)
+    
+    async def _save_to_rag(
+        self,
+        content: str,
+        title: str,
+        file_format: str,
+        file_metadata: Dict[str, Any]
+    ):
+        """
+        将生成的文件内容保存到RAG知识库
+        
+        Args:
+            content: 文件文本内容
+            title: 文档标题
+            file_format: 文件格式（docx/xlsx/pptx/pdf）
+            file_metadata: 文件元数据
+        """
+        if not self.rag_service:
+            return
+        
+        try:
+            # 构造文档数据
+            doc_text = f"标题: {title}\n格式: {file_format}\n生成时间: {file_metadata.get('timestamp', '')}\n\n内容:\n{content}"
+            
+            # 调用RAG服务保存
+            if hasattr(self.rag_service, 'ingest_text'):
+                await self.rag_service.ingest_text(
+                    text=doc_text,
+                    doc_id=f"file_gen_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                    metadata={
+                        "source": "file_generation",
+                        "file_format": file_format,
+                        "filename": file_metadata.get("filename", ""),
+                        "size": file_metadata.get("size", 0),
+                        "generated_at": file_metadata.get("timestamp", "")
+                    },
+                    save_index=True
+                )
+            elif hasattr(self.rag_service, 'add_document'):
+                # 兼容其他RAG服务接口
+                await self.rag_service.add_document(
+                    content=doc_text,
+                    title=title,
+                    metadata={
+                        "source": "file_generation",
+                        "file_format": file_format,
+                        **file_metadata
+                    }
+                )
+        except Exception as e:
+            # 不抛出异常，只记录警告
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"保存文件到RAG失败: {str(e)}")
+    
+    async def export_content_to_file(
+        self,
+        content_data: Dict[str, Any],
+        file_type: str = "docx",
+        output_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        从内容创作模块导出内容为文件
+        
+        Args:
+            content_data: 内容数据（包含title, content, tags等）
+            file_type: 文件类型（docx/xlsx/pptx/pdf）
+            output_path: 输出路径
+            
+        Returns:
+            文件生成结果
+        """
+        title = content_data.get("title", "内容")
+        content = content_data.get("content", "")
+        
+        if file_type == "docx":
+            return await self.generate_word(content, title=title, output_path=output_path)
+        elif file_type == "pdf":
+            return await self.generate_pdf(content, title=title, output_path=output_path)
+        elif file_type == "pptx":
+            # 将内容转换为幻灯片格式
+            slides = [{
+                "title": title,
+                "content": content,
+                "bullet_points": content_data.get("tags", [])
+            }]
+            return await self.generate_ppt(slides, output_path=output_path)
+        else:
+            return {
+                "success": False,
+                "error": f"不支持的文件类型: {file_type}",
+                "timestamp": datetime.now().isoformat()
+            }
 

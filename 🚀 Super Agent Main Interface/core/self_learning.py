@@ -32,6 +32,9 @@ class SelfLearningMonitor:
         self.workflow_logs = []
         self.problems = []
         self.solutions = []
+        self.latest_recommendations: Dict[str, Dict[str, Any]] = {}
+        self.latest_resource_signals: List[Dict[str, Any]] = []
+
     def set_event_bus(self, event_bus: LearningEventBus):
         self.event_bus = event_bus
 
@@ -615,6 +618,9 @@ class SelfLearningMonitor:
             "optimization_suggestions": self._get_optimization_suggestions(),
             "last_update": datetime.now().isoformat()
         }
+        stats["interaction_recommendations"] = self._generate_interaction_recommendations(stats)
+        stats["resource_signals"] = self._generate_resource_signals()
+        stats["alert_level"] = self._calculate_alert_level(stats)
         return stats
     
     def _get_optimization_suggestions(self) -> List[str]:
@@ -649,6 +655,126 @@ class SelfLearningMonitor:
         ])
         
         return (solved_problems / len(self.problems) * 100) if self.problems else 0.0
+
+    def _generate_interaction_recommendations(self, stats: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """生成交互/资源建议"""
+        recommendations: List[Dict[str, Any]] = []
+        avg_response = stats.get("average_response_time") or 0.0
+        problem_types = stats.get("problem_types", {})
+        timestamp = datetime.now().isoformat()
+
+        def _add(payload: Dict[str, Any]):
+            rec_id = payload.get("id") or f"rec_{len(recommendations)+1}_{int(datetime.now().timestamp())}"
+            payload["id"] = rec_id
+            payload["timestamp"] = timestamp
+            recommendations.append(payload)
+
+        if avg_response > 2.0:
+            _add({
+                "title": "响应时延过高 · 建议扩容算力",
+                "description": f"最近平均响应 {avg_response:.2f}s，已超过2秒 SLO，可触发一次 LLM 推理扩容。",
+                "severity": "high",
+                "action_type": "resource_authorization",
+                "payload": {
+                    "description": "扩容LLM推理节点 CPU/内存",
+                    "action_type": "scale_up",
+                    "risk_level": "medium",
+                    "expected_improvement": "降低响应时间",
+                    "rollback_plan": "性能稳定后恢复原配置"
+                }
+            })
+
+        rag_quality_issues = problem_types.get("rag_quality", 0)
+        if rag_quality_issues:
+            _add({
+                "title": "RAG命中不足 · 建议刷新索引",
+                "description": f"检测到 {rag_quality_issues} 次 RAG 命中不足，可重新执行预处理/入库。",
+                "severity": "medium",
+                "action_type": "interaction",
+                "payload": {
+                    "instruction": "在RAG管理页执行一次批量清洗与向量重建。",
+                    "module": "rag"
+                }
+            })
+
+        performance_trend = stats.get("performance_trend", {})
+        if performance_trend.get("trend") == "degrading":
+            _add({
+                "title": "性能趋势下滑 · 建议执行学习回放",
+                "description": f"性能退化率 {performance_trend.get('degradation_rate', 0):.1f}%，可调度学习回放脚本。",
+                "severity": "medium",
+                "action_type": "interaction",
+                "payload": {
+                    "instruction": "触发自学习优化脚本，回放最近任务。",
+                    "module": "self_learning"
+                }
+            })
+
+        self.latest_recommendations = {rec["id"]: rec for rec in recommendations}
+        return recommendations
+
+    def _generate_resource_signals(self) -> List[Dict[str, Any]]:
+        """输出资源信号"""
+        signals: List[Dict[str, Any]] = []
+        if not self.resource_manager:
+            self.latest_resource_signals = []
+            return signals
+        try:
+            snapshot = self.resource_manager.get_current_status()
+        except Exception:
+            self.latest_resource_signals = []
+            return []
+
+        def _push(name: str, value: Optional[float], threshold: float, suggestion: str):
+            if value is None:
+                return
+            severity = "high" if value >= threshold + 10 else "medium"
+            signals.append({
+                "resource": name,
+                "value": round(value, 1),
+                "threshold": threshold,
+                "severity": severity,
+                "suggestion": suggestion
+            })
+
+        cpu_percent = snapshot.get("cpu", {}).get("percent")
+        memory_percent = snapshot.get("memory", {}).get("percent")
+        disk_percent = snapshot.get("disk", {}).get("percent")
+        _push("CPU", cpu_percent, 75, "评估推理请求并考虑扩容/限流")
+        _push("内存", memory_percent, 80, "清理缓存或扩容内存")
+        _push("磁盘", disk_percent, 85, "释放空间或扩展磁盘容量")
+        self.latest_resource_signals = signals
+        return signals
+
+    def _calculate_alert_level(self, stats: Dict[str, Any]) -> str:
+        score = 0
+        if stats.get("total_problems", 0) > 5:
+            score += 2
+        elif stats.get("total_problems", 0) > 0:
+            score += 1
+        avg_response = stats.get("average_response_time", 0.0)
+        if avg_response > 2.0:
+            score += 2
+        elif avg_response > 1.5:
+            score += 1
+        if len(self.latest_resource_signals) >= 2:
+            score += 2
+        elif self.latest_resource_signals:
+            score += 1
+        if score >= 4:
+            return "high"
+        if score >= 2:
+            return "medium"
+        return "low"
+
+    def get_recommendation(self, rec_id: str) -> Optional[Dict[str, Any]]:
+        return self.latest_recommendations.get(rec_id)
+
+    def mark_recommendation_applied(self, rec_id: str) -> Optional[Dict[str, Any]]:
+        rec = self.latest_recommendations.get(rec_id)
+        if rec:
+            rec["applied_at"] = datetime.now().isoformat()
+        return rec
     
     def _get_performance_trend(self) -> Dict[str, Any]:
         """获取性能趋势"""

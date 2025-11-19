@@ -1,19 +1,58 @@
 """
-终端命令执行器
-支持在聊天框中执行终端命令
+终端命令执行器（增强版）
+支持在聊天框中执行终端命令，包含：
+1. 本地沙箱机制（工作目录隔离、资源限制）
+2. 白名单管理系统（可配置、可扩展）
+3. 审计日志系统（独立存储、查询、导出）
+4. 安全策略配置
 """
 
 import asyncio
 import os
 import platform
+import shutil
+
+# resource模块仅在Unix系统上可用
+try:
+    import resource
+except ImportError:
+    resource = None
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from uuid import uuid4
 import logging
+import json
+from pathlib import Path
+
+from core.security.command_policy import CommandSecurityPolicy, CommandPolicyResult
 
 if TYPE_CHECKING:
     from .workflow_monitor import WorkflowMonitor
+    from .terminal_audit import TerminalAuditLogger
+
+# 延迟导入以避免循环依赖
+try:
+    from .terminal_audit import AuditEventType, AuditSeverity
+    # 使用枚举值
+    _COMMAND_START = AuditEventType.COMMAND_START.value
+    _COMMAND_BLOCKED = AuditEventType.COMMAND_BLOCKED.value
+    _COMMAND_COMPLETED = AuditEventType.COMMAND_COMPLETED.value
+    _COMMAND_FAILED = AuditEventType.COMMAND_FAILED.value
+    _WHITELIST_UPDATE = AuditEventType.WHITELIST_UPDATE.value
+    _SEVERITY_INFO = AuditSeverity.INFO.value
+    _SEVERITY_MEDIUM = AuditSeverity.MEDIUM.value
+    _SEVERITY_HIGH = AuditSeverity.HIGH.value
+except ImportError:
+    # 如果导入失败，使用字符串常量
+    _COMMAND_START = "command_start"
+    _COMMAND_BLOCKED = "command_blocked"
+    _COMMAND_COMPLETED = "command_completed"
+    _COMMAND_FAILED = "command_failed"
+    _WHITELIST_UPDATE = "whitelist_update"
+    _SEVERITY_INFO = "info"
+    _SEVERITY_MEDIUM = "medium"
+    _SEVERITY_HIGH = "high"
 
 logger = logging.getLogger(__name__)
 
@@ -52,34 +91,180 @@ class TerminalExecutor:
     4. 输出流式返回
     """
     
-    def __init__(self, workflow_monitor: Optional["WorkflowMonitor"] = None):
+    def __init__(
+        self,
+        workflow_monitor: Optional["WorkflowMonitor"] = None,
+        audit_logger: Optional["TerminalAuditLogger"] = None,
+        sandbox_enabled: bool = True
+    ):
+        """
+        初始化终端执行器（增强版）
+        
+        Args:
+            workflow_monitor: 工作流监控器
+            audit_logger: 审计日志系统
+            sandbox_enabled: 是否启用沙箱模式
+        """
         self.command_history: List[CommandRecord] = []
         self.max_history = 200
-        self.allowed_commands = {
-            'ls', 'pwd', 'cd', 'cat', 'grep', 'find', 'ps', 'top',
-            'df', 'du', 'free', 'uptime', 'whoami', 'date', 'echo',
-            'git', 'python', 'python3', 'pip', 'pip3', 'node', 'npm',
-            'docker', 'docker-compose', 'kubectl', 'curl', 'wget',
-            'head', 'tail', 'wc', 'env', 'which'
-        }
+        
+        # 白名单配置（可配置）
+        self.whitelist_config_file = Path(__file__).parent.parent / "data" / "terminal_whitelist.json"
+        self.whitelist_config_file.parent.mkdir(parents=True, exist_ok=True)
+        self.security_policy: Optional[CommandSecurityPolicy] = None
+        self._load_whitelist_config()
+        self._refresh_security_policy()
+        
+        # 危险命令列表
         self.dangerous_commands = [
             'rm -rf', 'format', 'del /f', 'shutdown', 'reboot',
-            'mkfs', 'dd if=', 'sudo rm', 'chmod 777', ':(){', 'kill -9 1'
+            'mkfs', 'dd if=', 'sudo rm', 'chmod 777', ':(){', 'kill -9 1',
+            'sudo', 'su', 'passwd', 'useradd', 'userdel', 'groupadd'
         ]
+        
+        # 禁止的token
         self.forbidden_tokens = [
             '&&', '||', ';', '|', '>', '<', '$(', '`', '\\', '../', '~', '%', '&'
         ]
+        
+        # 敏感环境变量模式
         self.sensitive_env_patterns = [
             "API_KEY", "SECRET", "TOKEN", "PASSWORD", "CREDENTIAL", "AWS_", "AZURE_"
         ]
+        
+        # 沙箱配置
+        self.sandbox_enabled = sandbox_enabled
         self.current_directory = os.getcwd()
         self.workspace_root = os.environ.get("TERMINAL_WORKSPACE_ROOT", self.current_directory)
+        
+        # 创建沙箱工作目录
+        if self.sandbox_enabled:
+            self.sandbox_dir = Path(self.workspace_root) / ".terminal_sandbox"
+            self.sandbox_dir.mkdir(parents=True, exist_ok=True)
+            self.current_directory = str(self.sandbox_dir)
+        else:
+            self.sandbox_dir = None
+        
+        # 资源限制
         self.max_output_chars = 10_000
         self.max_output_lines = 400
         self.max_runtime = 30
         self.max_concurrent_commands = 2
+        self.max_memory_mb = 512  # 最大内存512MB
+        self.max_cpu_time = 30  # 最大CPU时间30秒
+        
         self._semaphore = asyncio.Semaphore(self.max_concurrent_commands)
         self.workflow_monitor: Optional["WorkflowMonitor"] = workflow_monitor
+        self.audit_logger: Optional["TerminalAuditLogger"] = audit_logger
+        
+        logger.info(f"终端执行器已初始化（沙箱模式: {self.sandbox_enabled}）")
+    
+    def _load_whitelist_config(self):
+        """加载白名单配置"""
+        try:
+            if self.whitelist_config_file.exists():
+                with open(self.whitelist_config_file, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                    self.allowed_commands = set(config.get("allowed_commands", []))
+                    self.dangerous_commands = config.get("dangerous_commands", self.dangerous_commands)
+                    self.forbidden_tokens = config.get("forbidden_tokens", self.forbidden_tokens)
+            else:
+                # 默认白名单
+                self.allowed_commands = {
+                    'ls', 'pwd', 'cd', 'cat', 'grep', 'find', 'ps', 'top',
+                    'df', 'du', 'free', 'uptime', 'whoami', 'date', 'echo',
+                    'git', 'python', 'python3', 'pip', 'pip3', 'node', 'npm',
+                    'docker', 'docker-compose', 'kubectl', 'curl', 'wget',
+                    'head', 'tail', 'wc', 'env', 'which', 'mkdir', 'touch',
+                    'cp', 'mv', 'rm', 'chmod', 'chown', 'tar', 'zip', 'unzip'
+                }
+                self._save_whitelist_config()
+        except Exception as e:
+            logger.warning(f"加载白名单配置失败，使用默认配置: {e}")
+            self.allowed_commands = {
+                'ls', 'pwd', 'cd', 'cat', 'grep', 'find', 'ps', 'top',
+                'df', 'du', 'free', 'uptime', 'whoami', 'date', 'echo'
+            }
+    
+    def _save_whitelist_config(self):
+        """保存白名单配置"""
+        try:
+            config = {
+                "allowed_commands": sorted(list(self.allowed_commands)),
+                "dangerous_commands": self.dangerous_commands,
+                "forbidden_tokens": self.forbidden_tokens,
+                "updated_at": datetime.now().isoformat()
+            }
+            with open(self.whitelist_config_file, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"保存白名单配置失败: {e}")
+        finally:
+            self._refresh_security_policy()
+    
+    def update_whitelist(
+        self,
+        add_commands: Optional[List[str]] = None,
+        remove_commands: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        更新白名单
+        
+        Args:
+            add_commands: 要添加的命令列表
+            remove_commands: 要移除的命令列表
+            
+        Returns:
+            更新结果
+        """
+        try:
+            if add_commands:
+                for cmd in add_commands:
+                    self.allowed_commands.add(cmd)
+            
+            if remove_commands:
+                for cmd in remove_commands:
+                    self.allowed_commands.discard(cmd)
+            
+            self._save_whitelist_config()
+            
+            # 记录审计日志
+            if self.audit_logger:
+                asyncio.create_task(self.audit_logger.log_event(
+                    event_type=_WHITELIST_UPDATE,
+                    severity=_SEVERITY_INFO,
+                    metadata={
+                        "added": add_commands or [],
+                        "removed": remove_commands or [],
+                        "total_count": len(self.allowed_commands)
+                    }
+                ))
+            
+            return {
+                "success": True,
+                "message": "白名单已更新",
+                "allowed_commands": sorted(list(self.allowed_commands)),
+                "count": len(self.allowed_commands)
+            }
+        except Exception as e:
+            logger.error(f"更新白名单失败: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def _refresh_security_policy(self) -> None:
+        """同步安全策略实例"""
+        try:
+            self.security_policy = CommandSecurityPolicy(
+                allowed_commands=self.allowed_commands,
+                dangerous_commands=self.dangerous_commands,
+                forbidden_tokens=self.forbidden_tokens,
+                config_path=self.whitelist_config_file
+            )
+        except Exception as exc:
+            logger.warning(f"初始化安全策略失败，将使用内建校验: {exc}")
+            self.security_policy = None
     
     async def execute_command(
         self,
@@ -106,6 +291,18 @@ class TerminalExecutor:
         # 安全检查
         safety_check = self._check_command_safety(command)
         if not safety_check.safe:
+            # 记录审计日志
+            if self.audit_logger:
+                await self.audit_logger.log_event(
+                    event_type=_COMMAND_BLOCKED,
+                    severity=_SEVERITY_HIGH,
+                    command_id=command_id,
+                    command=command,
+                    cwd=cwd or self.current_directory,
+                    error=safety_check.reason,
+                    metadata={"blocked_token": safety_check.blocked_token}
+                )
+            
             await self._record_terminal_event(
                 command_id=command_id,
                 command=command,
@@ -150,6 +347,17 @@ class TerminalExecutor:
         # 设置环境变量
         exec_env = self._sanitize_environment(env)
         
+        # 记录审计日志（命令开始）
+        if self.audit_logger:
+            await self.audit_logger.log_event(
+                event_type=_COMMAND_START,
+                severity=_SEVERITY_INFO,
+                command_id=command_id,
+                command=command,
+                cwd=work_dir,
+                metadata={"timeout": timeout, "sandbox": self.sandbox_enabled}
+            )
+        
         await self._record_terminal_event(
             command_id=command_id,
             command=command,
@@ -162,13 +370,19 @@ class TerminalExecutor:
         
         try:
             async with self._semaphore:
-                # 执行命令
+                # 执行命令（在沙箱中）
+                # Windows不支持preexec_fn，需要平台检查
+                preexec_fn = None
+                if self.sandbox_enabled and platform.system() in ['Linux', 'Darwin']:
+                    preexec_fn = self._set_resource_limits
+                
                 process = await asyncio.create_subprocess_shell(
                     command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     cwd=work_dir,
-                    env=exec_env
+                    env=exec_env,
+                    preexec_fn=preexec_fn
                 )
                 
                 # 等待执行完成（带超时）
@@ -227,8 +441,29 @@ class TerminalExecutor:
                     "return_code": process.returncode,
                     "timestamp": datetime.now().isoformat(),
                     "work_directory": work_dir,
-                    "duration": record.duration
+                    "duration": record.duration,
+                    "sandbox": self.sandbox_enabled
                 }
+                
+                # 记录审计日志（命令完成/失败）
+                if self.audit_logger:
+                    event_type = _COMMAND_COMPLETED if record.success else _COMMAND_FAILED
+                    severity = _SEVERITY_INFO if record.success else _SEVERITY_MEDIUM
+                    await self.audit_logger.log_event(
+                        event_type=event_type,
+                        severity=severity,
+                        command_id=command_id,
+                        command=command,
+                        cwd=work_dir,
+                        return_code=process.returncode,
+                        duration=record.duration,
+                        success=record.success,
+                        error=None if record.success else record.error,
+                        metadata={
+                            "stdout_truncated": stdout_truncated,
+                            "stderr_truncated": stderr_truncated
+                        }
+                    )
                 
                 await self._record_terminal_event(
                     command_id=command_id,
@@ -448,9 +683,23 @@ class TerminalExecutor:
         Returns:
             安全检查结果
         """
-        command_lower = command.lower().strip()
+        if self.security_policy:
+            policy_result: CommandPolicyResult = self.security_policy.inspect(command)
+            if not policy_result.safe:
+                return CommandSafetyResult(
+                    safe=False,
+                    reason=policy_result.reason,
+                    blocked_token=policy_result.blocked_token,
+                    command=policy_result.command or command
+                )
+            return CommandSafetyResult(
+                safe=True,
+                reason=policy_result.reason or "命令安全",
+                command=command
+            )
         
-        # 禁止多命令连接符及危险token
+        # 回退逻辑：沿用旧有检查
+        command_lower = command.lower().strip()
         for token in self.forbidden_tokens:
             if token in command_lower:
                 return CommandSafetyResult(
@@ -459,8 +708,6 @@ class TerminalExecutor:
                     blocked_token=token,
                     command=command
                 )
-        
-        # 检查危险命令
         for dangerous in self.dangerous_commands:
             if dangerous.lower() in command_lower:
                 return CommandSafetyResult(
@@ -469,8 +716,6 @@ class TerminalExecutor:
                     blocked_token=dangerous,
                     command=command
                 )
-        
-        # 白名单验证（仅允许列表中命令作为入口）
         base_command = command.split()[0]
         if base_command not in self.allowed_commands:
             return CommandSafetyResult(
@@ -479,12 +724,7 @@ class TerminalExecutor:
                 blocked_token=base_command,
                 command=command
             )
-        
-        return CommandSafetyResult(
-            safe=True,
-            reason="命令安全",
-            command=command
-        )
+        return CommandSafetyResult(safe=True, reason="命令安全", command=command)
     
     def _add_to_history(self, command_id: str, command: str) -> CommandRecord:
         """添加命令到历史记录"""
@@ -648,5 +888,64 @@ class TerminalExecutor:
     def set_workflow_monitor(self, workflow_monitor: Optional["WorkflowMonitor"]):
         """设置工作流监控器"""
         self.workflow_monitor = workflow_monitor
+    
+    def set_audit_logger(self, audit_logger: Optional["TerminalAuditLogger"]):
+        """设置审计日志系统"""
+        self.audit_logger = audit_logger
+    
+    def _set_resource_limits(self):
+        """设置资源限制（仅Linux/macOS）"""
+        if resource is None:
+            return
+        
+        if platform.system() in ['Linux', 'Darwin']:
+            try:
+                # 限制内存使用（MB转字节）
+                max_memory_bytes = self.max_memory_mb * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_AS, (max_memory_bytes, max_memory_bytes))
+                
+                # 限制CPU时间（秒）
+                resource.setrlimit(resource.RLIMIT_CPU, (self.max_cpu_time, self.max_cpu_time))
+                
+                # 限制文件大小
+                resource.setrlimit(resource.RLIMIT_FSIZE, (100 * 1024 * 1024, 100 * 1024 * 1024))  # 100MB
+            except Exception as e:
+                logger.warning(f"设置资源限制失败: {e}")
+    
+    def get_whitelist(self) -> Dict[str, Any]:
+        """获取当前白名单配置"""
+        return {
+            "allowed_commands": sorted(list(self.allowed_commands)),
+            "dangerous_commands": self.dangerous_commands,
+            "forbidden_tokens": self.forbidden_tokens,
+            "count": len(self.allowed_commands)
+        }
+    
+    def clear_sandbox(self) -> Dict[str, Any]:
+        """
+        清理沙箱目录
+        
+        Returns:
+            清理结果
+        """
+        if not self.sandbox_enabled or not self.sandbox_dir:
+            return {"success": False, "error": "沙箱未启用"}
+        
+        try:
+            # 删除沙箱目录中的所有内容（保留目录本身）
+            for item in self.sandbox_dir.iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+            
+            return {
+                "success": True,
+                "message": "沙箱已清理",
+                "sandbox_dir": str(self.sandbox_dir)
+            }
+        except Exception as e:
+            logger.error(f"清理沙箱失败: {e}")
+            return {"success": False, "error": str(e)}
 
 

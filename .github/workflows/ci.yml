@@ -108,6 +108,39 @@ jobs:
         path: |
           junit.xml
           htmlcov/
+    
+    # ==================== P3-016: CI 证据上传 ====================
+    - name: 上传CI证据
+      if: always()
+      run: |
+        mkdir -p artifacts/evidence/ci/P3-016
+        # 复制测试结果文件
+        if [ -f junit.xml ]; then
+          cp junit.xml artifacts/evidence/ci/P3-016/test_report_${{ matrix.python-version }}_$(date +%Y%m%d_%H%M%S).xml
+        fi
+        if [ -d htmlcov ]; then
+          cp -r htmlcov artifacts/evidence/ci/P3-016/coverage_${{ matrix.python-version }}_$(date +%Y%m%d_%H%M%S)/
+        fi
+        # 创建元数据文件
+        cat > artifacts/evidence/ci/P3-016/ci_metadata.json << EOF
+        {
+          "requirement_id": "P3-016",
+          "python_version": "${{ matrix.python-version }}",
+          "workflow": "unit-tests",
+          "build_id": "${{ github.run_id }}",
+          "commit_sha": "${{ github.sha }}",
+          "branch": "${{ github.ref_name }}",
+          "uploaded_at": "$(date -Iseconds)"
+        }
+        EOF
+      continue-on-error: true
+    
+    - name: 上传证据到Artifacts
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: ci-evidence-${{ matrix.python-version }}
+        path: artifacts/evidence/ci/
 
   # ==================== 集成测试 ====================
   integration-tests:

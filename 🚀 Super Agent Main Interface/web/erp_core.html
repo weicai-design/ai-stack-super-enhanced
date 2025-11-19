@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP 关键三级页</title>
+    <style>
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f6f7fb;
+            color: #111827;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px 16px 56px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #6b7280;
+            margin: 6px 0 20px;
+        }
+        .status-banner {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+            background: #fff;
+            border-radius: 18px;
+            padding: 16px 20px;
+            box-shadow: 0 16px 30px rgba(37, 99, 235, 0.12);
+        }
+        .status-banner div {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .status-label {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .stage-section {
+            margin-bottom: 24px;
+        }
+        .stage-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .stage-grid {
+            margin-top: 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 14px;
+        }
+        .stage-card {
+            border-radius: 16px;
+            background: #fff;
+            padding: 16px;
+            box-shadow: 0 15px 40px rgba(15, 23, 42, 0.1);
+            border: 2px solid transparent;
+            transition: border 0.2s, transform 0.2s;
+            cursor: pointer;
+        }
+        .stage-card:hover {
+            border-color: #2563eb;
+            transform: translateY(-2px);
+        }
+        .stage-card h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .stage-meta {
+            margin: 8px 0;
+            color: #6b7280;
+            font-size: 13px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #60a5fa, #2563eb);
+        }
+        .stage-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            background: #eef2ff;
+            color: #1d4ed8;
+        }
+        .timeline-section .timeline {
+            margin-top: 18px;
+        }
+        .timeline-item {
+            border-left: 3px solid #e5e7eb;
+            padding-left: 16px;
+            margin-left: 6px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .timeline-item::before {
+            content: '';
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #2563eb;
+            position: absolute;
+            left: -7.5px;
+            top: 6px;
+            box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.15);
+        }
+        .timeline-item h4 {
+            margin: 0;
+            font-size: 16px;
+        }
+        .timeline-meta {
+            color: #6b7280;
+            font-size: 13px;
+            margin: 4px 0;
+        }
+        .timeline-impact {
+            font-size: 13px;
+            color: #0f172a;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 6px 10px;
+            display: inline-block;
+            margin-top: 4px;
+        }
+        .link-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+        .link-grid a {
+            text-decoration: none;
+            color: inherit;
+        }
+        .link-card {
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            background: #fff;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .link-card:hover {
+            transform: translateY(-1px);
+            border-color: #2563eb;
+        }
+        .muted {
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            margin: 0 0 8px;
+        }
+        .refresh-btn {
+            border: none;
+            border-radius: 999px;
+            padding: 10px 20px;
+            background: #2563eb;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(37, 99, 235, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <h1>ERP 流程可视化中心</h1>
+        <p class="subtitle">覆盖市场调研 → 客户开发 → 交付结算等 11 个环节，一键掌控流程健康。</p>
+        
+        <div class="status-banner">
+            <div>
+                <div class="status-label">当前阶段</div>
+                <div id="currentStage">-</div>
+            </div>
+            <div>
+                <div class="status-label">整体完成度</div>
+                <div id="overallProgress">-</div>
+            </div>
+            <div>
+                <div class="status-label">核心风险</div>
+                <div id="riskSummary">-</div>
+            </div>
+        </div>
+        
+        <section class="stage-section">
+            <div class="stage-header">
+                <h2>11 个环节实时进度</h2>
+                <div class="stage-actions">
+                    <button class="refresh-btn" onclick="initErpFlowOverview()">刷新数据</button>
+                </div>
+            </div>
+            <div id="stageGrid" class="stage-grid"></div>
+        </section>
+        
+        <section class="timeline-section card">
+            <h2>流程跟踪可视化</h2>
+            <p class="muted">结合 ERP 全流程记录生成的时间线，可快速查看完成节点、阻塞点和影响。</p>
+            <div id="timelineContainer" class="timeline"></div>
+        </section>
+        
+        <section class="card">
+            <h2>环节快捷入口</h2>
+            <div id="stageLinks" class="link-grid"></div>
+        </section>
+    </div>
+    
+    <script src="js/erp_flow.js"></script>
+    <script>
+        window.addEventListener('load', () => initErpFlowOverview());
+    </script>
+</body>
+</html>
+

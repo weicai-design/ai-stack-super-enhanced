@@ -20,7 +20,7 @@ class PlanGenerator:
     def __init__(self, task_analyzer=None):
         self.task_analyzer = task_analyzer
     
-    def generate_plan(
+    async def generate_plan(
         self,
         tasks: List[Dict[str, Any]],
         start_date: Optional[str] = None,

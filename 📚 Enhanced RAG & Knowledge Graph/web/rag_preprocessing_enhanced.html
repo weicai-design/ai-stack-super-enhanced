@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG 预处理中心 - AI-STACK V5.0</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            border-bottom: 2px solid #e8e8e8;
+            margin-bottom: 30px;
+        }
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 600;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .format-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .format-card {
+            padding: 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 14px;
+            background: #fafafa;
+        }
+        .format-card.supported {
+            background: #e8f5e9;
+            border-color: #4caf50;
+        }
+        .config-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        .config-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        .config-row:last-child {
+            border-bottom: none;
+        }
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        .process-list {
+            margin-top: 20px;
+        }
+        .process-item {
+            padding: 16px;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-queued { background: #fff3cd; color: #856404; }
+        .status-running { background: #cfe2ff; color: #084298; }
+        .status-completed { background: #d1e7dd; color: #0f5132; }
+        .status-failed { background: #f8d7da; color: #842029; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 RAG 预处理中心</h1>
+        <p class="subtitle">文件格式检测 · 清洗 · 标准化 · 去重 · 验证</p>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="upload">文件上传</button>
+            <button class="tab" data-tab="format">格式支持 (60+)</button>
+            <button class="tab" data-tab="config">预处理配置</button>
+            <button class="tab" data-tab="process">处理队列</button>
+        </div>
+        
+        <div id="tab-upload" class="tab-content active">
+            <div class="upload-area" id="upload-area">
+                <p style="font-size: 18px; margin-bottom: 10px;">📁 拖拽文件到此处或点击上传</p>
+                <p style="color: #999; font-size: 14px;">支持 60+ 种文件格式</p>
+                <input type="file" id="file-input" multiple style="display: none;">
+                <button class="btn btn-primary" onclick="document.getElementById('file-input').click()" style="margin-top: 20px;">
+                    选择文件
+                </button>
+            </div>
+            <div id="file-list"></div>
+        </div>
+        
+        <div id="tab-format" class="tab-content">
+            <h3 style="margin-bottom: 20px;">支持的格式列表</h3>
+            <div class="format-grid" id="format-grid">
+                <div class="format-card">加载中...</div>
+            </div>
+        </div>
+        
+        <div id="tab-config" class="tab-content">
+            <div class="config-section">
+                <h3 style="margin-bottom: 20px;">预处理配置</h3>
+                <div class="config-row">
+                    <span>清洗无效字符</span>
+                    <label><input type="checkbox" id="clean-invalid" checked> 启用</label>
+                </div>
+                <div class="config-row">
+                    <span>标准化编码</span>
+                    <label><input type="checkbox" id="standardize-encoding" checked> 启用</label>
+                </div>
+                <div class="config-row">
+                    <span>去重处理</span>
+                    <label><input type="checkbox" id="deduplicate" checked> 启用</label>
+                </div>
+                <div class="config-row">
+                    <span>内容验证</span>
+                    <label><input type="checkbox" id="validate-content" checked> 启用</label>
+                </div>
+                <button class="btn btn-primary" onclick="saveConfig()" style="margin-top: 20px;">
+                    保存配置
+                </button>
+            </div>
+        </div>
+        
+        <div id="tab-process" class="tab-content">
+            <h3 style="margin-bottom: 20px;">处理队列</h3>
+            <div class="process-list" id="process-list">
+                <p style="color: #999;">暂无处理任务</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/rag';
+        let formats = [];
+        let processes = [];
+        
+        // Tab切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+                
+                if (tab.dataset.tab === 'format') {
+                    loadFormats();
+                } else if (tab.dataset.tab === 'process') {
+                    loadProcesses();
+                }
+            });
+        });
+        
+        // 文件上传
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        async function handleFiles(files) {
+            for (let file of files) {
+                await uploadFile(file);
+            }
+        }
+        
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const resp = await fetch(`${API_BASE}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                addFileToList(file.name, data);
+                addProcess(file.name, 'queued');
+            } catch (error) {
+                console.error('Upload failed:', error);
+                alert(`上传失败: ${error.message}`);
+            }
+        }
+        
+        function addFileToList(filename, data) {
+            const list = document.getElementById('file-list');
+            const item = document.createElement('div');
+            item.className = 'process-item';
+            item.innerHTML = `
+                <div>
+                    <strong>${filename}</strong>
+                    <div style="color: #666; font-size: 12px; margin-top: 4px;">
+                        格式: ${data.format || '未知'} · 大小: ${(data.size / 1024).toFixed(2)} KB
+                    </div>
+                </div>
+                <span class="status-badge status-queued">待处理</span>
+            `;
+            list.appendChild(item);
+        }
+        
+        async function loadFormats() {
+            try {
+                const resp = await fetch(`${API_BASE}/formats`);
+                const data = await resp.json();
+                formats = data.formats || [];
+                renderFormats();
+            } catch (error) {
+                console.error('Load formats failed:', error);
+            }
+        }
+        
+        function renderFormats() {
+            const grid = document.getElementById('format-grid');
+            grid.innerHTML = formats.map(fmt => `
+                <div class="format-card supported">
+                    <strong>${fmt.extension}</strong>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">${fmt.category}</div>
+                </div>
+            `).join('');
+        }
+        
+        function addProcess(filename, status) {
+            processes.push({ filename, status, timestamp: new Date().toISOString() });
+            loadProcesses();
+        }
+        
+        function loadProcesses() {
+            const list = document.getElementById('process-list');
+            if (processes.length === 0) {
+                list.innerHTML = '<p style="color: #999;">暂无处理任务</p>';
+                return;
+            }
+            list.innerHTML = processes.map(p => `
+                <div class="process-item">
+                    <div>
+                        <strong>${p.filename}</strong>
+                        <div style="color: #666; font-size: 12px; margin-top: 4px;">
+                            ${new Date(p.timestamp).toLocaleString()}
+                        </div>
+                    </div>
+                    <span class="status-badge status-${p.status}">${p.status}</span>
+                </div>
+            `).join('');
+        }
+        
+        function saveConfig() {
+            const config = {
+                cleanInvalid: document.getElementById('clean-invalid').checked,
+                standardizeEncoding: document.getElementById('standardize-encoding').checked,
+                deduplicate: document.getElementById('deduplicate').checked,
+                validateContent: document.getElementById('validate-content').checked,
+            };
+            localStorage.setItem('rag_preprocessing_config', JSON.stringify(config));
+            alert('配置已保存');
+        }
+        
+        // 加载保存的配置
+        const savedConfig = localStorage.getItem('rag_preprocessing_config');
+        if (savedConfig) {
+            const config = JSON.parse(savedConfig);
+            document.getElementById('clean-invalid').checked = config.cleanInvalid;
+            document.getElementById('standardize-encoding').checked = config.standardizeEncoding;
+            document.getElementById('deduplicate').checked = config.deduplicate;
+            document.getElementById('validate-content').checked = config.validateContent;
+        }
+    </script>
+</body>
+</html>
+
+

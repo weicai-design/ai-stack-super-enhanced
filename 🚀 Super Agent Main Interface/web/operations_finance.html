@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运营财务 · 图表专家 & 财务专家看板</title>
+    <style>
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #0f172a;
+            background: #f4f6fb;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #edf2ff;
+        }
+        .page {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 32px 20px 80px;
+        }
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .hero h1 { margin: 0; font-size: 32px; }
+        .hero p { margin: 6px 0 0; color: #475569; }
+        .hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 10px 18px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary { background: #2563eb; color: #fff; box-shadow: 0 18px 35px rgba(37,99,235,0.3); }
+        .btn-secondary { background: #e0e7ff; color: #1e3a8a; }
+        .card {
+            background: #fff;
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: 0 25px 45px rgba(15,23,42,0.08);
+            margin-bottom: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+        }
+        .stat-card {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 16px;
+        }
+        .stat-card span { display: block; color: #64748b; font-size: 13px; margin-bottom: 6px; }
+        .scorecard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+        .scorecard {
+            border-radius: 16px;
+            padding: 16px;
+            background: linear-gradient(135deg, #fdf2f8, #f5f3ff);
+        }
+        .scorecard.positive { background: linear-gradient(135deg, #dcfce7, #ecfccb); }
+        .scorecard.warning { background: linear-gradient(135deg, #fff7ed, #fef3c7); }
+        .scorecard.critical { background: linear-gradient(135deg, #fee2e2, #fecaca); }
+        .scorecard .label { font-size: 14px; color: #475569; }
+        .scorecard .value { font-size: 24px; font-weight: 700; margin: 6px 0; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+        .bridge-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        .bridge-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 16px;
+            background: #f8fafc;
+        }
+        .bridge-card h3 { margin: 0; }
+        .bridge-card .meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 6px 0;
+            font-size: 13px;
+            color: #475569;
+        }
+        .blueprint-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 16px;
+        }
+        .blueprint-card h3 { margin: 0; }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 6px;
+        }
+        .badge.chart { background: #dbeafe; color: #1d4ed8; }
+        .badge.finance { background: #fee2e2; color: #b91c1c; }
+        .muted { color: #94a3b8; font-size: 13px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+            font-size: 13px;
+        }
+        th { color: #475569; text-transform: uppercase; letter-spacing: 0.04em; }
+        .impact-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .impact-critical { background: #fee2e2; color: #b91c1c; }
+        .impact-warning { background: #fef3c7; color: #92400e; }
+        .impact-info { background: #e0e7ff; color: #3730a3; }
+        .trend-board {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .trend-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px dashed #dbeafe;
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+        @media (max-width: 768px) {
+            .hero { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="hero">
+            <div>
+                <h1>运营财务智能看板</h1>
+                <p>由图表专家和财务专家共建：统一指标口径、推荐图表模板、输出即用洞察。</p>
+            </div>
+            <div class="hero-actions">
+                <button id="btnRefresh" class="btn-primary">刷新数据</button>
+                <button id="btnExport" class="btn-secondary">导出 JSON</button>
+            </div>
+        </div>
+
+        <section class="card">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span>净现金</span>
+                    <strong id="kpiNetCash">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>月度 Burn Rate</span>
+                    <strong id="kpiBurnRate">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>季度回款</span>
+                    <strong id="kpiCollections">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>季度付款</span>
+                    <strong id="kpiPayments">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Runway（月）</span>
+                    <strong id="kpiRunway">-</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>指标口径 · 财务专家评分</h2>
+            <div id="scorecardGrid" class="scorecard-grid"></div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <h2 style="margin:0;">图表专家推荐模板</h2>
+                <p class="muted">直接把度量、维度、场景搬到 BI 工具，即可生成符合 CFO 要求的图表。</p>
+            </div>
+            <div id="chartGrid" class="grid"></div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <h2 style="margin:0;">财务专家洞察</h2>
+            </div>
+            <div style="overflow:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>主题</th>
+                            <th>专家</th>
+                            <th>级别</th>
+                            <th>摘要</th>
+                            <th>建议动作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="insightTable">
+                        <tr><td colspan="5" class="muted">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+                <h2 style="margin:0;">现金流趋势（周）</h2>
+                <span class="muted" id="trendUpdated">-</span>
+            </div>
+            <div id="trendBoard" class="trend-board"></div>
+        </section>
+
+        <section class="card">
+            <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+                <div>
+                    <h2 style="margin:0;">跨系统策略联动</h2>
+                    <p class="muted">预算 / 成本 / 报表跨系统同步与策略自动化。</p>
+                </div>
+                <button id="btnRefreshStrategy" class="btn-secondary">刷新策略</button>
+            </div>
+            <div class="stats-grid" style="margin-bottom:16px;">
+                <div class="stat-card">
+                    <span>总策略数</span>
+                    <strong id="strategyTotal">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>启用策略</span>
+                    <strong id="strategyEnabled">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>7天执行次数</span>
+                    <strong id="strategyExecutions">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>自动化覆盖率</span>
+                    <strong id="bridgeAutomation">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>24h 跨系统告警</span>
+                    <strong id="bridgeAlerts">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>专家路由延迟</span>
+                    <strong id="bridgeLatency">-</strong>
+                </div>
+            </div>
+            <div id="bridgeList" class="bridge-grid"></div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">策略列表</h3>
+                <div id="strategyList" class="bridge-grid"></div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">策略执行历史</h3>
+                <div id="strategyHistory" class="trend-board"></div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">策略 Playbook</h3>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>负责人</th>
+                                <th>关联系统</th>
+                                <th>文档</th>
+                            </tr>
+                        </thead>
+                        <tbody id="playbookTable">
+                            <tr><td colspan="4" class="muted">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">跨系统报表矩阵</h3>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>报表</th>
+                                <th>频率</th>
+                                <th>Owner</th>
+                                <th>系统</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportingTable">
+                            <tr><td colspan="5" class="muted">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+                <div>
+                    <h2 style="margin:0;">ERP 数据同步</h2>
+                    <p class="muted">运营财务系统与ERP系统的数据同步状态与历史。</p>
+                </div>
+                <button id="btnRefreshSync" class="btn-secondary">刷新状态</button>
+            </div>
+            <div class="stats-grid" style="margin-bottom:16px;">
+                <div class="stat-card">
+                    <span>同步类型数</span>
+                    <strong id="syncTotalTypes">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>最近成功</span>
+                    <strong id="syncRecentSuccess">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>最近失败</span>
+                    <strong id="syncRecentFailed">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>成功率</span>
+                    <strong id="syncSuccessRate">-</strong>
+                </div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">同步状态（按类型）</h3>
+                <div id="syncStatusByType" class="bridge-grid"></div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">最近同步记录</h3>
+                <div id="syncHistory" class="trend-board"></div>
+            </div>
+        </section>
+    </div>
+    <script src="js/operations_finance.js"></script>
+</body>
+</html>
+

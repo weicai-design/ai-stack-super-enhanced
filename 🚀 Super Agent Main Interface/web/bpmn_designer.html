@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BPM 流程设计器</title>
+    <style>
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f7f8fc;
+            color: #111827;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            min-height: 100vh;
+        }
+        .sidebar {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+        }
+        .sidebar h2 {
+            margin-top: 0;
+        }
+        .process-list {
+            list-style: none;
+            padding: 0;
+            margin: 12px 0 0;
+            max-height: calc(100vh - 150px);
+            overflow: auto;
+        }
+        .process-list li {
+            padding: 10px 12px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            cursor: pointer;
+        }
+        .process-list li.active {
+            background: #2563eb;
+            color: #fff;
+        }
+        .content {
+            padding: 24px;
+        }
+        .section {
+            background: #fff;
+            border-radius: 18px;
+            padding: 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+        }
+        .section h3 {
+            margin-top: 0;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+        label {
+            font-size: 13px;
+            color: #4b5563;
+        }
+        input, select, textarea {
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid #d5dae3;
+            font-size: 14px;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        .nodes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .node-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 14px;
+            background: #fdfdfd;
+        }
+        .node-actions button,
+        .toolbar button {
+            border: none;
+            border-radius: 10px;
+            padding: 8px 14px;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: #fff;
+        }
+        .btn-secondary {
+            background: #e0e7ff;
+            color: #1e3a8a;
+        }
+        .btn-danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .preview {
+            margin-top: 12px;
+            padding: 14px;
+            border-radius: 12px;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: 'JetBrains Mono', Consolas, monospace;
+            font-size: 13px;
+            max-height: 260px;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <h2>流程列表</h2>
+            <div class="toolbar">
+                <button class="btn-primary" onclick="designer.newProcess()">新建</button>
+                <button class="btn-secondary" onclick="designer.saveProcess()">保存</button>
+                <button class="btn-danger" onclick="designer.deleteProcess()">删除</button>
+            </div>
+            <ul id="processList" class="process-list"></ul>
+        </aside>
+        
+        <main class="content">
+            <div class="section">
+                <h3>流程基础信息</h3>
+                <div class="form-grid">
+                    <div>
+                        <label>流程 ID</label>
+                        <input id="processId" placeholder="自动生成或手动填写">
+                    </div>
+                    <div>
+                        <label>流程名称</label>
+                        <input id="processName" placeholder="例如：客户交付流程">
+                    </div>
+                    <div>
+                        <label>版本号</label>
+                        <input id="processVersion" type="number" min="1" value="1">
+                    </div>
+                    <div>
+                        <label>所属业务域</label>
+                        <select id="processDomain">
+                            <option value="sales">销售</option>
+                            <option value="delivery">交付</option>
+                            <option value="finance">财务</option>
+                            <option value="custom">自定义</option>
+                        </select>
+                    </div>
+                </div>
+                <label>流程描述</label>
+                <textarea id="processDesc" placeholder="简要描述流程目标与范围"></textarea>
+            </div>
+            
+            <div class="section">
+                <h3>节点定义</h3>
+                <div class="form-grid">
+                    <div>
+                        <label>节点 ID</label>
+                        <input id="nodeId" placeholder="stage_onboarding">
+                    </div>
+                    <div>
+                        <label>节点名称</label>
+                        <input id="nodeName" placeholder="客户入驻">
+                    </div>
+                    <div>
+                        <label>节点类型</label>
+                        <select id="nodeType">
+                            <option value="task">任务</option>
+                            <option value="gateway">网关</option>
+                            <option value="event">事件</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>负责人/角色</label>
+                        <input id="nodeOwner" placeholder="交付经理">
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div>
+                        <label>前置节点（逗号分隔）</label>
+                        <input id="nodeIncoming" placeholder="stage_opportunity">
+                    </div>
+                    <div>
+                        <label>后续节点（逗号分隔）</label>
+                        <input id="nodeOutgoing" placeholder="stage_delivery">
+                    </div>
+                    <div>
+                        <label> SLA （天）</label>
+                        <input id="nodeSla" type="number" min="0" value="3">
+                    </div>
+                    <div>
+                        <label>附加配置（JSON）</label>
+                        <input id="nodeMeta" placeholder='{"notify":true}'>
+                    </div>
+                </div>
+                <div class="toolbar">
+                    <button class="btn-primary" onclick="designer.addOrUpdateNode()">添加/更新节点</button>
+                    <button class="btn-secondary" onclick="designer.clearNodeForm()">清空表单</button>
+                </div>
+                <div id="nodesContainer" class="nodes-grid"></div>
+            </div>
+            
+            <div class="section">
+                <h3>流程预览 JSON</h3>
+                <div class="preview" id="previewBox">{}</div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="js/bpmn_designer.js"></script>
+</body>
+</html>
+
+
+

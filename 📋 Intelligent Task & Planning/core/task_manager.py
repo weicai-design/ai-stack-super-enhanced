@@ -9,10 +9,14 @@ from enum import Enum
 
 class TaskStatus(Enum):
     """任务状态"""
-    PENDING = "pending"
+    CAPTURED = "captured"
+    CLASSIFIED = "classified"
+    SCHEDULED = "scheduled"
     CONFIRMED = "confirmed"
-    IN_PROGRESS = "in_progress"
+    EXECUTING = "executing"
     COMPLETED = "completed"
+    REVIEW_PENDING = "review_pending"
+    REVIEWED = "reviewed"
     REJECTED = "rejected"
     CANCELLED = "cancelled"
 
@@ -37,6 +41,7 @@ class TaskManager:
     def __init__(self):
         self.tasks = []
         self.task_counter = 0
+        self.lifecycle_log: Dict[int, List[Dict[str, Any]]] = {}
         
     def create_task(
         self,
@@ -45,7 +50,8 @@ class TaskManager:
         source: str = "user",  # user, agent, memo
         priority: TaskPriority = TaskPriority.MEDIUM,
         tags: Optional[List[str]] = None,
-        dependencies: Optional[List[int]] = None
+        dependencies: Optional[List[int]] = None,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """创建任务"""
         self.task_counter += 1
@@ -57,14 +63,19 @@ class TaskManager:
             "priority": priority.value,
             "tags": tags or [],
             "dependencies": dependencies or [],
-            "status": TaskStatus.PENDING.value,
+            "status": TaskStatus.CAPTURED.value,
             "needs_confirmation": source == "agent",
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
             "started_at": None,
-            "completed_at": None
+            "completed_at": None,
+            "metadata": metadata.copy() if metadata else {}
         }
-        
+        self.lifecycle_log[task["id"]] = [{
+            "stage": TaskStatus.CAPTURED.value,
+            "timestamp": task["created_at"],
+            "note": "任务捕获"
+        }]
         self.tasks.append(task)
         return task
     
@@ -76,10 +87,26 @@ class TaskManager:
         """更新任务"""
         task = self.get_task(task_id)
         if task:
-            task.update(updates)
+            updates_copy = updates.copy()
+            metadata_updates = updates_copy.pop("metadata", None)
+            if metadata_updates:
+                merged_meta = task.get("metadata", {}).copy()
+                merged_meta.update(metadata_updates)
+                task["metadata"] = merged_meta
+            task.update(updates_copy)
             task["updated_at"] = datetime.now().isoformat()
+            if "status" in updates:
+                self._log_lifecycle(task_id, updates["status"], updates.get("note"))
             return task
         return None
+
+    def _log_lifecycle(self, task_id: int, stage: str, note: Optional[str] = None):
+        log = self.lifecycle_log.setdefault(task_id, [])
+        log.append({
+            "stage": stage,
+            "timestamp": datetime.now().isoformat(),
+            "note": note
+        })
     
     def delete_task(self, task_id: int) -> bool:
         """删除任务"""

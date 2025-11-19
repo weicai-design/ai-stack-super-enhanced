@@ -12,6 +12,8 @@ import time
 from .workflow_monitor import WorkflowMonitor
 from .learning_events import LearningEventBus
 from .task_orchestrator import TaskOrchestrator
+from .closure_recorder import ClosureRecorder
+from .context_compressor import ContextCompressor
 
 class SuperAgent:
     """
@@ -39,6 +41,8 @@ class SuperAgent:
         self.task_planning = None  # 任务规划系统
         self.workflow_monitor = None  # 工作流监控器
         self.event_bus = LearningEventBus()
+        self.closure_recorder = ClosureRecorder()
+        self.closure_recorder.attach_to_event_bus(self.event_bus)
         self.task_orchestrator: Optional[TaskOrchestrator] = None
         
         # 自动初始化依赖
@@ -61,6 +65,7 @@ class SuperAgent:
             "module_execution": 2.5,  # 优化：减少到2.5秒
             "rag2_retrieval": 1.0  # 优化：减少到1秒
         }
+        self.context_compressor = ContextCompressor()
     
     def _initialize_dependencies(self):
         """初始化依赖组件"""
@@ -99,6 +104,15 @@ class SuperAgent:
             处理结果
         """
         start_time = datetime.now()
+        
+        # 规范化上下文（含外部搜索结果）
+        context = context or {}
+        external_search_context = self._prepare_external_search_context(context.get("external_search"))
+        if external_search_context:
+            context["external_search"] = external_search_context
+        elif "external_search" in context:
+            context.pop("external_search", None)
+        slo_context = context.get("slo", {})
         
         # 开始工作流监控
         workflow_id = None
@@ -141,6 +155,9 @@ class SuperAgent:
             if self.workflow_monitor:
                 await self.workflow_monitor.complete_step("rag_retrieval_1", success=True, result=rag_result_1)
             
+            if external_search_context:
+                self._augment_rag_with_search(rag_result_1, external_search_context)
+            
             # 步骤4: 路由到对应专家
             if self.workflow_monitor:
                 await self.workflow_monitor.record_step("expert_routing", "expert_routing")
@@ -151,7 +168,7 @@ class SuperAgent:
             # 步骤5: 专家分析并调用模块功能执行
             if self.workflow_monitor:
                 await self.workflow_monitor.record_step("module_execution", "module_execution")
-            module_result = await self._execute_module_function(expert, user_input, rag_result_1)
+            module_result = await self._execute_module_function(expert, user_input, rag_result_1, slo_context)
             if self.workflow_monitor:
                 await self.workflow_monitor.complete_step("module_execution", success=True, result=module_result)
             
@@ -171,7 +188,7 @@ class SuperAgent:
             if self.workflow_monitor:
                 await self.workflow_monitor.record_step("response_generation", "response_generation")
             final_response = await self._generate_final_response(
-                expert, execution_result, rag_result_2
+                expert, execution_result, rag_result_2, external_search_context, slo_context
             )
             if self.workflow_monitor:
                 await self.workflow_monitor.complete_step("response_generation", success=True, result=final_response)
@@ -234,8 +251,12 @@ class SuperAgent:
                 "memo_created": memo_created,
                 "memo_info": memo_info,  # 添加备忘录信息，供前端显示
                 "task_plan_created": False,  # 任务计划创建标志
-                "task_plan": None  # 任务计划数据
+                "task_plan": None,  # 任务计划数据
+                "slo": slo_context
             }
+            
+            if external_search_context:
+                result["search_context"] = external_search_context
             
             # 检查是否创建了任务计划
             if memo_info and memo_info.get("type") == "task" and self.task_planning:
@@ -446,6 +467,9 @@ class SuperAgent:
         
         这是AI工作流的关键步骤之一
         """
+        slo_config = context.get("slo", {}) if context else {}
+        rag_top_k = slo_config.get("rag_top_k", 3)
+
         if not self.rag_service:
             return {"knowledge": [], "understanding": {"intent": "query", "confidence": 0.5}}
         
@@ -460,7 +484,7 @@ class SuperAgent:
             # 并行执行：检索知识 + 理解意图（带超时控制）
             knowledge_task = self.rag_service.retrieve(
                 query=user_input,
-                top_k=3,  # 优化：减少检索数量以提升速度（从5减少到3）
+                top_k=rag_top_k,
                 context=context
             )
             understanding_task = self.rag_service.understand_intent(user_input)
@@ -555,13 +579,16 @@ class SuperAgent:
         self,
         expert: Dict,
         user_input: str,
-        rag_result: Dict
+        rag_result: Dict,
+        slo_config: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """执行模块功能⭐优化版（3秒超时）"""
         if not self.module_executor:
             return {"result": "功能未实现", "type": "error"}
         
         try:
+            slo_timeout = (slo_config or {}).get("module_timeout")
+            module_timeout = slo_timeout or self.timeout_config["module_execution"]
             # 带超时控制
             result = await asyncio.wait_for(
                 self.module_executor.execute(
@@ -569,7 +596,7 @@ class SuperAgent:
                     input=user_input,
                     context=rag_result
                 ),
-                timeout=self.timeout_config["module_execution"]
+                timeout=module_timeout
             )
             return result
         except asyncio.TimeoutError:
@@ -824,7 +851,9 @@ class SuperAgent:
         self,
         expert: Dict,
         execution_result: Dict,
-        rag_result_2: Dict
+        rag_result_2: Dict,
+        search_context: Optional[Dict] = None,
+        slo_context: Optional[Dict] = None
     ) -> str:
         """生成最终回复⭐使用真实LLM生成"""
         # 确保参数不为None
@@ -879,6 +908,20 @@ class SuperAgent:
             if recommendations:
                 context_parts.append(f"推荐建议: {', '.join(recommendations[:3])}")
             
+            if search_context and search_context.get("results"):
+                search_lines = []
+                for idx, item in enumerate(search_context.get("results", [])[:3], 1):
+                    title = item.get("title") or "外部结果"
+                    snippet = item.get("snippet") or ""
+                    url = item.get("url") or ""
+                    search_lines.append(f"  {idx}. {title} - {snippet[:80]} ({url})")
+                if search_lines:
+                    engine = search_context.get("engine", "external")
+                    context_parts.append(f"外部搜索（{engine}）：\n" + "\n".join(search_lines))
+            
+            if self.context_compressor:
+                context_parts = self.context_compressor.compress_sections(context_parts)
+            
             # 构建提示词
             system_prompt = """你是一个智能助手，能够根据执行结果、RAG检索的知识和历史经验，生成专业、准确、有用的回复。
 请用中文回复，语言自然流畅，逻辑清晰。"""
@@ -891,11 +934,16 @@ class SuperAgent:
             
             # 调用真实LLM生成回复（优化：使用更快模型和更少token）
             llm_service = get_llm_service()
+            temperature = 0.3
+            max_tokens = 256
+            if slo_context and slo_context.get("use_fast_model"):
+                temperature = 0.2
+                max_tokens = 200
             response = await llm_service.generate(
                 prompt=user_prompt,
                 system_prompt=system_prompt,
-                temperature=0.3,  # 优化：进一步降低温度以提高速度和一致性
-                max_tokens=256  # 优化：减少token数量以加快响应（从512减少到256）
+                temperature=temperature,
+                max_tokens=max_tokens
             )
             
             return response
@@ -921,10 +969,80 @@ class SuperAgent:
             if integrated_knowledge and integrated_knowledge != "暂无相关经验知识":
                 response_parts.append(f"\n\n🧠 相关知识:\n{integrated_knowledge}")
             
+            if rag_result_2.get("recommendations"):
+                recommendations_text = "\n".join([
+                    f"- {rec}" for rec in rag_result_2["recommendations"][:3]
+                ])
+                response_parts.append(f"\n🔍 推荐建议:\n{recommendations_text}")
+            
+            if search_context and search_context.get("results"):
+                external_text = "\n".join([
+                    f"- {item.get('title', '结果')} ({item.get('url', '')})"
+                    for item in search_context["results"][:3]
+                ])
+                response_parts.append(f"\n🌐 外部搜索参考:\n{external_text}")
+            
+            if slo_context and slo_context.get("enable_streaming"):
+                response_parts.append("\n⏱️ 系统采用流式降级策略，优先返回概要结果。")
+            
             if not response_parts:
                 response_parts.append("✅ 任务执行完成")
             
             return "\n".join(response_parts) + f"\n\n⚠️ 注意: LLM服务暂时不可用，这是模板回复。错误: {str(e)}"
+
+    def _prepare_external_search_context(self, search_context: Optional[Dict]) -> Optional[Dict]:
+        """规范化外部搜索上下文"""
+        if not search_context or not isinstance(search_context, dict):
+            return None
+        
+        results = search_context.get("results") or []
+        normalized_results = []
+        for item in results[:5]:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("title") or item.get("name") or "外部搜索结果"
+            snippet = item.get("snippet") or item.get("description") or item.get("content") or ""
+            url = item.get("url") or item.get("link") or ""
+            if not snippet and not url:
+                continue
+            normalized_results.append({
+                "title": title[:120],
+                "snippet": snippet[:300],
+                "url": url,
+                "source": item.get("source") or search_context.get("engine") or "external",
+                "score": item.get("score"),
+            })
+        
+        if not normalized_results:
+            return None
+        
+        return {
+            "query": search_context.get("query", ""),
+            "engine": search_context.get("engine", "auto"),
+            "search_type": search_context.get("search_type", "web"),
+            "fetched_at": search_context.get("fetched_at", datetime.now().isoformat()),
+            "results": normalized_results
+        }
+    
+    def _augment_rag_with_search(self, rag_result: Optional[Dict], search_context: Dict):
+        """将外部搜索结果注入RAG检索知识中"""
+        if not rag_result or not search_context:
+            return
+        
+        results = search_context.get("results") or []
+        if not results:
+            return
+        
+        knowledge = rag_result.setdefault("knowledge", [])
+        for item in results[:3]:
+            knowledge.append({
+                "title": item.get("title", "外部搜索"),
+                "content": item.get("snippet", ""),
+                "source": item.get("url"),
+                "type": "external_search",
+                "engine": search_context.get("engine"),
+                "search_type": search_context.get("search_type")
+            })
     
     def set_memo_system(self, memo_system):
         """设置备忘录系统"""
@@ -961,7 +1079,8 @@ class SuperAgent:
         if self.task_planning:
             self.task_orchestrator = TaskOrchestrator(
                 task_planning=self.task_planning,
-                event_bus=self.event_bus
+                event_bus=self.event_bus,
+                closure_recorder=self.closure_recorder
             )
     
     def _cache_rag_result(self, cache_key: str, result: Dict):

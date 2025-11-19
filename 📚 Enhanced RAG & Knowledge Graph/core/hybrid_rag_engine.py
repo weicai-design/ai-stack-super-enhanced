@@ -14,6 +14,7 @@ Hybrid RAG Engine - 支持多模态检索的增强型RAG系统
 import asyncio
 import logging
 import os
+from pathlib import Path
 
 # 使用相对导入的正确方式
 import sys
@@ -24,6 +25,11 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from core.vector_index import FastVectorIndex
+except Exception:  # pragma: no cover - 容错
+    FastVectorIndex = None
 
 
 # 修复导入问题 - 定义必要的枚举和类
@@ -255,75 +261,21 @@ class HybridRAGEngine:
                     break
 
             if self.vector_store is None:
-                logger.error("向量存储不可用，多模态检索功能将完全禁用")
-                # 提供一个轻量级的内存向量存储作为降级方案，使用 brute-force 检索
+                logger.error("向量存储不可用，多模态检索功能将降级到内存索引")
                 try:
-                    import numpy as _np
-
-                    class InMemoryVectorStore:
-                        def __init__(self, dim: int = 384):
-                            self.dim = dim
-                            self.vectors = _np.zeros((0, dim), dtype="float32")
-                            self.id_map = []
-
-                        def add_documents(
-                            self, vectors: List[List[float]], ids: List[str]
-                        ):
-                            vecs = _np.array(vectors, dtype="float32")
-                            if vecs.ndim == 1:
-                                vecs = vecs.reshape(1, -1)
-                            if self.vectors.size == 0:
-                                self.vectors = vecs
-                            else:
-                                self.vectors = _np.vstack([self.vectors, vecs])
-                            self.id_map.extend(ids)
-
-                        def retrieve(
-                            self,
-                            query: str = None,
-                            vector: List[float] = None,
-                            filters=None,
-                            top_k: int = 10,
-                        ):
-                            if vector is None or self.vectors.size == 0:
-                                return []
-                            q = _np.array(vector, dtype="float32")
-                            if q.ndim == 1:
-                                q = q.reshape(1, -1)
-                            # cosine similarity
-                            norms = _np.linalg.norm(self.vectors, axis=1) * (
-                                _np.linalg.norm(q, axis=1)[0] + 1e-12
-                            )
-                            dots = _np.dot(self.vectors, q[0])
-                            sims = dots / norms
-                            idxs = sims.argsort()[::-1][:top_k]
-                            results = []
-                            for idx in idxs:
-                                results.append(
-                                    {
-                                        "document_id": (
-                                            self.id_map[idx]
-                                            if idx < len(self.id_map)
-                                            else str(idx)
-                                        ),
-                                        "content": "",
-                                        "score": float(sims[idx]),
-                                        "metadata": {},
-                                        "source": "inmemory",
-                                    }
-                                )
-                            return results
-
-                    self.vector_store = InMemoryVectorStore(
-                        dim=(
+                    if FastVectorIndex:
+                        dim = (
                             getattr(self, "config", {}).get("embedding_dim", 384)
                             if isinstance(getattr(self, "config", {}), dict)
-                            else 384
+                            else getattr(self.config, "embedding_dim", 384)
                         )
-                    )
-                    logger.info("已启用内存向量存储作为降级方案（brute-force 检索）")
-                except Exception:
-                    logger.exception("内存向量存储初始化失败，向量检索不可用")
+                        self.vector_store = FastVectorIndex(dim=dim)
+                        logger.info("已启用 FastVectorIndex 作为降级向量索引")
+                    else:  # pragma: no cover - 兼容未安装模块的场景
+                        logger.warning("FastVectorIndex 不可用，向量检索仍将禁用")
+                        self.vector_store = None
+                except Exception:  # pragma: no cover - 容错
+                    logger.exception("FastVectorIndex 初始化失败，向量检索不可用")
                     self.vector_store = None
             else:
                 logger.info("向量存储已就绪")
@@ -359,11 +311,42 @@ class HybridRAGEngine:
                         def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
                             self.model = None
                             self.model_name = model_name
+                            self._vector_store = None
                             if _ST is not None:
+                                load_target = self._resolve_local_model_path(model_name)
                                 try:
-                                    self.model = _ST(model_name)
+                                    if load_target:
+                                        logger.info(
+                                            "FallbackSemanticEngine 使用本地模型: %s",
+                                            load_target,
+                                        )
+                                        self.model = _ST(
+                                            load_target, local_files_only=True
+                                        )
+                                    else:
+                                        self.model = _ST(model_name)
                                 except Exception:
+                                    logger.exception("加载SentenceTransformer失败，使用伪向量")
                                     self.model = None
+
+                        def _resolve_local_model_path(self, default_name: str) -> Optional[str]:
+                            candidates: List[Path] = []
+                            env_path = os.environ.get("LOCAL_ST_MODEL_PATH") or os.environ.get(
+                                "ST_MODEL_PATH"
+                            )
+                            if env_path:
+                                candidates.append(Path(env_path))
+                            # repo root /models
+                            try:
+                                repo_root = Path(__file__).resolve().parents[1]
+                            except Exception:
+                                repo_root = Path.cwd()
+                            candidates.append(repo_root / "models" / default_name)
+                            candidates.append(Path.home() / "models" / default_name)
+                            for candidate in candidates:
+                                if candidate.exists():
+                                    return str(candidate)
+                            return None
 
                         def encode_query(self, query: str):
                             if self.model is not None:

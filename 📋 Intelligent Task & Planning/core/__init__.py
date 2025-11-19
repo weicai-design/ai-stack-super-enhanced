@@ -9,6 +9,7 @@ from .task_extractor import TaskExtractor
 from .execution_engine import ExecutionEngine
 from .super_agent_integration import SuperAgentIntegration
 from .task_analyzer import TaskAnalyzer
+from .task_pipeline import TaskPipeline, PipelineContext
 
 __all__ = [
     'TaskManager',
@@ -17,5 +18,7 @@ __all__ = [
     'ExecutionEngine',
     'SuperAgentIntegration',
     'TaskAnalyzer',
+    'TaskPipeline',
+    'PipelineContext'
 ]
 

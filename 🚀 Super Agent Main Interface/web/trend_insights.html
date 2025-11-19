@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>趋势分析 · 指标库与看板模板</title>
+    <style>
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #0f172a;
+            background: #f4f5fb;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #edf2ff;
+        }
+        .page {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 32px 20px 80px;
+        }
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .hero h1 { margin: 0; font-size: 32px; }
+        .hero p { margin: 6px 0 0; color: #475569; }
+        .hero-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 10px 18px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary { background: #2563eb; color: #fff; box-shadow: 0 18px 35px rgba(37,99,235,0.3); }
+        .btn-secondary { background: #e0e7ff; color: #1e3a8a; }
+        .card {
+            background: #fff;
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: 0 25px 45px rgba(15,23,42,0.08);
+            margin-bottom: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+        }
+        .stat-card {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 14px;
+        }
+        .stat-card span { display: block; color: #64748b; font-size: 13px; margin-bottom: 6px; }
+        .filter-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+        .chip {
+            border-radius: 999px;
+            padding: 7px 16px;
+            background: #e2e8f0;
+            color: #0f172a;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .chip.active {
+            background: #2563eb;
+            color: #fff;
+            box-shadow: 0 10px 25px rgba(37,99,235,0.3);
+        }
+        .indicator-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        .indicator-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 16px;
+            background: #fff;
+        }
+        .indicator-card h3 { margin: 0; }
+        .muted { color: #94a3b8; font-size: 13px; }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            margin-right: 6px;
+        }
+        .badge.industry { background: #dbeafe; color: #1d4ed8; }
+        .badge.region { background: #dcfce7; color: #15803d; }
+        .badge.policy { background: #fee2e2; color: #b91c1c; }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 18px;
+            margin-top: 16px;
+        }
+        .dashboard-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 18px;
+            background: linear-gradient(135deg, #f8fafc, #eef2ff);
+        }
+        .dashboard-card h3 { margin: 0 0 6px; }
+        .widget-list {
+            margin: 12px 0;
+            padding-left: 18px;
+            color: #475569;
+            font-size: 14px;
+        }
+        .control-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+        .control-row select,
+        .control-row input {
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid #d4dbf5;
+            font-size: 14px;
+            min-width: 160px;
+        }
+        .chart-box {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 18px;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: 'JetBrains Mono', Consolas, monospace;
+            font-size: 13px;
+            max-height: 260px;
+            overflow: auto;
+        }
+        .scenario-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+            margin-top: 12px;
+        }
+        .scenario-grid label {
+            font-size: 13px;
+            color: #475569;
+        }
+        .scenario-grid input,
+        .scenario-grid select {
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid #cbd3f5;
+            box-sizing: border-box;
+        }
+        .console-box {
+            margin-top: 16px;
+            padding: 14px;
+            border-radius: 14px;
+            background: #f1f5f9;
+            color: #0f172a;
+            font-size: 14px;
+            min-height: 60px;
+        }
+        .timeline {
+            border-left: 3px solid #e2e8f0;
+            margin-left: 6px;
+            padding-left: 16px;
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 16px;
+        }
+        .timeline-item::before {
+            content: "";
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #2563eb;
+            position: absolute;
+            left: -22px;
+            top: 4px;
+        }
+        .impact-tag {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 999px;
+        }
+        .impact-positive { background: #dcfce7; color: #15803d; }
+        .impact-negative { background: #fee2e2; color: #b91c1c; }
+        .impact-warning { background: #fef3c7; color: #92400e; }
+        @media (max-width: 768px) {
+            .hero { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="hero">
+            <div>
+                <h1>趋势分析指标库</h1>
+                <p>覆盖行业 / 区域 / 政策场景，一次选择即可生成高管级看板模板。</p>
+            </div>
+            <div class="hero-actions">
+                <button id="refreshAll" class="btn-primary">刷新数据</button>
+                <button id="downloadTemplate" class="btn-secondary">导出模板</button>
+            </div>
+        </div>
+
+        <section class="card">
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <span>指标总数</span>
+                    <strong id="statIndicators">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>行业指标</span>
+                    <strong id="statIndustry">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>区域指标</span>
+                    <strong id="statRegion">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>政策指标</span>
+                    <strong id="statPolicy">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>可用看板模板</span>
+                    <strong id="statDashboards">-</strong>
+                </div>
+            </div>
+            <div class="filter-row" id="categoryFilter">
+                <div class="chip active" data-cat="all">全部</div>
+                <div class="chip" data-cat="industry">行业</div>
+                <div class="chip" data-cat="region">区域</div>
+                <div class="chip" data-cat="policy">政策</div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <h2 style="margin:0;">指标库</h2>
+            </div>
+            <div id="indicatorGrid" class="indicator-grid"></div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">看板模板</h2>
+                    <p class="muted">可直接套用到数据可视化工具，支持 KPI / 地图 / 时间线组件。</p>
+                </div>
+            </div>
+            <div id="dashboardGrid" class="dashboard-grid"></div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">预测回测可视化</h2>
+                    <p class="muted">对关键指标进行模型回测，观察命中率与最新信号。</p>
+                </div>
+                <button id="refreshBacktest" class="btn-secondary">重新计算</button>
+            </div>
+            <div class="control-row">
+                <select id="backtestIndicator"></select>
+                <select id="backtestWindow">
+                    <option value="60">近60天</option>
+                    <option value="90" selected>近90天</option>
+                    <option value="120">近120天</option>
+                    <option value="180">近180天</option>
+                </select>
+            </div>
+            <div class="stats-grid" style="margin-top:14px;">
+                <div class="stat-card">
+                    <span>MAPE</span>
+                    <strong id="btMAPE">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>命中率</span>
+                    <strong id="btHitRate">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Sharpe</span>
+                    <strong id="btSharpe">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>最新信号</span>
+                    <strong id="btSignal">-</strong>
+                </div>
+            </div>
+            <div id="backtestSeries" class="chart-box">等待加载...</div>
+            <div id="backtestEvents" class="timeline" style="margin-top:18px;"></div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">What-if 情景模拟</h2>
+                    <p class="muted">调节需求/政策/供给假设，输出新的趋势预测。</p>
+                </div>
+                <button id="runScenario" class="btn-primary">运行情景</button>
+            </div>
+            <div class="scenario-grid">
+                <div>
+                    <label>指标</label>
+                    <select id="scenarioIndicator"></select>
+                </div>
+                <div>
+                    <label>情景名称</label>
+                    <input id="scenarioName" placeholder="政策刺激 + 渠道加速">
+                </div>
+                <div>
+                    <label>需求增速（-0.1 ~ 0.3）</label>
+                    <input id="scenarioDemand" type="number" step="0.01" value="0.05">
+                </div>
+                <div>
+                    <label>政策强度（0 ~ 0.3）</label>
+                    <input id="scenarioPolicy" type="number" step="0.01" value="0.08">
+                </div>
+                <div>
+                    <label>供给扰动（-0.2 ~ 0.2）</label>
+                    <input id="scenarioSupply" type="number" step="0.01" value="0.02">
+                </div>
+            </div>
+            <div class="stats-grid" style="margin-top:14px;">
+                <div class="stat-card">
+                    <span>基准值</span>
+                    <strong id="scenarioBase">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>情景值</span>
+                    <strong id="scenarioValue">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>增量</span>
+                    <strong id="scenarioDelta">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>概率</span>
+                    <strong id="scenarioProb">-</strong>
+                </div>
+            </div>
+            <div id="scenarioTimeline" class="timeline" style="margin-top:16px;"></div>
+            <div id="scenarioRecommendations" class="console-box">待运行...</div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">合规与采集审计</h2>
+                    <p class="muted">追踪采集白名单、策略覆盖率以及审计时间线。</p>
+                </div>
+                <button id="btnRefreshCompliance" class="btn-secondary">刷新报表</button>
+            </div>
+            <div class="stats-grid" style="margin-top:10px;">
+                <div class="stat-card">
+                    <span>政策覆盖</span>
+                    <strong id="compPolicyCoverage">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>数据质量</span>
+                    <strong id="compDataQuality">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>待处理动作</span>
+                    <strong id="compPendingActions">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>被阻断来源</span>
+                    <strong id="compBlockedSources">-</strong>
+                </div>
+            </div>
+            <div class="table-wrapper" style="margin-top:18px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>策略</th>
+                            <th>负责人</th>
+                            <th>状态</th>
+                            <th>覆盖率</th>
+                            <th>上次审查</th>
+                        </tr>
+                    </thead>
+                    <tbody id="compliancePolicyTable">
+                        <tr><td colspan="5" class="muted">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">数据采集来源</h3>
+                <div id="complianceSources" class="indicator-grid"></div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">审计时间线</h3>
+                <div id="auditTimeline" class="timeline"></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">数据采集 / 处理可视化</h2>
+                    <p class="muted">追踪数据采集过程、处理步骤、采集统计。</p>
+                </div>
+                <button id="btnRefreshCollection" class="btn-secondary">刷新统计</button>
+            </div>
+            <div class="stats-grid" style="margin-top:10px;">
+                <div class="stat-card">
+                    <span>总采集次数</span>
+                    <strong id="collectionTotal">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>总处理次数</span>
+                    <strong id="processingTotal">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>平均处理时间</span>
+                    <strong id="avgProcessingTime">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>成功率</span>
+                    <strong id="collectionSuccessRate">-</strong>
+                </div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">数据源统计</h3>
+                <div id="collectionSourceStats" class="indicator-grid"></div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">处理流水线</h3>
+                <div id="processingPipeline" class="timeline"></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">RAG 输出</h2>
+                    <p class="muted">趋势分析结果自动输出到RAG系统，支持知识图谱关联。</p>
+                </div>
+                <button id="btnRefreshRAG" class="btn-secondary">刷新状态</button>
+            </div>
+            <div class="stats-grid" style="margin-top:10px;">
+                <div class="stat-card">
+                    <span>总输出数</span>
+                    <strong id="ragTotalOutputs">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>成功数</span>
+                    <strong id="ragSuccessCount">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>成功率</span>
+                    <strong id="ragSuccessRate">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>关联指标数</span>
+                    <strong id="ragIndicators">-</strong>
+                </div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">RAG 关联信息</h3>
+                <div id="ragConnections" class="console-box">加载中...</div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">最近输出记录</h3>
+                <div id="ragOutputLogs" class="timeline"></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">趋势洞察</h2>
+                    <p class="muted">实时聚合行业/区域/政策事件，可直接嵌入日报。</p>
+                </div>
+                <button id="refreshInsights" class="btn-secondary">刷新洞察</button>
+            </div>
+            <div id="insightTimeline" class="timeline"></div>
+        </section>
+    </div>
+    <script src="js/trend_insights.js"></script>
+</body>
+</html>
+

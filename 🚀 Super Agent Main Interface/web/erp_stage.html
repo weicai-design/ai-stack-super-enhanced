@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP 环节详情</title>
+    <style>
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f8fafc;
+            color: #111827;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        .page {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 28px 16px 60px;
+        }
+        h1 {
+            margin: 0;
+        }
+        .muted {
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+            margin-bottom: 18px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .metric-card {
+            border-radius: 12px;
+            padding: 12px;
+            background: #f5f7ff;
+        }
+        .timeline {
+            margin-top: 16px;
+        }
+        .timeline-item {
+            border-left: 3px solid #e5e7eb;
+            margin-left: 6px;
+            padding-left: 16px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+        .timeline-item::before {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #2563eb;
+            position: absolute;
+            left: -6px;
+            top: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <h1 id="stageName">加载中...</h1>
+        <p class="muted" id="stageSubtitle"></p>
+        
+        <div class="card" id="stageInfo">正在加载环节详情...</div>
+        
+        <div class="card">
+            <h2>关键指标</h2>
+            <div id="stageMetrics" class="metrics-grid"></div>
+        </div>
+        
+        <div class="card">
+            <h2>环节时间线</h2>
+            <div id="stageTimeline" class="timeline"></div>
+        </div>
+    </div>
+    
+    <script src="js/erp_flow.js"></script>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const stageId = params.get('stage');
+        document.getElementById('stageSubtitle').textContent = stageId ? `环节ID：${stageId}` : '未提供stage参数';
+        window.addEventListener('load', () => initErpStagePage(stageId));
+    </script>
+</body>
+</html>
+
+
+

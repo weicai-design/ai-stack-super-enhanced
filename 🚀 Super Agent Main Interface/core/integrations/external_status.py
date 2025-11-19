@@ -35,9 +35,16 @@ class ExternalIntegrationStatus:
                 optional_env=["DOUYIN_REFRESH_TOKEN"],
             ),
             "stock_gateway": IntegrationStatus(
-                name="同花顺行情/模拟盘",
-                required_env=["THS_APP_KEY", "THS_APP_SECRET"],
-                optional_env=["THS_SIM_ACCOUNT", "THS_SIM_PASSWORD"],
+                name="多数据源行情网关",
+                required_env=[],
+                optional_env=[
+                    "THS_APP_KEY",
+                    "THS_APP_SECRET",
+                    "THS_SIM_ACCOUNT",
+                    "THS_SIM_PASSWORD",
+                    "TUSHARE_TOKEN",
+                    "ALPHAVANTAGE_API_KEY",
+                ],
             ),
         }
 

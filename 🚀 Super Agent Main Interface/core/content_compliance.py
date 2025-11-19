@@ -1,20 +1,25 @@
 """
 内容合规/版权检测服务
 实现：文本原创度/相似度/敏感词检测（轻量版，后续可接第三方）
+集成P0-017安全合规基线系统
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 from datetime import datetime
 import re
 import math
+
+if TYPE_CHECKING:
+    from .security_compliance_baseline import SecurityComplianceBaseline
 
 SENSITIVE_WORDS = ["涉政", "暴力", "极端", "黄赌毒", "敏感词"]
 
 
 class ContentComplianceService:
-    def __init__(self):
+    def __init__(self, security_baseline: Optional["SecurityComplianceBaseline"] = None):
         self.sensitive_words = set(SENSITIVE_WORDS)
+        self.security_baseline = security_baseline  # P0-017: 集成安全合规基线
 
     def _similarity_token_jaccard(self, a: str, b: str) -> float:
         def tokenize(x: str) -> List[str]:
@@ -34,10 +39,21 @@ class ContentComplianceService:
                 hits.append(w)
         return hits
 
-    async def check_text(self, text: str, references: Optional[List[str]] = None) -> Dict[str, any]:
+    async def check_text(self, text: str, references: Optional[List[str]] = None, source: str = "system") -> Dict[str, any]:
         text = (text or "").strip()
         if not text:
             return {"success": False, "error": "空文本", "timestamp": datetime.now().isoformat()}
+
+        # P0-017: 先调用安全合规基线系统检查
+        if self.security_baseline:
+            security_check = await self.security_baseline.check_content_security(text, "text", source)
+            if not security_check.get("safe", True):
+                return {
+                    "success": False,
+                    "error": "内容安全检查未通过",
+                    "security_check": security_check,
+                    "timestamp": datetime.now().isoformat()
+                }
 
         sensitive_hits = self._check_sensitive(text)
         sensitive_score = 100.0 - min(len(sensitive_hits) * 30.0, 100.0)

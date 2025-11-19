@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>专家中枢 · 能力地图与路由策略</title>
+    <style>
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #0f172a;
+            background: #f5f7fb;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #edf2ff;
+        }
+        .page {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 32px 20px 80px;
+        }
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .hero h1 { margin: 0; font-size: 32px; }
+        .hero p { margin: 6px 0 0; color: #475569; }
+        .hero-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 10px 18px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary { background: #2563eb; color: #fff; box-shadow: 0 20px 35px rgba(37,99,235,0.3); }
+        .btn-secondary { background: #e0e7ff; color: #1e3a8a; }
+        .card {
+            background: #fff;
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: 0 25px 45px rgba(15,23,42,0.08);
+            margin-bottom: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+        }
+        .stat-card {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 14px;
+        }
+        .stat-card span { display: block; color: #64748b; font-size: 13px; margin-bottom: 6px; }
+        .ability-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .ability-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 16px;
+            background: linear-gradient(135deg, #fdfbff, #f2f3ff);
+        }
+        .ability-card h3 { margin: 0; display: flex; align-items: center; gap: 8px; }
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 6px;
+        }
+        .tag.level { background: #dbeafe; color: #1d4ed8; }
+        .tag.module { background: #dcfce7; color: #15803d; margin-bottom: 4px; }
+        .list {
+            margin: 10px 0 0;
+            padding-left: 18px;
+            color: #475569;
+            font-size: 14px;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+        .control-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+        .control-row input, .control-row textarea {
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid #cbd3f5;
+            font-size: 14px;
+            min-width: 220px;
+        }
+        textarea {
+            min-height: 90px;
+            resize: vertical;
+        }
+        .timeline {
+            border-left: 3px solid #e2e8f0;
+            margin-left: 6px;
+            padding-left: 16px;
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 16px;
+        }
+        .timeline-item::before {
+            content: "";
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #2563eb;
+            position: absolute;
+            left: -22px;
+            top: 4px;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+            font-size: 13px;
+        }
+        th { color: #475569; text-transform: uppercase; letter-spacing: 0.04em; }
+        .console-box {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 16px;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: 'JetBrains Mono', Consolas, monospace;
+            font-size: 13px;
+            min-height: 90px;
+            white-space: pre-wrap;
+        }
+        .muted { color: #94a3b8; font-size: 13px; }
+        @media (max-width: 768px) {
+            .hero { flex-direction: column; }
+            .control-row input, .control-row textarea { min-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="hero">
+            <div>
+                <h1>专家能力中枢</h1>
+                <p>一张图看懂专家能力覆盖、路由策略与测试验收，支撑跨模块服务一致性。</p>
+            </div>
+            <div class="hero-actions">
+                <button class="btn-primary" id="btnRefreshExperts">刷新数据</button>
+                <button class="btn-secondary" id="btnSyncRouting">同步路由策略</button>
+            </div>
+        </div>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">能力地图 · Coverage Map</h2>
+                    <p class="muted">专家覆盖模块、核心能力、SLA 与信心度。</p>
+                </div>
+            </div>
+            <div class="stats-grid" style="margin-bottom:18px;">
+                <div class="stat-card">
+                    <span>专家数量</span>
+                    <strong id="statExpertCount">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>平均信心度</span>
+                    <strong id="statAvgConfidence">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>覆盖模块</span>
+                    <strong id="statModuleCount">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Ready 能力</span>
+                    <strong id="statReadyCapabilities">-</strong>
+                </div>
+            </div>
+            <div id="abilityGrid" class="ability-grid"></div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">路由策略 & 决策链</h2>
+                    <p class="muted">展示实时路由权重、模块负载与最近决策。</p>
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <button class="btn-secondary" id="btnToggleHeuristics">查看权重</button>
+                </div>
+            </div>
+            <div class="stats-grid" style="margin-bottom:10px;">
+                <div class="stat-card">
+                    <span>直连阈值</span>
+                    <strong id="statDirectThreshold">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>澄清阈值</span>
+                    <strong id="statClarifyThreshold">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Fallback 阈值</span>
+                    <strong id="statFallbackThreshold">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>高负载模块</span>
+                    <strong id="statBusyModule">-</strong>
+                </div>
+            </div>
+            <div id="heuristicList" class="list"></div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">路由演练</h3>
+                <div class="control-row">
+                    <input id="routeQuery" placeholder="例如：帮我评估库存周转风险">
+                    <textarea id="routeContext" placeholder="可选：提供知识提示或上下文，一行一条"></textarea>
+                    <input id="routeExpected" placeholder="预期领域（可选，例如 rag）">
+                    <button class="btn-primary" id="btnSimulateRoute">模拟路由</button>
+                </div>
+                <div class="console-box" id="routeConsole">等待模拟...</div>
+                <div style="margin-top:16px;">
+                    <h4 style="margin:0 0 8px;">模拟历史</h4>
+                    <button class="btn-secondary" id="btnLoadHistory">加载历史</button>
+                    <div id="simulationHistory" class="timeline" style="margin-top:12px;"></div>
+                </div>
+            </div>
+            <div style="margin-top:20px;">
+                <h3 style="margin:0 0 8px;">最近决策</h3>
+                <div id="routeTimeline" class="timeline"></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">测试验收 · 标准化矩阵</h2>
+                    <p class="muted">每项专家能力对应的测试套件、验收口径与最近执行记录。</p>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>能力</th>
+                            <th>负责人</th>
+                            <th>测试套件</th>
+                            <th>验收口径</th>
+                            <th>最后执行</th>
+                        </tr>
+                    </thead>
+                    <tbody id="acceptanceTable">
+                        <tr><td colspan="5" class="muted">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+    <script src="js/expert_center.js"></script>
+</body>
+</html>
+

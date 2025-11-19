@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>可观测性系统 - AI-STACK 超级Agent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+        
+        .tab.active {
+            color: #1890ff;
+            border-bottom-color: #1890ff;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        .stat-card h3 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .table th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .table tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-success {
+            background: #52c41a;
+            color: white;
+        }
+        
+        .badge-warning {
+            background: #faad14;
+            color: white;
+        }
+        
+        .badge-error {
+            background: #f5222d;
+            color: white;
+        }
+        
+        .badge-info {
+            background: #1890ff;
+            color: white;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #1890ff, #52c41a);
+            transition: width 0.3s;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #1890ff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #40a9ff;
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #d9d9d9;
+        }
+        
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-input {
+            padding: 8px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .chart-container {
+            height: 300px;
+            margin-top: 20px;
+        }
+        
+        .alert-item {
+            padding: 15px;
+            border-left: 4px solid #f5222d;
+            background: #fff1f0;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        
+        .alert-item.warning {
+            border-left-color: #faad14;
+            background: #fffbe6;
+        }
+        
+        .alert-item.info {
+            border-left-color: #1890ff;
+            background: #e6f7ff;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 可观测性系统</h1>
+            <p>实时监控系统性能、追踪请求链路、管理长任务</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="overview">概览</button>
+            <button class="tab" data-tab="traces">Trace追踪</button>
+            <button class="tab" data-tab="tasks">长任务</button>
+            <button class="tab" data-tab="metrics">指标</button>
+            <button class="tab" data-tab="events">事件</button>
+            <button class="tab" data-tab="alerts">告警</button>
+        </div>
+        
+        <!-- 概览 -->
+        <div id="overview" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>活跃Trace</h3>
+                    <div class="value" id="stat-active-traces">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>活跃长任务</h3>
+                    <div class="value" id="stat-active-tasks">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>总指标数</h3>
+                    <div class="value" id="stat-metrics">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>总事件数</h3>
+                    <div class="value" id="stat-events">0</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>系统统计</h2>
+                <div id="statistics-detail" class="loading">加载中...</div>
+            </div>
+        </div>
+        
+        <!-- Trace追踪 -->
+        <div id="traces" class="tab-content">
+            <div class="card">
+                <h2>Trace列表</h2>
+                <div class="filter-bar">
+                    <input type="text" class="filter-input" id="trace-filter" placeholder="搜索Trace ID或Request ID">
+                    <button class="btn btn-primary" onclick="loadTraces()">刷新</button>
+                    <button class="btn btn-secondary" onclick="exportTraces()">导出JSON</button>
+                </div>
+                <div id="traces-list" class="loading">加载中...</div>
+            </div>
+        </div>
+        
+        <!-- 长任务 -->
+        <div id="tasks" class="tab-content">
+            <div class="card">
+                <h2>长任务列表</h2>
+                <div class="filter-bar">
+                    <input type="text" class="filter-input" id="task-filter" placeholder="搜索任务名称">
+                    <button class="btn btn-primary" onclick="loadLongTasks()">刷新</button>
+                </div>
+                <div id="tasks-list" class="loading">加载中...</div>
+            </div>
+        </div>
+        
+        <!-- 指标 -->
+        <div id="metrics" class="tab-content">
+            <div class="card">
+                <h2>指标监控</h2>
+                <div class="filter-bar">
+                    <input type="text" class="filter-input" id="metric-filter" placeholder="指标名称">
+                    <button class="btn btn-primary" onclick="loadMetrics()">刷新</button>
+                    <button class="btn btn-secondary" onclick="exportMetrics()">导出CSV</button>
+                </div>
+                <div id="metrics-list" class="loading">加载中...</div>
+            </div>
+        </div>
+        
+        <!-- 事件 -->
+        <div id="events" class="tab-content">
+            <div class="card">
+                <h2>事件列表</h2>
+                <div class="filter-bar">
+                    <input type="text" class="filter-input" id="event-filter" placeholder="事件名称">
+                    <button class="btn btn-primary" onclick="loadEvents()">刷新</button>
+                    <button class="btn btn-secondary" onclick="exportEvents()">导出CSV</button>
+                </div>
+                <div id="events-list" class="loading">加载中...</div>
+            </div>
+        </div>
+        
+        <!-- 告警 -->
+        <div id="alerts" class="tab-content">
+            <div class="card">
+                <h2>告警列表</h2>
+                <div class="filter-bar">
+                    <button class="btn btn-primary" onclick="loadAlerts()">刷新</button>
+                </div>
+                <div id="alerts-list" class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api/super-agent';
+        
+        // Tab切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+                
+                // 加载对应数据
+                if (tab.dataset.tab === 'overview') loadOverview();
+                else if (tab.dataset.tab === 'traces') loadTraces();
+                else if (tab.dataset.tab === 'tasks') loadLongTasks();
+                else if (tab.dataset.tab === 'metrics') loadMetrics();
+                else if (tab.dataset.tab === 'events') loadEvents();
+                else if (tab.dataset.tab === 'alerts') loadAlerts();
+            });
+        });
+        
+        // 加载概览
+        async function loadOverview() {
+            try {
+                const res = await fetch(`${API_BASE}/observability/statistics`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    const stats = data.statistics;
+                    document.getElementById('stat-active-traces').textContent = stats.traces.active;
+                    document.getElementById('stat-active-tasks').textContent = stats.long_tasks.active;
+                    document.getElementById('stat-metrics').textContent = stats.metrics.total_points;
+                    document.getElementById('stat-events').textContent = stats.events.total;
+                    
+                    // 显示详细统计
+                    const detail = document.getElementById('statistics-detail');
+                    detail.innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+                            <div>
+                                <h3>Trace统计</h3>
+                                <p>总数: ${stats.traces.total}</p>
+                                <p>活跃: ${stats.traces.active}</p>
+                                <p>已完成: ${stats.traces.completed}</p>
+                            </div>
+                            <div>
+                                <h3>长任务统计</h3>
+                                <p>总数: ${stats.long_tasks.total}</p>
+                                <p>活跃: ${stats.long_tasks.active}</p>
+                                <p>已完成: ${stats.long_tasks.completed}</p>
+                            </div>
+                            <div>
+                                <h3>Span统计</h3>
+                                <p>总数: ${stats.spans.total}</p>
+                                <p>活跃: ${stats.spans.active}</p>
+                            </div>
+                            <div>
+                                <h3>指标统计</h3>
+                                <p>指标类型数: ${stats.metrics.count}</p>
+                                <p>总数据点: ${stats.metrics.total_points}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('加载概览失败:', error);
+            }
+        }
+        
+        // 加载Traces
+        async function loadTraces() {
+            const listEl = document.getElementById('traces-list');
+            listEl.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const res = await fetch(`${API_BASE}/observability/traces?limit=50`);
+                const data = await res.json();
+                
+                if (data.success && data.traces.length > 0) {
+                    listEl.innerHTML = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Trace ID</th>
+                                    <th>Request ID</th>
+                                    <th>服务名</th>
+                                    <th>开始时间</th>
+                                    <th>耗时</th>
+                                    <th>Span数</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.traces.map(trace => `
+                                    <tr>
+                                        <td><code>${trace.trace_id.substring(0, 8)}...</code></td>
+                                        <td><code>${trace.request_id}</code></td>
+                                        <td>${trace.service_name}</td>
+                                        <td>${new Date(trace.start_time * 1000).toLocaleString()}</td>
+                                        <td>${trace.duration ? trace.duration.toFixed(3) + 's' : '-'}</td>
+                                        <td>${trace.span_count}</td>
+                                        <td><span class="badge ${trace.status === 'ok' ? 'badge-success' : 'badge-error'}">${trace.status}</span></td>
+                                        <td><button class="btn btn-secondary" onclick="viewTrace('${trace.trace_id}')">查看</button></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    listEl.innerHTML = '<div class="loading">暂无数据</div>';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载长任务
+        async function loadLongTasks() {
+            const listEl = document.getElementById('tasks-list');
+            listEl.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const res = await fetch(`${API_BASE}/observability/long-tasks?limit=50`);
+                const data = await res.json();
+                
+                if (data.success && data.tasks.length > 0) {
+                    listEl.innerHTML = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>任务ID</th>
+                                    <th>任务名称</th>
+                                    <th>类型</th>
+                                    <th>进度</th>
+                                    <th>当前步骤</th>
+                                    <th>状态</th>
+                                    <th>耗时</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.tasks.map(task => `
+                                    <tr>
+                                        <td><code>${task.task_id.substring(0, 8)}...</code></td>
+                                        <td>${task.name}</td>
+                                        <td>${task.task_type}</td>
+                                        <td>
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: ${task.progress}%"></div>
+                                            </div>
+                                            <small>${task.progress.toFixed(1)}%</small>
+                                        </td>
+                                        <td>${task.current_step || '-'}</td>
+                                        <td><span class="badge badge-info">${task.status}</span></td>
+                                        <td>${task.duration ? task.duration.toFixed(2) + 's' : '-'}</td>
+                                        <td>
+                                            <button class="btn btn-secondary" onclick="viewTask('${task.task_id}')">查看</button>
+                                            <button class="btn btn-secondary" onclick="replayTask('${task.task_id}')">回放</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    listEl.innerHTML = '<div class="loading">暂无数据</div>';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载指标
+        async function loadMetrics() {
+            const listEl = document.getElementById('metrics-list');
+            listEl.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const name = document.getElementById('metric-filter').value;
+                const params = name ? `?name=${encodeURIComponent(name)}&limit=100` : '?limit=100';
+                const res = await fetch(`${API_BASE}/observability/metrics${params}`);
+                const data = await res.json();
+                
+                if (data.success && data.metrics.length > 0) {
+                    // 按指标名称分组
+                    const grouped = {};
+                    data.metrics.forEach(m => {
+                        if (!grouped[m.name]) grouped[m.name] = [];
+                        grouped[m.name].push(m);
+                    });
+                    
+                    listEl.innerHTML = Object.entries(grouped).map(([name, metrics]) => `
+                        <div style="margin-bottom: 20px;">
+                            <h3>${name}</h3>
+                            <p>数据点: ${metrics.length}</p>
+                            <p>最新值: ${metrics[metrics.length - 1].value}</p>
+                            <p>平均值: ${(metrics.reduce((sum, m) => sum + m.value, 0) / metrics.length).toFixed(2)}</p>
+                        </div>
+                    `).join('');
+                } else {
+                    listEl.innerHTML = '<div class="loading">暂无数据</div>';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载事件
+        async function loadEvents() {
+            const listEl = document.getElementById('events-list');
+            listEl.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const name = document.getElementById('event-filter').value;
+                const params = name ? `?event_name=${encodeURIComponent(name)}&limit=100` : '?limit=100';
+                const res = await fetch(`${API_BASE}/observability/events${params}`);
+                const data = await res.json();
+                
+                if (data.success && data.events.length > 0) {
+                    listEl.innerHTML = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>事件名称</th>
+                                    <th>时间</th>
+                                    <th>Trace ID</th>
+                                    <th>级别</th>
+                                    <th>属性</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.events.map(event => `
+                                    <tr>
+                                        <td>${event.event_name}</td>
+                                        <td>${new Date(event.timestamp * 1000).toLocaleString()}</td>
+                                        <td><code>${event.trace_id ? event.trace_id.substring(0, 8) + '...' : '-'}</code></td>
+                                        <td><span class="badge badge-info">${event.level}</span></td>
+                                        <td><code>${JSON.stringify(event.properties).substring(0, 50)}...</code></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    listEl.innerHTML = '<div class="loading">暂无数据</div>';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载告警
+        async function loadAlerts() {
+            const listEl = document.getElementById('alerts-list');
+            listEl.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const res = await fetch(`${API_BASE}/observability/alerts?limit=50`);
+                const data = await res.json();
+                
+                if (data.success && data.alerts.length > 0) {
+                    listEl.innerHTML = data.alerts.map(alert => `
+                        <div class="alert-item ${alert.severity}">
+                            <h3>${alert.rule_name}</h3>
+                            <p>${alert.message}</p>
+                            <p><small>时间: ${new Date(alert.timestamp * 1000).toLocaleString()}</small></p>
+                            <p><small>值: ${alert.value} | 阈值: ${alert.threshold}</small></p>
+                        </div>
+                    `).join('');
+                } else {
+                    listEl.innerHTML = '<div class="loading">暂无告警</div>';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<div class="loading">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 查看Trace详情
+        async function viewTrace(traceId) {
+            try {
+                const res = await fetch(`${API_BASE}/observability/traces/${traceId}`);
+                const data = await res.json();
+                if (data.success) {
+                    alert(JSON.stringify(data.trace, null, 2));
+                }
+            } catch (error) {
+                alert('加载失败: ' + error.message);
+            }
+        }
+        
+        // 查看任务详情
+        async function viewTask(taskId) {
+            try {
+                const res = await fetch(`${API_BASE}/observability/long-tasks/${taskId}`);
+                const data = await res.json();
+                if (data.success) {
+                    alert(JSON.stringify(data.task, null, 2));
+                }
+            } catch (error) {
+                alert('加载失败: ' + error.message);
+            }
+        }
+        
+        // 回放任务
+        async function replayTask(taskId) {
+            try {
+                const res = await fetch(`${API_BASE}/observability/long-tasks/${taskId}/replay`);
+                const data = await res.json();
+                if (data.success) {
+                    alert('回放数据:\n' + JSON.stringify(data.replay, null, 2));
+                }
+            } catch (error) {
+                alert('加载失败: ' + error.message);
+            }
+        }
+        
+        // 导出功能
+        async function exportTraces() {
+            try {
+                const res = await fetch(`${API_BASE}/observability/export/traces?format=json`);
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `traces_${Date.now()}.json`;
+                a.click();
+            } catch (error) {
+                alert('导出失败: ' + error.message);
+            }
+        }
+        
+        async function exportMetrics() {
+            try {
+                const res = await fetch(`${API_BASE}/observability/export/metrics?format=csv`);
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `metrics_${Date.now()}.csv`;
+                a.click();
+            } catch (error) {
+                alert('导出失败: ' + error.message);
+            }
+        }
+        
+        async function exportEvents() {
+            try {
+                const res = await fetch(`${API_BASE}/observability/export/events?format=csv`);
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `events_${Date.now()}.csv`;
+                a.click();
+            } catch (error) {
+                alert('导出失败: ' + error.message);
+            }
+        }
+        
+        // 初始化
+        loadOverview();
+        setInterval(loadOverview, 30000); // 每30秒刷新概览
+    </script>
+</body>
+</html>
+
+
+

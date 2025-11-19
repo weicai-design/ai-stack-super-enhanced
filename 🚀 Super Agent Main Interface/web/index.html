@@ -21,11 +21,18 @@
                     <span class="status-dot active"></span>
                     <span class="status-text">运行中</span>
                 </div>
-                <select id="model-selector" class="model-selector">
-                    <option value="qwen2.5:1.5b" selected>qwen2.5:1.5b (快速)</option>
-                    <option value="qwen2.5:7b">qwen2.5:7b (高质量)</option>
-                    <option value="llama3.2:1b">llama3.2:1b (极速)</option>
-                </select>
+                <div class="header-controls" style="display:flex;align-items:center;gap:8px;">
+                    <select id="model-selector" class="model-selector">
+                        <option value="qwen2.5:1.5b" selected>qwen2.5:1.5b (快速)</option>
+                        <option value="qwen2.5:7b">qwen2.5:7b (高质量)</option>
+                        <option value="llama3.2:1b">llama3.2:1b (极速)</option>
+                    </select>
+                    <select id="voice-lang-select" class="model-selector" style="width:140px;">
+                        <option value="zh-CN">zh-CN · 中文</option>
+                        <option value="en-US">en-US · English</option>
+                    </select>
+                </div>
+                <div id="model-meta" class="small" style="color:#aaa;margin-top:4px;text-align:right;">LLM 状态加载中…</div>
             </div>
         </header>
 
@@ -48,13 +55,21 @@
                             <span class="nav-icon">🛠️</span>
                             <span class="nav-label">RAG工具</span>
                         </button>
-                        <button class="nav-btn" data-module="rag-ingest">
+                        <button class="nav-btn" data-module="rag-preprocess">
                             <span class="nav-icon">📥</span>
-                            <span class="nav-label">RAG流水线</span>
+                            <span class="nav-label">RAG预处理</span>
+                        </button>
+                        <button class="nav-btn" data-module="knowledge">
+                            <span class="nav-icon">🧠</span>
+                            <span class="nav-label">知识沉淀</span>
                         </button>
                         <button class="nav-btn" data-module="erp">
                             <span class="nav-icon">💼</span>
                             <span class="nav-label">ERP管理</span>
+                        </button>
+                        <button class="nav-btn" data-module="erp-key">
+                            <span class="nav-icon">🗂️</span>
+                            <span class="nav-label">ERP流程中心</span>
                         </button>
                         <button class="nav-btn" data-module="erp-orders">
                             <span class="nav-icon">📦</span>
@@ -72,9 +87,17 @@
                             <span class="nav-icon">📊</span>
                             <span class="nav-label">库存</span>
                         </button>
+                        <button class="nav-btn" data-module="bpm-hub">
+                            <span class="nav-icon">🌀</span>
+                            <span class="nav-label">BPM控制台</span>
+                        </button>
                         <button class="nav-btn" data-module="bpmn-runtime">
                             <span class="nav-icon">⏱️</span>
                             <span class="nav-label">流程追踪</span>
+                        </button>
+                        <button class="nav-btn" data-module="bpmn-designer">
+                            <span class="nav-icon">🧩</span>
+                            <span class="nav-label">流程设计器</span>
                         </button>
                         <button class="nav-btn" data-module="content">
                             <span class="nav-icon">✍️</span>
@@ -91,6 +114,10 @@
                         <button class="nav-btn" data-module="operations">
                             <span class="nav-icon">⚙️</span>
                             <span class="nav-label">运营财务</span>
+                        </button>
+                        <button class="nav-btn" data-module="experts">
+                            <span class="nav-icon">🧠</span>
+                            <span class="nav-label">专家中枢</span>
                         </button>
                         <button class="nav-btn" data-module="coding">
                             <span class="nav-icon">💻</span>
@@ -140,6 +167,7 @@
                 <div class="chat-input-area">
                     <div class="input-toolbar">
                         <button class="tool-btn" id="voice-btn" title="语音输入">🎤</button>
+                        <button class="tool-btn" id="tts-btn" title="语音播报开关">🔇</button>
                         <button class="tool-btn" id="file-btn" title="上传文件">📎</button>
                         <button class="tool-btn" id="search-btn" title="搜索">🔍</button>
                     </div>
@@ -172,6 +200,17 @@
                         <div class="terminal-actions">
                             <button id="terminal-clear" class="action-btn-small">清屏</button>
                             <button id="terminal-history-btn" class="action-btn-small">历史</button>
+                            <button id="terminal-replay-btn" class="action-btn-small">回放</button>
+                            <button id="terminal-sandbox-status" class="action-btn-small">沙箱状态</button>
+                        </div>
+                        <div id="coding-assistant-panel" style="margin-top:12px;border-top:1px solid #333;padding-top:8px;display:none;">
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                                <button id="btn-code-review" class="action-btn-small">代码审查</button>
+                                <button id="btn-code-optimize" class="action-btn-small">性能优化</button>
+                                <button id="btn-generate-doc" class="action-btn-small">生成文档</button>
+                                <button id="btn-cursor-open" class="action-btn-small">Cursor打开</button>
+                            </div>
+                            <div id="coding-assistant-output" style="background:#1a1a1a;padding:8px;border-radius:4px;font-size:12px;max-height:200px;overflow-y:auto;display:none;"></div>
                         </div>
                     </div>
                 </div>
@@ -200,10 +239,60 @@
                             <span class="status-value" id="disk-value">75%</span>
                         </div>
                     </div>
+                    <div id="resource-alerts" class="small" style="margin-top:6px;color:#f5a524;"></div>
+                    <div id="external-drive-list" class="small" style="margin-top:4px;color:#aaa;"></div>
+                    <div id="task-summary-card" style="margin-top:8px;border:1px solid #333;border-radius:8px;padding:8px;background:#111;">
+                        <div class="small" style="color:#aaa;margin-bottom:4px;">任务概览（今日）</div>
+                        <div id="task-summary-content" class="small" style="line-height:1.4;color:#ddd;">加载中...</div>
+                    </div>
+                    <!-- P0-014: 资源诊断和建议 -->
+                    <div id="resource-diagnostic-card" style="margin-top:8px;border:1px solid #333;border-radius:8px;padding:8px;background:#111;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                            <div class="small" style="color:#aaa;">资源诊断</div>
+                            <button class="action-btn-small" id="run-diagnostic-btn" style="padding:2px 8px;font-size:11px;">运行诊断</button>
+                        </div>
+                        <div id="resource-diagnostic-content" class="small" style="line-height:1.4;color:#ddd;min-height:40px;">
+                            <div style="color:#888;font-size:11px;">点击"运行诊断"开始资源诊断</div>
+                        </div>
+                    </div>
+                    <div id="resource-suggestions-card" style="margin-top:8px;border:1px solid #333;border-radius:8px;padding:8px;background:#111;display:none;">
+                        <div class="small" style="color:#aaa;margin-bottom:8px;">调度建议</div>
+                        <div id="resource-suggestions-content" class="small" style="line-height:1.4;color:#ddd;max-height:200px;overflow-y:auto;">
+                        </div>
+                    </div>
+                    <div id="resource-linked-card" style="margin-top:8px;border:1px solid #333;border-radius:8px;padding:8px;background:#0b0b0b;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                            <div class="small" style="color:#aaa;">资源联动视图</div>
+                            <button class="action-btn-small" id="refreshResourceOverview" style="padding:2px 8px;font-size:11px;">同步</button>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                            <div style="border:1px solid #222;border-radius:6px;padding:6px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                                    <span class="small" style="color:#ddd;">执行记录</span>
+                                    <span class="small" style="color:#666;" id="resource-execution-count">-</span>
+                                </div>
+                                <div id="resource-execution-list" class="small" style="line-height:1.5;color:#ccc;max-height:160px;overflow-y:auto;">
+                                    <div style="color:#666;">等待加载...</div>
+                                </div>
+                            </div>
+                            <div style="border:1px solid #222;border-radius:6px;padding:6px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                                    <span class="small" style="color:#ddd;">回滚记录</span>
+                                    <span class="small" style="color:#666;" id="resource-rollback-count">-</span>
+                                </div>
+                                <div id="resource-rollback-list" class="small" style="line-height:1.5;color:#ccc;max-height:120px;overflow-y:auto;">
+                                    <div style="color:#666;">暂无回滚操作</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="panel-section">
-                    <h3 class="panel-title">任务中心</h3>
+                    <h3 class="panel-title" style="display:flex;align-items:center;gap:8px;">
+                        任务中心
+                        <span id="task-24h-rate-badge" class="small" style="display:inline-block;border:1px solid #333;border-radius:999px;padding:2px 8px;background:#111;color:#ddd;">24h 完成率 —</span>
+                    </h3>
                     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
                         <input id="task-filter-q" placeholder="关键字（标题/描述/ID）" style="flex:1;">
                         <select id="task-filter-status">
@@ -232,6 +321,20 @@
                         <button class="action-btn-small" id="task-next">下一页</button>
                     </div>
                     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                        <label class="small">编排器筛选</label>
+                        <input id="task-orch-q" placeholder="关键字（task_id/标题/状态）" style="flex:1;">
+                        <select id="task-orch-status">
+                            <option value="">全部状态</option>
+                            <option value="in_progress">in_progress</option>
+                            <option value="blocked">blocked</option>
+                            <option value="completed">completed</option>
+                            <option value="cancelled">cancelled</option>
+                            <option value="pending">pending</option>
+                        </select>
+                        <button class="action-btn-small" id="task-orch-apply">筛选</button>
+                        <button class="action-btn-small" id="task-orch-reset">重置</button>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
                         <button class="action-btn-small" id="task-bulk-select-all">全选本页（规划）</button>
                         <button class="action-btn-small" id="task-bulk-clear">清空选择</button>
                         <button class="action-btn-small" id="task-bulk-confirm">批量确认</button>
@@ -239,7 +342,12 @@
                         <button class="action-btn-small" id="task-bulk-retro">批量复盘</button>
                         <button class="action-btn-small" id="task-bulk-reject">批量拒绝</button>
                         <button class="action-btn-small" id="task-bulk-delete">批量删除</button>
+                        <label class="small" style="display:flex;align-items:center;gap:6px;">
+                            <input type="checkbox" id="task-delete-guard" checked>
+                            仅删除已拒绝/已完成
+                        </label>
                         <span id="task-bulk-count" class="small">已选 0 项</span>
+                        <span id="task-bulk-hint" class="small" style="margin-left:8px;color:#aaa;"></span>
                     </div>
                     <div id="task-list" class="task-list">
                         <div class="activity-item">加载中...</div>
@@ -261,6 +369,110 @@
                     </div>
                 </div>
 
+                <div class="panel-section" id="memo-task-panel">
+                    <h3 class="panel-title">备忘录 · 智能任务闭环</h3>
+                    <div class="memo-form" style="display:flex;flex-direction:column;gap:6px;">
+                        <input id="memo-title" placeholder="备忘录标题（可选）">
+                        <textarea id="memo-content" rows="3" placeholder="快速记录任务/想法，支持自动提炼任务"></textarea>
+                        <div style="display:flex;gap:6px;">
+                            <select id="memo-type" class="model-selector" style="flex:1;">
+                                <option value="task">任务</option>
+                                <option value="note" selected>普通备忘</option>
+                                <option value="meeting">会议纪要</option>
+                                <option value="risk">风险</option>
+                            </select>
+                            <select id="memo-importance" class="model-selector" style="width:120px;">
+                                <option value="5">重要度 5</option>
+                                <option value="4" selected>重要度 4</option>
+                                <option value="3">重要度 3</option>
+                                <option value="2">重要度 2</option>
+                                <option value="1">重要度 1</option>
+                            </select>
+                        </div>
+                        <input id="memo-tags" placeholder="标签（用逗号分隔，例如：任务,客户,财报）">
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <button class="action-btn-small" id="memo-save">保存备忘录</button>
+                            <button class="action-btn-small" id="memo-extract">智能提炼任务</button>
+                            <span class="small" id="memo-status" style="color:#888;">等待输入</span>
+                        </div>
+                    </div>
+                    <div id="memo-list" class="small" style="margin-top:8px;line-height:1.4;color:#ddd;max-height:120px;overflow-y:auto;">
+                        <div style="color:#666;">暂无备忘录</div>
+                    </div>
+                    <div style="margin-top:8px;border-top:1px solid #222;padding-top:8px;">
+                        <div class="small" style="color:#aaa;margin-bottom:4px;">任务执行偏好</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                            <label class="small" style="display:flex;align-items:center;gap:4px;">
+                                <input type="checkbox" id="task-auto-rag" checked>
+                                执行后写入RAG
+                            </label>
+                            <label class="small" style="display:flex;align-items:center;gap:4px;">
+                                <input type="checkbox" id="task-auto-resource" checked>
+                                记录资源影响
+                            </label>
+                        </div>
+                        <textarea id="task-resource-impact-text" rows="2" style="margin-top:6px;" placeholder="资源影响备注（可选，例如：释放2核CPU / 增加S3成本）"></textarea>
+                    </div>
+                    <div id="task-lifecycle" class="small" style="margin-top:8px;line-height:1.5;color:#ddd;max-height:220px;overflow-y:auto;">
+                        <div style="color:#666;">任务加载中...</div>
+                    </div>
+                    <div id="task-impact-list" class="small" style="margin-top:6px;color:#aaa;line-height:1.4;">
+                        <div style="color:#666;">暂无资源影响记录</div>
+                    </div>
+                </div>
+
+                <div class="panel-section" id="file-generator-panel">
+                    <h3 class="panel-title">文件生成器</h3>
+                    <label class="small">文件类型</label>
+                    <select id="filegen-type" class="model-selector">
+                        <option value="word">Word · DOCX</option>
+                        <option value="excel">Excel · XLSX</option>
+                        <option value="ppt">PPT · PPTX</option>
+                        <option value="pdf">PDF</option>
+                    </select>
+                    <label class="small" style="margin-top:6px;">标题</label>
+                    <input id="filegen-title" placeholder="例如：行业周报 / KPI 汇总" />
+                    <label class="small" style="margin-top:6px;">内容 / 数据</label>
+                    <textarea id="filegen-content" rows="4" placeholder="Word/PDF请输入正文；Excel请输入JSON：{ &quot;headers&quot;: [...], &quot;data&quot;: [[...]] }；PPT请输入 slides 数组 JSON。"></textarea>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+                        <button class="action-btn-small" id="filegen-run">生成文件</button>
+                        <span id="filegen-status" class="small" style="color:#888;">未生成</span>
+                    </div>
+                </div>
+
+                <div class="panel-section" id="search-panel">
+                    <h3 class="panel-title">外网搜索 · 并轨</h3>
+                    <div class="small" style="color:#aaa;margin-bottom:6px;">选择搜索引擎</div>
+                    <div id="search-engine-list" class="small" style="display:flex;flex-wrap:wrap;gap:6px;color:#ccc;">加载中...</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0;">
+                        <button class="action-btn-small" id="search-engine-refresh">刷新引擎</button>
+                        <span id="search-query-badge" class="small" style="color:#888;">暂无搜索</span>
+                    </div>
+                    <div id="search-results-panel" class="small" style="line-height:1.5;color:#ccc;background:#0b0b0b;border:1px solid #222;border-radius:6px;padding:8px;min-height:90px;">
+                        <div style="color:#666;">等待搜索...</div>
+                    </div>
+                </div>
+
+                <div class="panel-section" id="learning-panel">
+                    <h3 class="panel-title">自我学习状态</h3>
+                    <div id="learning-stats-grid" class="small" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;color:#ddd;">
+                        <div style="color:#666;">等待加载...</div>
+                    </div>
+                    <div id="learning-alert" class="small" style="margin:6px 0;color:#aaa;">告警级别：--</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0;">
+                        <span class="small" style="color:#888;">优化建议</span>
+                        <button class="action-btn-small" id="learning-refresh">刷新</button>
+                    </div>
+                    <div id="learning-suggestions" class="small" style="display:flex;flex-direction:column;gap:6px;color:#ccc;">
+                        <div style="color:#666;">等待加载...</div>
+                    </div>
+                    <div class="small" style="color:#888;margin-top:8px;">资源信号</div>
+                    <div id="learning-resource-signals" class="small" style="line-height:1.4;color:#ccc;">
+                        <div style="color:#666;">暂无资源信号</div>
+                    </div>
+                    <div id="learning-trend" class="small" style="margin-top:6px;color:#aaa;">性能趋势：--</div>
+                </div>
+
                 <div class="panel-section">
                     <h3 class="panel-title">终端安全监控</h3>
                     <div class="security-panel">
@@ -276,6 +488,10 @@
                 <div class="panel-section">
                     <h3 class="panel-title">安全与合规总览</h3>
                     <div class="security-panel">
+                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                            <button class="action-btn-small" id="security-filter-all">全部</button>
+                            <button class="action-btn-small" id="security-filter-otstatus">仅任务状态变更</button>
+                        </div>
                         <div class="security-event-list" id="security-audit-list">
                             <div class="security-empty">加载中...</div>
                         </div>
@@ -299,6 +515,7 @@
     <!-- JavaScript -->
     <script src="js/modal.js"></script>
     <script src="js/confirmation.js"></script>
+    <script src="js/routes.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

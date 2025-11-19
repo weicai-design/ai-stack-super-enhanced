@@ -187,10 +187,9 @@ class ResponseTimeOptimizer:
             函数执行结果
         """
         # 检查缓存
-        if cache_key and cache_key in self.cache:
-            cached_data, cached_time = self.cache[cache_key]
-            if (datetime.now() - cached_time).total_seconds() < self.cache_ttl.get(cache_key, 300):
-                self.performance_monitor.record_response_time(0.001, from_cache=True)
+        if cache_key:
+            cached_data = self.get_cached_value(cache_key)
+            if cached_data is not None:
                 return cached_data
         
         start_time = time.time()
@@ -237,8 +236,24 @@ class ResponseTimeOptimizer:
             del self.cache[oldest_key]
             del self.cache_ttl[oldest_key]
         
+        if isinstance(value, dict):
+            value.setdefault("from_cache", False)
         self.cache[key] = (value, datetime.now())
         self.cache_ttl[key] = ttl
+    
+    def get_cached_value(self, cache_key: Optional[str]) -> Optional[Any]:
+        """获取缓存值（包含过期检测）"""
+        if not cache_key or cache_key not in self.cache:
+            return None
+        cached_data, cached_time = self.cache[cache_key]
+        if (datetime.now() - cached_time).total_seconds() >= self.cache_ttl.get(cache_key, 300):
+            del self.cache[cache_key]
+            del self.cache_ttl[cache_key]
+            return None
+        if isinstance(cached_data, dict):
+            cached_data.setdefault("from_cache", True)
+        self.performance_monitor.record_response_time(0.001, from_cache=True)
+        return cached_data
     
     def clear_cache(self):
         """清空缓存"""
@@ -257,6 +272,8 @@ class ResponseTimeOptimizer:
 # 全局性能监控器实例
 performance_monitor = PerformanceMonitor(target_response_time=2.0)
 response_time_optimizer = ResponseTimeOptimizer(performance_monitor)
+
+
 
 
 

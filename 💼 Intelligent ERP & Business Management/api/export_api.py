@@ -11,11 +11,14 @@ from datetime import datetime
 import io
 
 from core.data_exporter import DataExporter
+from core.export_listener_bridge import DualChannelExportManager
+from core.listener_container import data_listener
 
 router = APIRouter(prefix="/api/export", tags=["Export API"])
 
-# 初始化导出器
+# 初始化导出器与双通道管理器
 exporter = DataExporter()
+dual_channel_manager = DualChannelExportManager(data_listener, exporter)
 
 
 class ExportRequest(BaseModel):
@@ -25,6 +28,24 @@ class ExportRequest(BaseModel):
     filename: Optional[str] = None
     title: Optional[str] = None
     template_type: Optional[str] = None  # standard, financial, production
+
+
+class EventChannelRequest(BaseModel):
+    event_type: str
+    format: str = "excel"
+    fields: Optional[List[str]] = None
+    destination: Dict[str, Any]
+    description: Optional[str] = None
+    priority: int = 0
+
+
+class SnapshotChannelRequest(BaseModel):
+    name: Optional[str] = None
+    format: str = "excel"
+    endpoint: Optional[str] = None
+    static_data: Optional[List[Dict[str, Any]]] = None
+    destination: Dict[str, Any]
+    schedule: Optional[str] = None
 
 
 @router.post("/excel")
@@ -211,3 +232,63 @@ async def schedule_export(export_config: Dict[str, Any]):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"配置失败: {str(e)}")
+
+
+@router.post("/dual-channel/event")
+async def register_event_channel(request: EventChannelRequest):
+    """
+    注册事件驱动导出通道
+    """
+    try:
+        config = await dual_channel_manager.register_event_channel(request.dict())
+        return {
+            "success": True,
+            "channel": {
+                "channel_id": config.channel_id,
+                "event_type": config.event_type.value,
+                "format": config.format,
+                "destination": config.destination,
+                "description": config.description,
+            },
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"注册失败: {str(e)}")
+
+
+@router.post("/dual-channel/snapshot")
+async def register_snapshot_channel(request: SnapshotChannelRequest):
+    """
+    注册快照/监听双通道中的被动导出
+    """
+    if not request.endpoint and not request.static_data:
+        raise HTTPException(status_code=400, detail="必须提供 endpoint 或 static_data")
+    try:
+        config = await dual_channel_manager.register_snapshot_channel(request.dict())
+        return {"success": True, "channel": {"channel_id": config.channel_id, "name": config.name}}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"注册失败: {str(e)}")
+
+
+@router.post("/dual-channel/snapshot/{channel_id}/trigger")
+async def trigger_snapshot_channel(channel_id: str):
+    """
+    手动触发快照导出
+    """
+    try:
+        result = await dual_channel_manager.trigger_snapshot(channel_id)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"触发失败: {str(e)}")
+
+
+@router.get("/dual-channel/status")
+async def get_dual_channel_status():
+    """
+    获取双通道导出整体状态
+    """
+    status = dual_channel_manager.get_status()
+    return {"success": True, "status": status}

@@ -81,6 +81,7 @@ class TaskExtractor:
             提取的任务列表
         """
         tasks = []
+        memos = memos or []
         
         # 如果提供了超级Agent集成，先同步
         if self.super_agent_integration:

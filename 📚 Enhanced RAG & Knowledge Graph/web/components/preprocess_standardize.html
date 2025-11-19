@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>RAG预处理 - 标准化</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC"; background: #f7f9fc; margin: 0; color: #102a43; }
+        .header { background: linear-gradient(135deg, #004e92, #000428); color: white; padding: 35px 45px; border-bottom-left-radius: 30px; border-bottom-right-radius: 30px; }
+        .header h1 { margin: 0; font-size: 32px; }
+        .header p { opacity: 0.85; margin-top: 10px; }
+        .container { max-width: 1100px; margin: -40px auto 40px; padding: 0 25px; }
+        .card { background: white; border-radius: 20px; padding: 28px 32px; margin-bottom: 25px; box-shadow: 0 12px 28px rgba(15,23,42,0.12); }
+        .section-title { font-size: 20px; font-weight: 600; margin-bottom: 18px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+        .item { border: 1px solid #d9e2ec; border-radius: 14px; padding: 16px; }
+        .item strong { display: block; color: #004e92; margin-bottom: 6px; }
+        .actions { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 20px; }
+        button { border: none; border-radius: 999px; padding: 12px 28px; font-size: 14px; cursor: pointer; color: white; background: linear-gradient(135deg, #0f2027, #2c5364); box-shadow: 0 12px 22px rgba(15,32,39,0.25); }
+        button.secondary { background: transparent; color: #0f4c81; border: 1px solid rgba(15,76,129,0.5); box-shadow: none; }
+        .status { margin-top: 15px; font-size: 13px; color: #627d98; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📐 标准化（Standardize）阶段</h1>
+        <p>统一编码 / 章节结构 / 语言风格 / 数据格式，为知识库入库打造可控模板。</p>
+    </div>
+    <div class="container">
+        <div class="card">
+            <div class="section-title">核心任务 <span style="font-size:12px; margin-left:10px; color:#c1d3fe;">Stage 2 / 4</span></div>
+            <div class="grid">
+                <div class="item">
+                    <strong>2.1 编码与语言</strong>
+                    自动检测编码、语言，统一为 UTF-8 + 指定语言域。
+                </div>
+                <div class="item">
+                    <strong>2.2 章节结构化</strong>
+                    多级标题对齐，补齐缺失章节，生成层级树。
+                </div>
+                <div class="item">
+                    <strong>2.3 数学/代码规范</strong>
+                    LaTeX、公式、代码段统一包装与转义。
+                </div>
+                <div class="item">
+                    <strong>2.4 字段映射</strong>
+                    将原始字段映射到知识库 schema，生成结构化JSON。
+                </div>
+            </div>
+            <div class="actions">
+                <button onclick="runStage()">⚡ 执行标准化</button>
+                <button class="secondary" onclick="openPipeline()">返回编排视图</button>
+            </div>
+            <div class="status" id="statusText">等待任务...</div>
+        </div>
+    </div>
+    <script>
+        const STATUS_MAP = {
+            idle: '待命',
+            queued: '排队',
+            running: '执行中',
+            success: '已完成',
+            failed: '失败'
+        };
+
+        async function runStage() {
+            const status = document.getElementById('statusText');
+            status.textContent = '正在调度标准化任务...';
+            try {
+                const resp = await fetch('/preprocess/run/standardize', { method: 'POST' });
+                const result = await resp.json();
+                if (!resp.ok) {
+                    throw new Error(result.detail || result.message || '调度失败');
+                }
+                const stageState = result.stage_state || {};
+                const statusText = STATUS_MAP[stageState.status] || stageState.status || '已提交';
+                status.textContent = `${stageState.label || '标准化'}：${stageState.detail || ''}（${statusText}）`;
+            } catch (error) {
+                status.textContent = '调度失败：' + (error.message || '未知错误');
+            }
+        }
+        function openPipeline() {
+            window.open('/preprocess', '_blank');
+        }
+    </script>
+</body>
+</html>
+

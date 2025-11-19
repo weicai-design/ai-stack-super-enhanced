@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识沉淀中心 - AI-STACK 超级Agent</title>
+    <style>
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color-scheme: light;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f5f7fb;
+            color: #1f1f1f;
+        }
+        .page {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 32px 20px 60px;
+        }
+        h1 {
+            margin-bottom: 8px;
+        }
+        p.subtitle {
+            color: #5c5f66;
+            margin-bottom: 32px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .card h2 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 20px;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: #444;
+        }
+        input[type="text"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid #d5d8e2;
+            font-size: 14px;
+            transition: border 0.2s, box-shadow 0.2s;
+        }
+        input[type="text"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+        textarea {
+            min-height: 110px;
+            resize: vertical;
+        }
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+        button {
+            padding: 10px 18px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: #fff;
+            box-shadow: 0 15px 30px rgba(37, 99, 235, 0.25);
+        }
+        .btn-secondary {
+            background: #eef2ff;
+            color: #2f3a66;
+        }
+        button:hover {
+            transform: translateY(-1px);
+        }
+        .status-area {
+            margin-top: 16px;
+            padding: 14px;
+            background: #f8fafc;
+            border-radius: 12px;
+            font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+            font-size: 13px;
+            overflow: auto;
+            max-height: 260px;
+            border: 1px solid #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <h1>🧠 知识沉淀中心</h1>
+        <p class="subtitle">使用标准模板将经验知识自动写回 RAG，支持自动入库和队列策略。</p>
+        
+        <div class="card">
+            <h2>创建知识条目</h2>
+            <div class="form-grid">
+                <div>
+                    <label for="templateSelect">模板</label>
+                    <select id="templateSelect"></select>
+                </div>
+                <div>
+                    <label for="priorityInput">优先级（可选）</label>
+                    <input id="priorityInput" type="text" placeholder="high / medium / low">
+                </div>
+                <div>
+                    <label for="sourceInput">来源（可选）</label>
+                    <input id="sourceInput" type="text" placeholder="如 task_loop / workflow_monitor">
+                </div>
+                <div>
+                    <label for="sourceIdInput">来源ID（可选）</label>
+                    <input id="sourceIdInput" type="text" placeholder="task-2025-001">
+                </div>
+            </div>
+            
+            <label for="titleInput">标题</label>
+            <input id="titleInput" type="text" placeholder="请输入知识标题">
+            
+            <label for="summaryInput">摘要</label>
+            <textarea id="summaryInput" placeholder="一句话概括这条知识"></textarea>
+            
+            <label for="contentInput">详细内容</label>
+            <textarea id="contentInput" placeholder="记录过程、原因、解决方案、最佳实践等"></textarea>
+            
+            <div class="form-grid">
+                <div>
+                    <label for="tagsInput">标签（逗号分隔）</label>
+                    <input id="tagsInput" type="text" placeholder="task,workflow,error">
+                </div>
+                <div>
+                    <label for="metadataInput">额外元数据（JSON）</label>
+                    <input id="metadataInput" type="text" placeholder='{"task_id":123,"owner":"ops"}'>
+                </div>
+            </div>
+            
+            <div class="btn-row">
+                <button class="btn-primary" onclick="submitEntry()">保存并入库</button>
+                <button class="btn-secondary" onclick="resetForm()">重置</button>
+            </div>
+            
+            <div id="createStatus" class="status-area">等待提交...</div>
+        </div>
+        
+        <div class="card">
+            <h2>入库策略与队列</h2>
+            <div class="btn-row">
+                <button class="btn-secondary" onclick="loadRules()">查看规则</button>
+                <button class="btn-secondary" onclick="refreshQueue()">刷新队列</button>
+                <button class="btn-primary" onclick="processQueue()">立即处理队列</button>
+            </div>
+            <div id="rulesStatus" class="status-area">点击“查看规则”以加载。</div>
+            <div id="queueStatus" class="status-area" style="margin-top:12px;">点击“刷新队列”以加载。</div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api/super-agent';
+        
+        async function loadTemplates() {
+            try {
+                const res = await fetch(`${API_BASE}/knowledge/templates`);
+                const data = await res.json();
+                const select = document.getElementById('templateSelect');
+                select.innerHTML = '';
+                if (data.success && Array.isArray(data.templates)) {
+                    data.templates.forEach(t => {
+                        const option = document.createElement('option');
+                        option.value = t.template_id;
+                        option.textContent = `${t.name} (${t.template_id})`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('加载模板失败', error);
+            }
+        }
+        
+        function parseTags(value) {
+            if (!value) return [];
+            return value.split(',').map(t => t.trim()).filter(Boolean);
+        }
+        
+        function parseMetadata(value) {
+            if (!value) return {};
+            try {
+                return JSON.parse(value);
+            } catch {
+                return { note: value };
+            }
+        }
+        
+        async function submitEntry() {
+            const payload = {
+                template_id: document.getElementById('templateSelect').value,
+                title: document.getElementById('titleInput').value.trim(),
+                summary: document.getElementById('summaryInput').value.trim(),
+                content: document.getElementById('contentInput').value.trim(),
+                tags: parseTags(document.getElementById('tagsInput').value),
+                metadata: parseMetadata(document.getElementById('metadataInput').value),
+                source: document.getElementById('sourceInput').value.trim() || undefined,
+                source_id: document.getElementById('sourceIdInput').value.trim() || undefined,
+                priority: document.getElementById('priorityInput').value.trim() || undefined,
+                auto_ingest: true,
+                auto_queue: true
+            };
+            
+            if (!payload.title || !payload.content) {
+                updateStatus('createStatus', '标题与内容不能为空', false);
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/knowledge/entries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                const success = data.success !== false;
+                updateStatus('createStatus', JSON.stringify(data, null, 2), success);
+                refreshQueue();
+            } catch (error) {
+                updateStatus('createStatus', error.message, false);
+            }
+        }
+        
+        async function loadRules() {
+            try {
+                const res = await fetch(`${API_BASE}/knowledge/ingestion/rules`);
+                const data = await res.json();
+                updateStatus('rulesStatus', JSON.stringify(data, null, 2), data.success);
+            } catch (error) {
+                updateStatus('rulesStatus', error.message, false);
+            }
+        }
+        
+        async function refreshQueue() {
+            try {
+                const res = await fetch(`${API_BASE}/knowledge/ingestion/queue`);
+                const data = await res.json();
+                updateStatus('queueStatus', JSON.stringify(data, null, 2), data.success);
+            } catch (error) {
+                updateStatus('queueStatus', error.message, false);
+            }
+        }
+        
+        async function processQueue() {
+            try {
+                const res = await fetch(`${API_BASE}/knowledge/ingestion/process`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ batch_size: 10 })
+                });
+                const data = await res.json();
+                updateStatus('queueStatus', JSON.stringify(data, null, 2), data.success);
+            } catch (error) {
+                updateStatus('queueStatus', error.message, false);
+            }
+        }
+        
+        function resetForm() {
+            document.getElementById('titleInput').value = '';
+            document.getElementById('summaryInput').value = '';
+            document.getElementById('contentInput').value = '';
+            document.getElementById('tagsInput').value = '';
+            document.getElementById('metadataInput').value = '';
+            updateStatus('createStatus', '已重置表单，等待提交...', true);
+        }
+        
+        function updateStatus(elementId, text, success = true) {
+            const el = document.getElementById(elementId);
+            el.textContent = text;
+            el.style.borderColor = success ? '#a7f3d0' : '#fecaca';
+            el.style.background = success ? '#ecfdf5' : '#fef2f2';
+        }
+        
+        window.addEventListener('load', () => {
+            loadTemplates();
+            refreshQueue();
+        });
+    </script>
+</body>
+</html>
+
+
+

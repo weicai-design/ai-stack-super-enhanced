@@ -427,8 +427,43 @@ class TaskPlanning:
                     task["rejected_at"] = datetime.now().isoformat()
                 
                 task["needs_confirmation"] = False
+                task.setdefault("timeline", []).append({
+                    "event": "confirm" if confirmed else "reject",
+                    "timestamp": datetime.now().isoformat(),
+                    "notes": reason
+                })
                 return task
         
+        return None
+    
+    async def schedule_task(
+        self,
+        task_id: int,
+        scheduled_for: Optional[str] = None,
+        owner: Optional[str] = None,
+        notes: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        为任务排期/分派负责人
+        """
+        for task in self.tasks:
+            if task["id"] == task_id:
+                task["scheduled_for"] = scheduled_for
+                if owner:
+                    task["owner"] = owner
+                if notes:
+                    task["schedule_notes"] = notes
+                task["status"] = "scheduled"
+                task["scheduled_at"] = datetime.now().isoformat()
+                task["needs_confirmation"] = False
+                task.setdefault("timeline", []).append({
+                    "event": "schedule",
+                    "timestamp": task["scheduled_at"],
+                    "scheduled_for": scheduled_for,
+                    "owner": task.get("owner"),
+                    "notes": notes
+                })
+                return task
         return None
     
     async def execute_task(self, task_id: int) -> Dict[str, Any]:
@@ -445,8 +480,8 @@ class TaskPlanning:
         if not task:
             return {"success": False, "error": "任务不存在"}
         
-        if task.get("status") != "confirmed":
-            return {"success": False, "error": "任务未确认"}
+        if task.get("status") not in ("confirmed", "scheduled"):
+            return {"success": False, "error": "任务未确认或未排期"}
         
         # 检查依赖任务是否完成
         dependencies = task.get("dependencies", [])
@@ -465,6 +500,10 @@ class TaskPlanning:
         task["started_at"] = datetime.now().isoformat()
         task["progress"] = 0
         task.setdefault("execution_log", [])
+        task.setdefault("timeline", []).append({
+            "event": "execute",
+            "timestamp": task["started_at"]
+        })
         
         # 执行任务步骤
         steps = task.get("steps", [])
@@ -539,6 +578,10 @@ class TaskPlanning:
         task["status"] = "completed"
         task["completed_at"] = datetime.now().isoformat()
         task["progress"] = 100
+        task.setdefault("timeline", []).append({
+            "event": "complete",
+            "timestamp": task["completed_at"]
+        })
         
         return {
             "success": True,

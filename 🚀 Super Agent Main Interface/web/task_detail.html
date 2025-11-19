@@ -19,7 +19,11 @@
     </head>
 <body>
     <div class="app-container" style="padding:16px;">
-        <h2>任务详情</h2>
+        <h2 style="display:flex;align-items:center;gap:8px;">
+            任务详情
+            <span id="status-badge" style="display:none;"></span>
+        </h2>
+        <div id="status-reason" class="small" style="margin-top:-8px;margin-bottom:8px;color:#f2dede;"></div>
         <div id="basic" class="section"></div>
         <div id="deps" class="section"></div>
         <div id="steps" class="section"></div>
@@ -66,6 +70,47 @@
                     const r = await fetch(`${API}/tasks/${encodeURIComponent(id)}`);
                     if (!r.ok) throw new Error('编排器任务不存在');
                     const j = await r.json(); data = j.task || {};
+                    // 顶部阻塞角标与原因
+                    try {
+                        const badge = document.getElementById('status-badge');
+                        const reasonEl = document.getElementById('status-reason');
+                        const st = String(data.status || '').toLowerCase();
+                        if (st === 'blocked') {
+                            badge.style.display = 'inline-block';
+                            badge.textContent = 'Blocked';
+                            badge.style.background = '#5a1010';
+                            badge.style.border = '1px solid #7a1a1a';
+                            badge.style.color = '#f2dede';
+                            badge.style.padding = '2px 8px';
+                            badge.style.borderRadius = '999px';
+                            badge.style.fontSize = '12px';
+                            const reason = (data.metadata && (data.metadata.blocked_reason || data.metadata.reason)) || '';
+                            reasonEl.textContent = reason ? `阻塞原因：${reason}` : '';
+                            // 若带 flash 参数则滚动并闪烁
+                            const flash = url.searchParams.get('flash');
+                            if (flash) {
+                                badge.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                let times = 0;
+                                const origBg = badge.style.background;
+                                const timer = setInterval(() => {
+                                    badge.style.background = (times % 2 === 0) ? '#7a1a1a' : origBg;
+                                    times++;
+                                    if (times > 6) {
+                                        clearInterval(timer);
+                                        badge.style.background = origBg;
+                                    }
+                                }, 200);
+                            }
+                        } else {
+                            badge.style.display = 'none';
+                            reasonEl.textContent = '';
+                            // 若带 flash 参数，仍滚至顶部强调更新
+                            const flash = url.searchParams.get('flash');
+                            if (flash) {
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }
+                        }
+                    } catch(_) {}
                     renderKV('basic', [
                         ['任务ID', data.task_id], ['标题', data.title], ['状态', data.status],
                         ['优先级', data.priority], ['来源', data.source],
@@ -87,6 +132,13 @@
                     const r = await fetch(`${API}/planning/tasks/${encodeURIComponent(id)}`);
                     if (!r.ok) throw new Error('任务不存在');
                     const j = await r.json(); data = j.task || {};
+                    // 规划任务仅展示状态，不展示阻塞角标（无阻塞语义）
+                    try {
+                        const badge = document.getElementById('status-badge');
+                        const reasonEl = document.getElementById('status-reason');
+                        badge.style.display = 'none';
+                        reasonEl.textContent = '';
+                    } catch(_) {}
                     renderKV('basic', [
                         ['任务ID', data.id], ['标题', data.title], ['状态', data.status],
                         ['优先级', data.priority], ['来源', data.source],

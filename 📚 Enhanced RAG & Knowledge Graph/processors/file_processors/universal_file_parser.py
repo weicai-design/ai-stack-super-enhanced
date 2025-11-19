@@ -12,6 +12,7 @@ import hashlib
 import importlib
 import inspect
 import logging
+import re
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -38,6 +39,15 @@ _UNIVERSAL_PARSER_LOCK = threading.Lock()
 
 def _is_coro(func) -> bool:
     return inspect.iscoroutinefunction(func)
+
+
+def _camel_to_snake(name: str) -> str:
+    """
+    Utility converter used when loading processors dynamically.
+    Example: OfficeDocumentHandler -> office_document_handler
+    """
+    s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
 class UniversalFileParser(FileProcessorBase):

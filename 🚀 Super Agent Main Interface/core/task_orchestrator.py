@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from .learning_events import LearningEventBus, LearningEventType
+from .closure_recorder import ClosureRecorder, ClosurePhase
 
 
 class TaskStatus(str, Enum):
@@ -49,10 +50,12 @@ class TaskOrchestrator:
         self,
         task_planning,
         event_bus: LearningEventBus,
+        closure_recorder: Optional[ClosureRecorder] = None,
     ):
         self.task_planning = task_planning
         self.event_bus = event_bus
         self.tasks: Dict[str, OrchestratedTask] = {}
+        self.closure_recorder = closure_recorder
 
     def list_tasks(self) -> List[Dict[str, Any]]:
         return [task.__dict__ for task in self.tasks.values()]
@@ -96,6 +99,11 @@ class TaskOrchestrator:
             severity="info",
             payload={"task": task.__dict__},
         )
+        self._record_closure_phase(
+            phase=ClosurePhase.ACCEPT,
+            task_id=task_id,
+            metadata={"title": title, "source": source},
+        )
         return task.__dict__
 
     async def update_task_metadata(self, task_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -117,6 +125,11 @@ class TaskOrchestrator:
             source="task_orchestrator",
             severity="info",
             payload={"task": task.__dict__, "metadata_updated": True},
+        )
+        self._record_closure_phase(
+            phase=ClosurePhase.CHECK,
+            task_id=task_id,
+            metadata={"action": "metadata_update", "fields": list((updates or {}).keys())},
         )
         return task.__dict__
 
@@ -148,6 +161,12 @@ class TaskOrchestrator:
         task.updated_at = datetime.now().isoformat()
         if updates:
             task.metadata.update(updates)
+        # 若标记完成，写入完成时间
+        try:
+            if str(status).lower() == "completed":
+                task.metadata["completed_at"] = datetime.now().isoformat()
+        except Exception:
+            pass
 
         await self.event_bus.publish_event(
             LearningEventType.TASK_UPDATED,
@@ -155,6 +174,20 @@ class TaskOrchestrator:
             severity="warning" if status == TaskStatus.BLOCKED else "info",
             payload={"task": task.__dict__},
         )
+        phase = None
+        if status == TaskStatus.IN_PROGRESS:
+            phase = ClosurePhase.EXECUTE
+        elif status == TaskStatus.COMPLETED:
+            phase = ClosurePhase.CHECK
+        elif status in (TaskStatus.BLOCKED, TaskStatus.CANCELLED):
+            phase = ClosurePhase.FEEDBACK
+        if phase:
+            self._record_closure_phase(
+                phase=phase,
+                task_id=task_id,
+                metadata={"status": status.value, "updates": updates or {}},
+                status="warning" if status == TaskStatus.BLOCKED else "success",
+            )
         return task.__dict__
 
     async def mark_task_blocked(self, task_id: str, reason: str) -> Optional[Dict[str, Any]]:
@@ -197,7 +230,34 @@ class TaskOrchestrator:
                 "result": result,
             },
         )
+        self._record_closure_phase(
+            phase=ClosurePhase.FEEDBACK if success else ClosurePhase.REEXECUTE,
+            task_id=task_id,
+            metadata={"module": module, "result": result},
+            status="success" if success else "failed",
+        )
         return task.__dict__
+
+    def _record_closure_phase(
+        self,
+        phase: ClosurePhase,
+        task_id: Optional[str],
+        metadata: Optional[Dict[str, Any]] = None,
+        status: str = "success",
+    ) -> None:
+        if not self.closure_recorder:
+            return
+        try:
+            self.closure_recorder.record(
+                phase=phase,
+                source="task_orchestrator",
+                status=status,
+                task_id=task_id,
+                module="task_orchestrator",
+                metadata=metadata or {},
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[TaskOrchestrator] closure record failed: {exc}")
 
 
 

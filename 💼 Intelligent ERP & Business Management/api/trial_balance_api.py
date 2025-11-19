@@ -36,6 +36,19 @@ class CustomTrialRequest(BaseModel):
     parameters: Dict[str, Any] = {}
 
 
+class OperationsTrialRequest(BaseModel):
+    """运营试算请求"""
+    marketing_budget: float
+    cost_per_acquisition: Optional[float] = 120.0
+    conversion_rate: Optional[float] = 0.18
+    avg_order_value: Optional[float] = 320.0
+    logistics_capacity: Optional[float] = 1800.0
+    inventory_available: Optional[float] = 2000.0
+    operating_cost_rate: Optional[float] = 0.35
+    target_margin_rate: Optional[float] = 0.28
+    service_level_goal: Optional[float] = 0.95
+
+
 @router.post("/daily-delivery")
 async def calculate_daily_delivery(request: DailyDeliveryRequest):
     """
@@ -179,6 +192,18 @@ async def calculate_inventory_requirement(
         return {"success": True, "result": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"计算失败: {str(e)}")
+
+
+@router.post("/operations")
+async def run_operations_trial(request: OperationsTrialRequest):
+    """
+    运营试算：评估营销+产能方案
+    """
+    try:
+        result = await calculator.operations_trial(request.dict())
+        return {"success": True, "result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"试算失败: {str(e)}")
 
 
 @router.post("/delivery-schedule")

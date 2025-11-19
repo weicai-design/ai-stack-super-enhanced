@@ -351,7 +351,7 @@ class App {
     
     async updateSystemStatus() {
         try {
-            const response = await fetch(`${API_BASE}/resources/status`);
+            const response = await fetch(`${API_BASE}/resource/status`);
             if (response.ok) {
                 const data = await response.json();
                 

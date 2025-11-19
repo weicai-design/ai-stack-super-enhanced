@@ -3,87 +3,382 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ERP 流程编辑器（轻量）</title>
-    <link rel="stylesheet" href="css/style.css" />
+    <title>ERP BPM 控制台</title>
+    <style>
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fb;
+            color: #0f172a;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f1f5f9;
+        }
+        .page {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 32px 20px 60px;
+        }
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .hero h1 {
+            margin: 0;
+            font-size: 30px;
+        }
+        .hero p {
+            margin: 6px 0 0;
+            color: #475569;
+        }
+        .hero-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .hero-actions button {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #1d4ed8;
+            color: #fff;
+            box-shadow: 0 15px 35px rgba(37, 99, 235, 0.25);
+        }
+        .hero-actions button.secondary {
+            background: #e0e7ff;
+            color: #1e3a8a;
+            box-shadow: none;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.1fr);
+            gap: 20px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: 0 22px 45px rgba(15, 23, 42, 0.08);
+        }
+        .card h2 {
+            margin: 0 0 12px;
+        }
+        .process-section {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 16px;
+        }
+        .panel {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 14px;
+            height: 100%;
+        }
+        .process-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .process-toolbar input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid #cbd5f5;
+            background: #fff;
+        }
+        .process-toolbar button {
+            border: none;
+            border-radius: 999px;
+            padding: 8px 16px;
+            background: #6366f1;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .process-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            max-height: 520px;
+            overflow: auto;
+        }
+        .process-list li {
+            padding: 10px 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            background: #fff;
+            border: 1px solid transparent;
+        }
+        .process-list li.active {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .detail-item {
+            background: #f8fafc;
+            border-radius: 14px;
+            padding: 12px;
+        }
+        .detail-item span {
+            display: block;
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+        .node-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+        .node-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 15px;
+            padding: 14px;
+            background: #fff;
+        }
+        .muted {
+            color: #64748b;
+            font-size: 13px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+            font-size: 13px;
+        }
+        th {
+            color: #475569;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-pill.success { background: #dcfce7; color: #15803d; }
+        .status-pill.warning { background: #fef9c3; color: #92400e; }
+        .status-pill.error { background: #fee2e2; color: #b91c1c; }
+        .runtime-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .runtime-header button {
+            border: none;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: #10b981;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .timeline {
+            max-height: 300px;
+            overflow: auto;
+            margin-top: 12px;
+        }
+        .timeline-item {
+            border-left: 3px solid #e2e8f0;
+            padding-left: 12px;
+            margin-left: 6px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+        .timeline-item::before {
+            content: "";
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #0ea5e9;
+            position: absolute;
+            left: -7px;
+            top: 4px;
+        }
+        form label {
+            font-size: 13px;
+            color: #475569;
+            display: block;
+            margin-top: 12px;
+        }
+        form input {
+            width: 100%;
+            border: 1px solid #cbd5f5;
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 6px;
+        }
+        form button {
+            margin-top: 16px;
+            width: 100%;
+            border: none;
+            border-radius: 12px;
+            padding: 12px;
+            font-weight: 600;
+            background: #2563eb;
+            color: #fff;
+            cursor: pointer;
+        }
+        .preview-box {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 14px;
+            font-family: "JetBrains Mono", Consolas, monospace;
+            font-size: 13px;
+            max-height: 260px;
+            overflow: auto;
+            margin-top: 14px;
+        }
+        @media (max-width: 1100px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            .process-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="app-container" style="padding:16px;">
-        <h2>ERP 流程编辑器（轻量 JSON）</h2>
-        <div style="margin:12px 0;">
-            <button id="btn-new">新建</button>
-            <button id="btn-save">保存</button>
-            <button id="btn-load">加载</button>
-            <button id="btn-delete">删除</button>
-            <select id="process-list"></select>
+    <div class="page">
+        <div class="hero">
+            <div>
+                <h1>ERP BPM 流程控制台</h1>
+                <p>统一管理 11 个关键业务流程定义，实时追踪流程实例，内置试算能力。</p>
+            </div>
+            <div class="hero-actions">
+                <button id="openDesigner">🧩 打开流程设计器</button>
+                <button id="openRuntime" class="secondary">⏱️ 打开实时追踪</button>
+            </div>
         </div>
-        <textarea id="editor" style="width:100%; height:60vh; font-family:monospace;"></textarea>
-        <div style="margin-top:12px;" id="tips">提示：此为轻量JSON流程定义。后续可替换为bpmn-js或更专业编辑器。</div>
+        <div class="grid">
+            <section class="card">
+                <h2>流程资产 / 设计视图</h2>
+                <p class="muted">在这里快速浏览 BPMN JSON、负责人、SLA 与节点配置。编辑请进入完整设计器。</p>
+                <div class="process-section">
+                    <aside class="panel">
+                        <div class="process-toolbar">
+                            <input id="processSearch" placeholder="搜索流程 ID / 业务域">
+                            <button id="refreshProcesses">刷新</button>
+                        </div>
+                        <ul id="processList" class="process-list">
+                            <li class="muted">加载中...</li>
+                        </ul>
+                    </aside>
+                    <div>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span>流程 ID</span>
+                                <strong id="detailProcessId">--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <span>流程名称</span>
+                                <strong id="detailProcessName">--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <span>版本</span>
+                                <strong id="detailProcessVersion">--</strong>
+                            </div>
+                            <div class="detail-item">
+                                <span>业务域</span>
+                                <strong id="detailProcessDomain">--</strong>
+                            </div>
+                        </div>
+                        <p class="muted" id="detailProcessDesc">请选择左侧流程查看详情</p>
+                        <div>
+                            <h3 style="margin-bottom:8px;">节点配置</h3>
+                            <div id="nodeContainer" class="node-grid"></div>
+                        </div>
+                        <div>
+                            <h3 style="margin:20px 0 8px;">流程 JSON 预览</h3>
+                            <pre id="jsonPreview" class="preview-box">{}</pre>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="card">
+                <div class="runtime-header">
+                    <div>
+                        <h2 style="margin:0;">实时追踪</h2>
+                        <p class="muted" id="runtimeHint">正在加载最近实例...</p>
+                    </div>
+                    <div>
+                        <button id="refreshRuntime">刷新数据</button>
+                        <label class="muted" style="margin-left:8px;">
+                            <input type="checkbox" id="runtimeAuto" checked> 自动
+                        </label>
+                    </div>
+                </div>
+                <div style="overflow:auto; margin-top:12px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>实例ID</th>
+                                <th>流程</th>
+                                <th>最后节点</th>
+                                <th>状态</th>
+                                <th>更新时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="runtimeTable">
+                            <tr><td colspan="5" class="muted">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="timeline" id="timelineBox"></div>
+            </section>
+        </div>
+        <section class="card" style="margin-top:20px;">
+            <h2>运营试算（嵌入 BPM 看板）</h2>
+            <p class="muted">根据目标营收或日产输出，结合 ERP 数据源快速估算所需产能。输入产品编码或订单号以调取参考数据。</p>
+            <form id="trialForm">
+                <div class="detail-grid">
+                    <div>
+                        <label>目标周营收（¥）</label>
+                        <input id="trialWeekly" type="number" placeholder="例如 500000">
+                    </div>
+                    <div>
+                        <label>目标日产量（件）</label>
+                        <input id="trialDaily" type="number" placeholder="例如 320">
+                    </div>
+                    <div>
+                        <label>产品编码（可选）</label>
+                        <input id="trialProduct" placeholder="P-10001">
+                    </div>
+                    <div>
+                        <label>订单号（可选）</label>
+                        <input id="trialOrder" placeholder="SO-230918">
+                    </div>
+                </div>
+                <button type="submit">执行试算</button>
+            </form>
+            <div id="trialResult" class="preview-box" style="margin-top:16px;">等待输入...</div>
+        </section>
     </div>
-    <script>
-        const API = '/api/super-agent/erp/bpmn';
-        const editor = document.getElementById('editor');
-        const list = document.getElementById('process-list');
-
-        async function refreshList() {
-            const r = await fetch(`${API}/processes`);
-            const data = await r.json();
-            list.innerHTML = '';
-            data.processes.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.id;
-                opt.textContent = `${p.id} (${p.updated_at.slice(0,19).replace('T',' ')})`;
-                list.appendChild(opt);
-            });
-        }
-
-        document.getElementById('btn-new').onclick = () => {
-            editor.value = JSON.stringify({
-                name: "New Process",
-                version: 1,
-                nodes: [],
-                edges: []
-            }, null, 2);
-        };
-
-        document.getElementById('btn-save').onclick = async () => {
-            let pid = prompt('输入流程ID（留空则自动生成）：', list.value || '');
-            try {
-                const body = { id: pid || null, data: JSON.parse(editor.value) };
-                const r = await fetch(`${API}/process`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                if (!r.ok) throw new Error('保存失败');
-                const res = await r.json();
-                alert(`已保存：${res.id}`);
-                await refreshList();
-            } catch (e) {
-                alert('保存失败：' + e.message);
-            }
-        };
-
-        document.getElementById('btn-load').onclick = async () => {
-            const pid = list.value;
-            if (!pid) return;
-            const r = await fetch(`${API}/process/${pid}`);
-            if (!r.ok) { alert('加载失败'); return; }
-            const data = await r.json();
-            editor.value = JSON.stringify(data.data, null, 2);
-        };
-
-        document.getElementById('btn-delete').onclick = async () => {
-            const pid = list.value;
-            if (!pid) return;
-            if (!confirm(`确定删除流程 ${pid} ?`)) return;
-            const r = await fetch(`${API}/process/${pid}`, { method: 'DELETE' });
-            if (!r.ok) { alert('删除失败'); return; }
-            await refreshList();
-        };
-
-        refreshList();
-        editor.value = JSON.stringify({ name:"流程示例", version:1, nodes:[], edges:[] }, null, 2);
-    </script>
+    <script src="js/erp_bpm.js"></script>
 </body>
-<</html>
+</html>
 

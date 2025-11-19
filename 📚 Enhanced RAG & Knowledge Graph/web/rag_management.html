@@ -451,6 +451,87 @@
             font-size: 32px;
             margin-bottom: 10px;
         }
+
+        .rag-analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .analytics-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .analytics-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #333;
+        }
+
+        .distribution-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .distribution-bar {
+            flex: 1;
+            height: 8px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            overflow: hidden;
+        }
+
+        .distribution-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #a855f7, #6366f1);
+        }
+
+        .rerank-item {
+            border-left: 3px solid #c4b5fd;
+            padding-left: 10px;
+            margin-bottom: 12px;
+        }
+
+        .rerank-meta {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .rag-result-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .rag-modality-tag {
+            padding: 2px 10px;
+            background: #eef2ff;
+            color: #4338ca;
+            border-radius: 999px;
+            font-size: 12px;
+        }
+
+        .rag-rerank-score {
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .rag-rerank-reason {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #475569;
+        }
     </style>
 </head>
 <body>
@@ -837,16 +918,37 @@
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                             <div>
                                 <label style="font-size: 13px; color: #666;">返回数量（Top-K）</label>
-                                <input type="number" class="form-input" value="5" min="1" max="50">
+                                <input type="number" class="form-input" id="searchTopK" value="5" min="1" max="50">
                             </div>
                             <div>
                                 <label style="font-size: 13px; color: #666;">相似度阈值</label>
-                                <input type="number" class="form-input" value="0.7" min="0" max="1" step="0.1">
+                                <input type="number" class="form-input" id="searchThreshold" value="0.7" min="0" max="1" step="0.05">
                             </div>
                         </div>
                     </div>
                     
                     <button class="action-btn btn-primary" onclick="performSearch()">🚀 开始检索</button>
+
+                    <div class="rag-analytics-grid">
+                        <div class="analytics-card">
+                            <div class="analytics-title">多模态分布</div>
+                            <div id="ragModalityStats" class="analytics-body" style="min-height:120px; font-size:13px; color:#6b7280;">
+                                暂无数据
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-title">Rerank 解释</div>
+                            <div id="ragRerankInsights" style="min-height:120px; font-size:13px; color:#475569;">
+                                等待检索
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-title">检索统计</div>
+                            <div id="ragQueryStats" style="min-height:120px; font-size:13px; color:#475569;">
+                                -
+                            </div>
+                        </div>
+                    </div>
                     
                     <div id="searchResults" style="margin-top: 30px;"></div>
                 </div>
@@ -898,29 +1000,49 @@
         }
         
         async function performSearch() {
-            const query = document.getElementById('searchQuery').value;
+            const query = document.getElementById('searchQuery').value.trim();
             if (!query) {
                 alert('请输入查询内容');
                 return;
             }
-            
+            const topK = parseInt(document.getElementById('searchTopK').value, 10) || 5;
+            const threshold = parseFloat(document.getElementById('searchThreshold').value) || 0.7;
             const resultsDiv = document.getElementById('searchResults');
             resultsDiv.innerHTML = '<div style="text-align: center; padding: 20px;">🔍 检索中...</div>';
-            
+            renderSearchAnalytics(null);
             try {
-                const response = await fetch(API_BASE + `/rag/search?query=${encodeURIComponent(query)}&top_k=5`);
+                const response = await fetch(API_BASE + '/rag/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query,
+                        top_k: topK,
+                        threshold
+                    })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
                 const data = await response.json();
-                
+                renderSearchAnalytics(data.analysis || null);
                 if (data.results && data.results.length > 0) {
                     resultsDiv.innerHTML = `
                         <h4 style="margin-bottom: 15px;">检索结果（${data.results.length}条）:</h4>
                         ${data.results.map((result, idx) => `
-                            <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                    <span style="font-weight: 600;">${idx + 1}. ${result.metadata?.source || '未知来源'}</span>
-                                    <span style="color: #4caf50; font-weight: 600;">相关度: ${(result.score * 100).toFixed(1)}%</span>
+                            <div style="background: #f9f9f9; padding: 18px; border-radius: 12px; margin-bottom: 12px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                                    <div style="font-weight:600;">${idx + 1}. ${result.document_name || result.metadata?.source || '未知文档'}</div>
+                                    <div style="color:#22c55e;font-weight:600;">相似度 ${(result.similarity * 100).toFixed(1)}%</div>
                                 </div>
-                                <div style="color: #666; line-height: 1.6;">${result.text || result.content || '无内容'}</div>
+                                <div class="rag-result-meta">
+                                    <span class="rag-modality-tag">${result.modality || 'text'}</span>
+                                    <span class="rag-rerank-score">Rerank ${(result.rerank_score * 100).toFixed(1)}%</span>
+                                    <span>来源：${result.source || 'vector'}</span>
+                                </div>
+                                <div class="rag-rerank-reason">${result.rerank_reason || ''}</div>
+                                <div style="color:#475569;line-height:1.7;margin-top:10px;">${(result.text || result.content || '无内容').substring(0,320)}...</div>
                             </div>
                         `).join('')}
                     `;
@@ -929,6 +1051,57 @@
                 }
             } catch (error) {
                 resultsDiv.innerHTML = `<div style="color: red; padding: 20px;">检索失败: ${error.message}</div>`;
+                renderSearchAnalytics(null);
+            }
+        }
+
+        function renderSearchAnalytics(analysis) {
+            const modalityDiv = document.getElementById('ragModalityStats');
+            const rerankDiv = document.getElementById('ragRerankInsights');
+            const statsDiv = document.getElementById('ragQueryStats');
+            if (!analysis) {
+                if (modalityDiv) modalityDiv.textContent = '暂无数据';
+                if (rerankDiv) rerankDiv.textContent = '等待检索';
+                if (statsDiv) statsDiv.textContent = '-';
+                return;
+            }
+            if (modalityDiv) {
+                const entries = Object.entries(analysis.modalities || {});
+                const total = entries.reduce((sum, [, count]) => sum + count, 0);
+                modalityDiv.innerHTML = entries.length
+                    ? entries.map(([modality, count]) => {
+                        const percent = total ? Math.round((count / total) * 100) : 0;
+                        return `
+                            <div class="distribution-row">
+                                <span style="width:70px;">${modality}</span>
+                                <div class="distribution-bar">
+                                    <div class="distribution-fill" style="width:${percent}%;"></div>
+                                </div>
+                                <span>${count}</span>
+                            </div>
+                        `;
+                    }).join('')
+                    : '无多模态命中';
+            }
+            if (rerankDiv) {
+                const hits = analysis.multi_modal_hits || [];
+                rerankDiv.innerHTML = hits.length
+                    ? hits.map(item => `
+                        <div class="rerank-item">
+                            <div style="font-weight:600;">${item.document_name || '文档'}</div>
+                            <div class="rerank-meta">${item.modality} · Rerank ${(item.rerank_score * 100).toFixed(1)}%</div>
+                        </div>
+                    `).join('')
+                    : '暂无多模态样本';
+            }
+            if (statsDiv) {
+                const sources = (analysis.sources || []).slice(0, 3).map(([name, count]) => `${name}: ${count}`).join(' / ') || '无';
+                statsDiv.innerHTML = `
+                    <div>平均相似度：${(analysis.avg_similarity * 100).toFixed(1)}%</div>
+                    <div>最高相似度：${(analysis.max_similarity * 100).toFixed(1)}%</div>
+                    <div>耗时：${analysis.query_time_ms || 0} ms</div>
+                    <div>来源排行：${sources}</div>
+                `;
             }
         }
         

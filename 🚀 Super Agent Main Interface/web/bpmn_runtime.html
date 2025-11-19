@@ -3,27 +3,186 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BPMN 运行时追踪（最小可用）</title>
-    <link rel="stylesheet" href="css/style.css" />
+    <title>BPM 运行追踪中心</title>
+    <style>
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        .page {
+            padding: 28px 24px 80px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            border-radius: 18px;
+            padding: 18px;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+        }
+        .stat-label {
+            color: #94a3b8;
+            font-size: 13px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .stat-value {
+            font-size: 34px;
+            font-weight: 700;
+        }
+        .content {
+            display: grid;
+            grid-template-columns: 2fr 1.2fr;
+            gap: 24px;
+        }
+        .card {
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 18px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            box-shadow: 0 20px 45px rgba(0,0,0,0.4);
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+            font-size: 13px;
+        }
+        th {
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        .instance-row {
+            cursor: pointer;
+        }
+        .instance-row:hover {
+            background: rgba(37, 99, 235, 0.08);
+        }
+        .tag {
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+        }
+        .tag.success { background: #22c55e1a; color: #4ade80; }
+        .tag.warning { background: #f973161a; color: #fb923c; }
+        .tag.error { background: #ef44441a; color: #f87171; }
+        .timeline {
+            max-height: 420px;
+            overflow: auto;
+        }
+        .timeline-item {
+            border-left: 3px solid rgba(148, 163, 184, 0.3);
+            padding-left: 16px;
+            margin-left: 4px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .timeline-item::before {
+            content: '';
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #60a5fa;
+            position: absolute;
+            left: -7px;
+            top: 4px;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .controls button {
+            border: none;
+            border-radius: 999px;
+            padding: 8px 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-refresh {
+            background: #2563eb;
+            color: #fff;
+        }
+        .muted {
+            color: #94a3b8;
+            font-size: 13px;
+        }
+    </style>
 </head>
 <body>
-    <div class="app-container" style="padding:16px;">
-        <h2>BPMN 运行时追踪（最小可用）</h2>
-        <div style="margin:8px 0;">
-            <button id="refresh">刷新</button>
+    <div class="page">
+        <h1>BPM 流程运行追踪</h1>
+        <p class="muted">实时获取流程实例状态、节点流转与异常信息，支持自动刷新与选中查看。</p>
+        
+        <div class="grid" id="runtimeStats">
+            <div class="stat-card">
+                <div class="stat-label">活跃实例</div>
+                <div class="stat-value" id="statActive">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">今日事件</div>
+                <div class="stat-value" id="statEvents">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">成功率</div>
+                <div class="stat-value" id="statSuccess">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">平均时长</div>
+                <div class="stat-value" id="statDuration">-</div>
+            </div>
         </div>
-        <pre id="out" style="height:70vh;overflow:auto;background:#111;color:#eee;padding:12px;"></pre>
+        
+        <div class="content">
+            <div class="card">
+                <div class="controls">
+                    <h2 style="margin:0;">流程实例</h2>
+                    <div>
+                        <button class="btn-refresh" onclick="runtime.refresh()">手动刷新</button>
+                        <label class="muted" style="margin-left:12px;">
+                            <input type="checkbox" id="autoRefreshToggle" checked> 自动刷新
+                        </label>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>实例ID</th>
+                            <th>流程ID</th>
+                            <th>最后节点</th>
+                            <th>状态</th>
+                            <th>更新时间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="instanceTable">
+                        <tr><td colspan="5" class="muted">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card">
+                <h2>节点时间线</h2>
+                <p class="muted" id="timelineHint">请选择左侧实例查看详情</p>
+                <div id="timelineBox" class="timeline"></div>
+            </div>
+        </div>
     </div>
-    <script>
-        const API = '/api/super-agent';
-        async function load() {
-            const r = await fetch(`${API}/erp/bpmn/runtime/instances`);
-            const data = await r.json();
-            document.getElementById('out').textContent = JSON.stringify(data, null, 2);
-        }
-        document.getElementById('refresh').onclick = load;
-        load();
-    </script>
+    <script src="js/bpmn_runtime.js"></script>
 </body>
 </html>
 

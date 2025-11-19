@@ -153,6 +153,66 @@
                         </div>
                     </div>
                 </el-tab-pane>
+
+                <!-- 运营试算 -->
+                <el-tab-pane label="运营试算" name="operations">
+                    <div class="card">
+                        <h3>运营试算（营销/产能/成本联动）</h3>
+                        <el-form :model="operationsForm" label-width="190px">
+                            <div class="form-row">
+                                <el-form-item label="营销预算 (¥)">
+                                    <el-input-number v-model="operationsForm.marketing_budget" :min="0" :step="1000" style="width: 100%" />
+                                </el-form-item>
+                                <el-form-item label="获客成本 (¥)">
+                                    <el-input-number v-model="operationsForm.cost_per_acquisition" :min="1" :step="5" style="width: 100%" />
+                                </el-form-item>
+                                <el-form-item label="转化率">
+                                    <el-input-number v-model="operationsForm.conversion_rate" :min="0" :max="1" :step="0.01" style="width: 100%" />
+                                </el-form-item>
+                                <el-form-item label="订单均价 (¥)">
+                                    <el-input-number v-model="operationsForm.avg_order_value" :min="1" :step="10" style="width: 100%" />
+                                </el-form-item>
+                                <el-form-item label="物流上限 (单)">
+                                    <el-input-number v-model="operationsForm.logistics_capacity" :min="0" :step="50" style="width: 100%" />
+                                </el-form-item>
+                                <el-form-item label="可用库存 (单)">
+                                    <el-input-number v-model="operationsForm.inventory_available" :min="0" :step="50" style="width: 100%" />
+                                </el-form-item>
+                                <el-form-item label="运营成本率">
+                                    <el-input-number v-model="operationsForm.operating_cost_rate" :min="0" :max="1" :step="0.01" style="width: 100%" />
+                                </el-form-item>
+                                <el-form-item label="目标毛利率">
+                                    <el-input-number v-model="operationsForm.target_margin_rate" :min="0" :max="1" :step="0.01" style="width: 100%" />
+                                </el-form-item>
+                            </div>
+                            <el-form-item>
+                                <el-button type="primary" @click="calculateOperations">运行运营试算</el-button>
+                            </el-form-item>
+                        </el-form>
+
+                        <div v-if="operationsResult" class="result-card">
+                            <h4>结果总览</h4>
+                            <div class="result-item"><span>预期订单:</span><strong>{{ operationsResult.forecast.expected_orders.toFixed(0) }} 单</strong></div>
+                            <div class="result-item"><span>可交付订单:</span><strong>{{ operationsResult.forecast.fulfillable_orders.toFixed(0) }} 单 ({{ operationsResult.forecast.fulfillment_rate }}%)</strong></div>
+                            <div class="result-item"><span>预期营收:</span><strong>¥{{ operationsResult.forecast.expected_revenue.toFixed(2) }}</strong></div>
+                            <div class="result-item"><span>可交付营收:</span><strong>¥{{ operationsResult.forecast.fulfillable_revenue.toFixed(2) }}</strong></div>
+                            <div class="result-item"><span>毛利率:</span><strong>{{ operationsResult.profitability.margin_rate }}%</strong></div>
+                            <div class="result-item"><span>风险等级:</span>
+                                <el-tag :type="riskTagType(operationsResult.risk.level)">{{ operationsResult.risk.level }}</el-tag>
+                                <span style="margin-left:10px;">得分 {{ operationsResult.risk.score }}</span>
+                            </div>
+                            <div style="margin-top: 15px;">
+                                <div id="operationsChart" style="height: 320px;"></div>
+                            </div>
+                            <div v-if="operationsResult.recommendations" class="recommendations">
+                                <strong>建议:</strong>
+                                <ul style="margin-top: 8px;">
+                                    <li v-for="rec in operationsResult.recommendations" :key="rec">{{ rec }}</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </el-tab-pane>
             </el-tabs>
         </div>
     </div>
@@ -166,10 +226,26 @@
                     deliveryForm: { target_weekly_revenue: 100000, product_id: null },
                     capacityForm: { target_quantity: 1000, production_line_count: 1, hours_per_day: 8, days_per_week: 5, unit_time_minutes: 60, efficiency_rate: 0.85 },
                     costForm: { target_cost: 1000, quantity: 100, material_cost_ratio: 0.6, labor_cost_ratio: 0.2, overhead_cost_ratio: 0.2 },
+                    operationsForm: {
+                        marketing_budget: 120000,
+                        cost_per_acquisition: 130,
+                        conversion_rate: 0.2,
+                        avg_order_value: 350,
+                        logistics_capacity: 2000,
+                        inventory_available: 2100,
+                        operating_cost_rate: 0.35,
+                        target_margin_rate: 0.3,
+                        service_level_goal: 0.95
+                    },
                     deliveryResult: null,
                     capacityResult: null,
-                    costResult: null
+                    costResult: null,
+                    operationsResult: null,
+                    operationsChart: null
                 }
+            },
+            mounted() {
+                this.initOperationsChart();
             },
             methods: {
                 async calculateDelivery() {
@@ -199,9 +275,54 @@
                         ElementPlus.ElMessage.error('计算失败: ' + error.message);
                     }
                 },
+                async calculateOperations() {
+                    try {
+                        const res = await axios.post('/api/trial-balance/operations', this.operationsForm);
+                        this.operationsResult = res.data.result;
+                        this.renderOperationsChart();
+                        ElementPlus.ElMessage.success('运营试算完成');
+                    } catch (error) {
+                        ElementPlus.ElMessage.error('试算失败: ' + (error.response?.data?.detail || error.message));
+                    }
+                },
+                initOperationsChart() {
+                    const dom = document.getElementById('operationsChart');
+                    if (dom) {
+                        this.operationsChart = echarts.init(dom);
+                    }
+                },
+                renderOperationsChart() {
+                    if (!this.operationsChart || !this.operationsResult) return;
+                    const data = this.operationsResult.forecast;
+                    const option = {
+                        tooltip: { trigger: 'axis' },
+                        legend: { data: ['预期', '可交付'] },
+                        xAxis: { type: 'category', data: ['订单量', '营收'] },
+                        yAxis: { type: 'value' },
+                        series: [
+                            {
+                                name: '预期',
+                                type: 'bar',
+                                data: [Number(data.expected_orders.toFixed(0)), data.expected_revenue.toFixed(0)],
+                                itemStyle: { color: '#7C83FD' }
+                            },
+                            {
+                                name: '可交付',
+                                type: 'bar',
+                                data: [Number(data.fulfillable_orders.toFixed(0)), data.fulfillable_revenue.toFixed(0)],
+                                itemStyle: { color: '#63C7B2' }
+                            }
+                        ]
+                    };
+                    this.operationsChart.setOption(option);
+                },
                 getFeasibilityType(level) {
                     const types = { 'easy': 'success', 'moderate': 'warning', 'challenging': 'warning', 'difficult': 'danger' };
                     return types[level] || 'info';
+                },
+                riskTagType(level) {
+                    const mapping = { low: 'success', medium: 'warning', high: 'danger' };
+                    return mapping[level] || 'info';
                 }
             }
         }).use(ElementPlus).mount('#app');

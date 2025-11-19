@@ -264,12 +264,9 @@
                         来源: ${task.source} | 优先级: ${task.priority} | 
                         创建时间: ${new Date(task.created_at).toLocaleString()}
                     </div>
-                    ${task.needs_confirmation ? `
-                        <div class="task-actions">
-                            <button class="btn btn-small" onclick="event.stopPropagation(); confirmTask(${task.id}, true)">✓ 确认</button>
-                            <button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); confirmTask(${task.id}, false)">× 拒绝</button>
-                        </div>
-                    ` : ''}
+                    <div class="task-actions">
+                        ${renderActions(task)}
+                    </div>
                 </div>
             `).join('');
         }
@@ -296,20 +293,31 @@
             document.getElementById('completed-tasks').textContent = tasks.filter(t => t.status === 'completed').length;
         }
 
-        async function confirmTask(taskId, confirmed) {
+        async function confirmTask(taskId) {
             try {
-                const response = await fetch(`${API_BASE}/tasks/${taskId}/confirm`, {
+                const response = await fetch(`${API_BASE}/tasks/${taskId}/lifecycle/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ confirmed, reason: confirmed ? null : '用户拒绝' })
+                    body: JSON.stringify({ operator: 'WebUser' })
                 });
-
-                const result = await response.json();
-                if (result.success) {
-                    await refreshTasks();
-                }
+                await response.json();
+                await refreshTasks();
             } catch (error) {
                 alert(`确认失败: ${error.message}`);
+            }
+        }
+
+        async function reviewTask(taskId) {
+            try {
+                const response = await fetch(`${API_BASE}/tasks/${taskId}/lifecycle/review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ operator: 'WebUser', note: '复盘完成' })
+                });
+                await response.json();
+                await refreshTasks();
+            } catch (error) {
+                alert(`复盘失败: ${error.message}`);
             }
         }
 
@@ -318,13 +326,41 @@
             alert(`任务详情: ${taskId}`);
         }
 
+        function renderActions(task) {
+            const actions = [];
+            if (task.status === 'classified') {
+                actions.push(`<button class="btn btn-small" onclick="event.stopPropagation(); confirmTask(${task.id})">确认</button>`);
+            }
+            if (task.status === 'confirmed') {
+                actions.push(`<button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); executeTask(${task.id})">执行</button>`);
+            }
+            if (task.status === 'review_pending') {
+                actions.push(`<button class="btn btn-small" onclick="event.stopPropagation(); reviewTask(${task.id})">复盘</button>`);
+            }
+            return actions.join('');
+        }
+
+        async function executeTask(taskId) {
+            try {
+                const response = await fetch(`${API_BASE}/tasks/${taskId}/execute`, { method: 'POST' });
+                await response.json();
+                await refreshTasks();
+            } catch (error) {
+                alert(`执行失败: ${error.message}`);
+            }
+        }
+
         function getStatusText(status) {
             const statusMap = {
-                'pending': '待确认',
-                'confirmed': '已确认',
-                'in_progress': '进行中',
-                'completed': '已完成',
-                'rejected': '已拒绝'
+                captured: '已捕获',
+                classified: '已归类',
+                scheduled: '已排期',
+                confirmed: '已确认',
+                executing: '执行中',
+                review_pending: '待复盘',
+                reviewed: '已复盘',
+                cancelled: '已取消',
+                rejected: '已拒绝'
             };
             return statusMap[status] || status;
         }

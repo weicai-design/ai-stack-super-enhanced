@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{STAGE_NAME}} - ERP 11环节管理</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e8e8e8;
+        }
+        h1 {
+            color: #333;
+            font-size: 28px;
+        }
+        .stage-info {
+            color: #666;
+            font-size: 14px;
+        }
+        .three-level-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .level-panel {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #e8e8e8;
+        }
+        .level-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        .metric-card {
+            background: white;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 6px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+        }
+        .trial-section {
+            background: #f0f4ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .trial-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+        input, select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        .result-display {
+            background: white;
+            border-radius: 6px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .kpi-score {
+            font-size: 48px;
+            font-weight: 700;
+            color: #667eea;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .dimensions-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .dimension-card {
+            background: white;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+            border: 2px solid #e8e8e8;
+        }
+        .dimension-card.excellent { border-color: #4caf50; }
+        .dimension-card.good { border-color: #8bc34a; }
+        .dimension-card.average { border-color: #ffc107; }
+        .dimension-card.poor { border-color: #ff9800; }
+        .dimension-card.critical { border-color: #f44336; }
+        .dimension-name {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .dimension-score {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+        }
+        .timeline {
+            margin-top: 30px;
+        }
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-left: 3px solid #667eea;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+        }
+        .timeline-time {
+            font-size: 12px;
+            color: #999;
+            margin-right: 15px;
+            min-width: 150px;
+        }
+        .timeline-content {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>{{STAGE_NAME}}</h1>
+                <div class="stage-info">环节 {{STAGE_ORDER}} / 11 · {{STAGE_ID}}</div>
+            </div>
+            <div>
+                <button class="btn btn-primary" onclick="exportData()">导出数据</button>
+            </div>
+        </div>
+        
+        <!-- 三级界面布局 -->
+        <div class="three-level-layout">
+            <!-- 一级：环节概览 -->
+            <div class="level-panel">
+                <div class="level-title">📊 环节概览</div>
+                <div class="metric-card">
+                    <div class="metric-label">环节状态</div>
+                    <div class="metric-value" id="stage-status">--</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">KPI得分</div>
+                    <div class="metric-value" id="kpi-score">--</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">实例总数</div>
+                    <div class="metric-value" id="total-instances">--</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">进行中</div>
+                    <div class="metric-value" id="active-instances">--</div>
+                </div>
+            </div>
+            
+            <!-- 二级：指标监控 -->
+            <div class="level-panel">
+                <div class="level-title">📈 指标监控</div>
+                <div id="metrics-display">
+                    <div class="metric-card">
+                        <div class="metric-label">加载中...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 三级：8维度分析 -->
+            <div class="level-panel">
+                <div class="level-title">🎯 8维度分析</div>
+                <div id="dimensions-display">
+                    <div class="dimensions-grid" id="dimensions-grid">
+                        <div class="dimension-card">
+                            <div class="dimension-name">质量</div>
+                            <div class="dimension-score">--</div>
+                        </div>
+                        <!-- 其他维度 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 试算区域 -->
+        <div class="trial-section">
+            <h3 style="margin-bottom: 15px;">🧮 KPI试算</h3>
+            <div class="trial-form" id="trial-form">
+                <!-- 动态生成表单字段 -->
+            </div>
+            <button class="btn btn-primary" onclick="trialCalculate()">执行试算</button>
+            <div class="result-display" id="trial-result" style="display: none;">
+                <div class="kpi-score" id="trial-kpi-score">0</div>
+                <div style="text-align: center; color: #666;" id="trial-breakdown"></div>
+            </div>
+        </div>
+        
+        <!-- 事件时间线 -->
+        <div class="timeline">
+            <h3 style="margin-bottom: 15px;">📅 事件时间线</h3>
+            <div id="timeline-list">
+                <div class="timeline-item">
+                    <div class="timeline-time">加载中...</div>
+                    <div class="timeline-content">正在加载事件...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api/erp/stages';
+        const STAGE_ID = '{{STAGE_ID}}';
+        const STAGE_NAME = '{{STAGE_NAME}}';
+        const STAGE_METRICS = {{STAGE_METRICS}};
+        
+        // 加载环节信息
+        async function loadStageInfo() {
+            try {
+                const resp = await fetch(`${API_BASE}/${STAGE_ID}`);
+                const data = await resp.json();
+                if (data.success) {
+                    document.getElementById('total-instances').textContent = data.config.total_instances || 0;
+                    document.getElementById('active-instances').textContent = data.config.active_instances || 0;
+                }
+            } catch (error) {
+                console.error('Load stage info failed:', error);
+            }
+        }
+        
+        // 生成试算表单
+        function generateTrialForm() {
+            const form = document.getElementById('trial-form');
+            form.innerHTML = STAGE_METRICS.map(metric => `
+                <div class="form-group">
+                    <label>${metric}</label>
+                    <input type="number" id="trial-${metric}" placeholder="输入${metric}值" step="0.01">
+                </div>
+            `).join('');
+        }
+        
+        // 执行试算
+        async function trialCalculate() {
+            const metrics = {};
+            STAGE_METRICS.forEach(metric => {
+                const value = document.getElementById(`trial-${metric}`)?.value;
+                if (value) {
+                    metrics[metric] = parseFloat(value);
+                }
+            });
+            
+            if (Object.keys(metrics).length === 0) {
+                alert('请至少输入一个指标值');
+                return;
+            }
+            
+            try {
+                const resp = await fetch(`${API_BASE}/${STAGE_ID}/trial`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ metrics })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    document.getElementById('trial-kpi-score').textContent = data.kpi_score;
+                    document.getElementById('trial-breakdown').textContent = 
+                        `公式: ${data.formula} · 使用指标: ${data.metrics_used.join(', ')}`;
+                    document.getElementById('trial-result').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Trial calculate failed:', error);
+                alert('试算失败: ' + error.message);
+            }
+        }
+        
+        // 导出数据
+        async function exportData() {
+            try {
+                const resp = await fetch(`${API_BASE}/export`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ stage_id: STAGE_ID, format: 'json' })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${STAGE_ID}_${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                }
+            } catch (error) {
+                console.error('Export failed:', error);
+                alert('导出失败: ' + error.message);
+            }
+        }
+        
+        // 初始化
+        generateTrialForm();
+        loadStageInfo();
+    </script>
+</body>
+</html>
+

@@ -3,8 +3,11 @@ import asyncio
 class SmartIngestionPipeline:
     """Smart ingestion pipeline for processing documents"""
     
-    def __init__(self, core_services=None):
+    def __init__(self, core_services=None, **kwargs):
+        # 兼容旧代码传入 config=xxx
         self.core_services = core_services or {}
+        if "config" in kwargs and isinstance(kwargs["config"], dict):
+            self.core_services.setdefault("config", kwargs["config"])
         self.semantic_engine = self.core_services.get('semantic_engine')
         self.vector_store = self.core_services.get('vector_store')
     

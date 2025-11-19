@@ -20,7 +20,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from api.super_agent_api import router as super_agent_router
+from api.super_agent_api import router as super_agent_router, observability_system
+from core.observability_middleware import ObservabilityMiddleware
+from core.security.middleware import SecurityMiddleware
+from core.security.audit import get_audit_logger
 
 # 配置日志
 logging.basicConfig(
@@ -53,6 +56,19 @@ app = FastAPI(
     version="5.0.0",
     lifespan=lifespan
 )
+
+# 安全审计中间件应最先执行
+app.add_middleware(
+    SecurityMiddleware,
+    audit_logger=get_audit_logger()
+)
+
+# P0-018: 添加可观测性中间件（必须在CORS之前）
+if observability_system:
+    app.add_middleware(
+        ObservabilityMiddleware,
+        observability_system=observability_system
+    )
 
 # 配置CORS
 app.add_middleware(

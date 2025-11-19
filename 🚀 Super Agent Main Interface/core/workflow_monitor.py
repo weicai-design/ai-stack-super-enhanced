@@ -39,9 +39,10 @@ class WorkflowMonitor:
     7. 返回用户
     """
     
-    def __init__(self, rag_service=None, resource_manager=None):
+    def __init__(self, rag_service=None, resource_manager=None, causal_analyzer=None):
         self.rag_service = rag_service
         self.resource_manager = resource_manager
+        self.causal_analyzer = causal_analyzer  # P0-013: 因果分析器
         self.workflows = []  # 完整工作流记录
         self.current_workflow = None
         self.step_times = {}  # 各步骤平均耗时统计
@@ -157,6 +158,24 @@ class WorkflowMonitor:
             self.workflows = self.workflows[-1000:]
         
         result = workflow_record.copy()
+        
+        # P0-013: 集成因果分析器
+        if self.causal_analyzer:
+            try:
+                # 记录工作流追踪
+                await self.causal_analyzer.record_workflow_trace(
+                    workflow_id=workflow_record.get("workflow_id"),
+                    steps=workflow_record.get("steps", []),
+                    metrics={
+                        "total_duration": workflow_record.get("total_duration", 0),
+                        "success": workflow_record.get("status") == "completed",
+                        "bottlenecks": analysis.get("bottlenecks", []),
+                        "errors": [s for s in workflow_record.get("steps", []) if not s.get("success", True)]
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"因果分析器记录失败: {e}")
+        
         self.current_workflow = None
         
         return result

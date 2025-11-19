@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>RAG预处理 - 去重</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC"; margin: 0; background: #f5f9ff; color: #0f172a; }
+        .hero { background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); color: white; padding: 40px 45px; border-bottom-left-radius: 35px; border-bottom-right-radius: 35px; }
+        .hero h1 { margin: 0; font-size: 30px; }
+        .hero p { margin-top: 10px; opacity: 0.85; }
+        .container { max-width: 1080px; margin: -45px auto 40px; padding: 0 25px; }
+        .card { background: white; border-radius: 20px; padding: 28px 32px; margin-bottom: 25px; box-shadow: 0 14px 32px rgba(15,23,42,0.12); }
+        .title { font-size: 20px; font-weight: 600; margin-bottom: 18px; }
+        .chips { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+        .chip { padding: 6px 14px; border-radius: 999px; font-size: 12px; background: rgba(59,130,246,0.12); color: #1d4ed8; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 15px; }
+        .block { border: 1px solid #dbeafe; border-radius: 14px; padding: 16px; background: linear-gradient(180deg, rgba(59,130,246,0.05), rgba(59,130,246,0.0)); }
+        .block strong { display: block; color: #1d4ed8; margin-bottom: 6px; }
+        .actions { margin-top: 22px; display: flex; gap: 14px; flex-wrap: wrap; }
+        button { border: none; border-radius: 999px; padding: 12px 28px; font-size: 14px; cursor: pointer; color: white; background: linear-gradient(135deg, #2563eb, #3b82f6); box-shadow: 0 12px 22px rgba(37,99,235,0.35); }
+        button.secondary { background: transparent; color: #2563eb; border: 1px solid rgba(37,99,235,0.5); box-shadow: none; }
+        .status { margin-top: 15px; font-size: 13px; color: #475569; }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>♻️ 去重（Deduplicate）阶段</h1>
+        <p>哈希 + 向量 + 规则三重策略，确保无重复、无冗余、无污染入库。</p>
+    </div>
+    <div class="container">
+        <div class="card">
+            <div class="title">核心任务 <span class="chip">Stage 3 / 4</span></div>
+            <div class="chips">
+                <span class="chip">MinHash 指纹</span>
+                <span class="chip">向量语义比对</span>
+                <span class="chip">段落合并</span>
+                <span class="chip">重复告警报表</span>
+            </div>
+            <div class="grid">
+                <div class="block">
+                    <strong>3.1 指纹去重</strong>
+                    分块计算感知哈希 / SimHash，毫秒级匹配重复片段。
+                </div>
+                <div class="block">
+                    <strong>3.2 向量近重复</strong>
+                    多语种向量索引，设定阈值检测语义重复。
+                </div>
+                <div class="block">
+                    <strong>3.3 段落裁剪</strong>
+                    自动裁剪重复段落，只保留质量评分更高的版本。
+                </div>
+                <div class="block">
+                    <strong>3.4 审计追踪</strong>
+                    导出重复清单，附带来源、时间、保留原因。
+                </div>
+            </div>
+            <div class="actions">
+                <button onclick="runStage()">⚡ 执行去重</button>
+                <button class="secondary" onclick="openPipeline()">回到流水线视图</button>
+            </div>
+            <div class="status" id="statusText">等待任务...</div>
+        </div>
+    </div>
+    <script>
+        const STATUS_MAP = {
+            idle: '待命',
+            queued: '排队',
+            running: '执行中',
+            success: '已完成',
+            failed: '失败'
+        };
+
+        async function runStage() {
+            const status = document.getElementById('statusText');
+            status.textContent = '正在调度去重任务...';
+            try {
+                const resp = await fetch('/preprocess/run/deduplicate', { method: 'POST' });
+                const result = await resp.json();
+                if (!resp.ok) {
+                    throw new Error(result.detail || result.message || '调度失败');
+                }
+                const stageState = result.stage_state || {};
+                const statusText = STATUS_MAP[stageState.status] || stageState.status || '已提交';
+                status.textContent = `${stageState.label || '去重'}：${stageState.detail || ''}（${statusText}）`;
+            } catch (error) {
+                status.textContent = '调度失败：' + (error.message || '未知错误');
+            }
+        }
+        function openPipeline() {
+            window.open('/preprocess', '_blank');
+        }
+    </script>
+</body>
+</html>
+

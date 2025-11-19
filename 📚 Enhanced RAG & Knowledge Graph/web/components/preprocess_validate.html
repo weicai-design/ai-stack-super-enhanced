@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>RAG预处理 - 验证</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC"; margin: 0; background: #f3f5f9; color: #111827; }
+        .hero { background: linear-gradient(135deg, #11998e, #38ef7d); color: white; padding: 38px 42px; border-bottom-left-radius: 32px; border-bottom-right-radius: 32px; }
+        .hero h1 { margin: 0; font-size: 30px; }
+        .hero p { margin-top: 10px; opacity: 0.9; }
+        .container { max-width: 1200px; margin: -40px auto 40px; padding: 0 25px; }
+        .card { background: white; border-radius: 20px; padding: 28px 32px; margin-bottom: 25px; box-shadow: 0 15px 30px rgba(16,185,129,0.15); }
+        .title { font-size: 20px; font-weight: 600; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+        .item { border: 1px solid #d1fae5; border-radius: 14px; padding: 18px; background: linear-gradient(180deg, rgba(16,185,129,0.08), rgba(16,185,129,0.0)); }
+        .item strong { display: block; color: #047857; margin-bottom: 6px; }
+        .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 20px; }
+        .config-item { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+        .config-item label { font-weight: 600; color: #065f46; }
+        .config-item select,
+        .config-item textarea,
+        .config-item input[type="text"],
+        .config-item input[type="range"] { border: 1px solid #c0e3d0; border-radius: 10px; padding: 10px; font-size: 13px; font-family: inherit; }
+        .config-checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #065f46; }
+        .actions { margin-top: 20px; display: flex; gap: 14px; flex-wrap: wrap; }
+        button { border: none; border-radius: 999px; padding: 12px 30px; font-size: 14px; cursor: pointer; color: white; background: linear-gradient(135deg, #16a085, #1abc9c); box-shadow: 0 12px 22px rgba(26,188,156,0.35); }
+        button.secondary { background: transparent; color: #047857; border: 1px solid rgba(4,120,87,0.5); box-shadow: none; }
+        button.ghost { background: rgba(6,95,70,0.08); color: #047857; box-shadow: none; }
+        .status { margin-top: 15px; font-size: 13px; color: #065f46; }
+        .report-card { border: 1px solid #d1fae5; }
+        .report-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .report-title { font-size: 22px; font-weight: 700; }
+        .report-meta { font-size: 13px; color: #047857; margin-top: 4px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+        .summary-card { border: 1px solid #e0f5ec; border-radius: 16px; padding: 18px; background: #f6fffb; }
+        .summary-label { font-size: 12px; color: #047857; text-transform: uppercase; letter-spacing: 0.5px; }
+        .summary-value { font-size: 28px; font-weight: 700; margin-top: 8px; }
+        .summary-sub { font-size: 11px; color: #6b9080; text-transform: uppercase; letter-spacing: 0.5px; }
+        .progress-grid { margin-top: 25px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+        .progress-item { padding: 4px 0; }
+        .progress-label { font-size: 13px; color: #065f46; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .progress-bar { background: #e0f2f1; border-radius: 999px; height: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #11998e, #38ef7d); width: 0%; transition: width 0.4s ease; }
+        .report-section { margin-top: 30px; }
+        .section-subtitle { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #065f46; }
+        .issues-table { border: 1px solid #e0f5ec; border-radius: 16px; overflow: hidden; background: #fff; }
+        .issues-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .issues-table th, .issues-table td { padding: 12px 14px; text-align: left; }
+        .issues-table th { background: #f0fdf4; color: #065f46; font-weight: 600; }
+        .issues-table tr:nth-child(even) { background: #fafafa; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; text-transform: uppercase; }
+        .badge-high { background: rgba(244, 67, 54, 0.15); color: #c62828; }
+        .badge-medium { background: rgba(255, 193, 7, 0.15); color: #b26a00; }
+        .badge-low { background: rgba(76, 175, 80, 0.15); color: #1b5e20; }
+        .source-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; }
+        .source-card { border: 1px solid #e0f5ec; border-radius: 14px; padding: 16px; background: #f8fffb; }
+        .source-title { font-weight: 600; margin-bottom: 6px; }
+        .source-match { font-size: 14px; color: #047857; font-weight: 700; }
+        .timeline { border-left: 3px solid #c8eedc; margin-top: 10px; padding-left: 20px; }
+        .timeline-item { margin-bottom: 14px; position: relative; }
+        .timeline-item::before { content: ""; width: 12px; height: 12px; background: #16a085; border-radius: 50%; position: absolute; left: -27px; top: 4px; }
+        .timeline-stage { font-weight: 600; color: #065f46; }
+        .timeline-duration { font-size: 12px; color: #4b6358; }
+        .empty-state { text-align: center; padding: 40px 20px; border: 1px dashed #a7f3d0; border-radius: 16px; color: #4b6358; background: #f6fffb; }
+        .focus-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .focus-tag { background: rgba(6, 95, 70, 0.1); color: #065f46; padding: 3px 10px; border-radius: 999px; font-size: 11px; }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>✅ 验证（Validation）阶段</h1>
+        <p>完整性 / 真实性 / 合规性 / 入库签名 —— 构建可信可追溯的知识资产。</p>
+    </div>
+    <div class="container">
+        <div class="card">
+            <div class="title">
+                核心任务 <span style="font-size:12px; margin-left:10px; color:#a7f3d0;">Stage 4 / 4</span>
+            </div>
+            <div class="grid">
+                <div class="item">
+                    <strong>4.1 完整性</strong>
+                    检查缺失章节、断裂段落、引用无效等问题。
+                </div>
+                <div class="item">
+                    <strong>4.2 真实性</strong>
+                    多源交叉比对 + RAG事实核验，输出可信度评分。
+                </div>
+                <div class="item">
+                    <strong>4.3 合规敏感</strong>
+                    敏感词、PII、版权、监管条款自动检测。
+                </div>
+                <div class="item">
+                    <strong>4.4 入库签名</strong>
+                    记录入库签名、校验和、审计跟踪路径。
+                </div>
+            </div>
+            <div class="title" style="margin-top: 30px;">真实性验证配置</div>
+            <div class="config-grid">
+                <div class="config-item">
+                    <label for="datasetSelect">验证数据集</label>
+                    <select id="datasetSelect">
+                        <option value="RAG生产库">RAG生产库</option>
+                        <option value="ERP结构化数据">ERP结构化数据</option>
+                        <option value="外部资讯快照">外部资讯快照</option>
+                        <option value="实时API结果">实时API结果</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label for="confidenceInput">可信度阈值 <span id="confidenceValue">85</span>%</label>
+                    <input type="range" id="confidenceInput" min="60" max="99" value="85" oninput="updateConfidenceLabel(this.value)">
+                </div>
+                <div class="config-item">
+                    <label for="focusInput">重点关注主题</label>
+                    <textarea id="focusInput" rows="3" placeholder="如：供应链交付、财务预测、合规审计..."></textarea>
+                </div>
+                <div class="config-item">
+                    <label>高级策略</label>
+                    <label class="config-checkbox">
+                        <input type="checkbox" id="multiSourceCheck" checked>
+                        启用多源交叉验证
+                    </label>
+                    <label class="config-checkbox">
+                        <input type="checkbox" id="sensitivityCheck" checked>
+                        强化敏感信息检测
+                    </label>
+                    <label class="config-checkbox">
+                        <input type="checkbox" id="autoRewriteCheck">
+                        对冲突段落自动生成修复建议
+                    </label>
+                </div>
+            </div>
+            <div class="actions">
+                <button onclick="runStage()">⚡ 执行验证阶段</button>
+                <button class="secondary" onclick="openPipeline()">返回预处理编排</button>
+                <button class="ghost" onclick="loadLatestReport()">刷新报告</button>
+                <button onclick="generateValidationReport()">📊 生成真实性报告</button>
+            </div>
+            <div class="status" id="statusText">等待任务...</div>
+        </div>
+
+        <div class="card report-card">
+            <div class="report-header">
+                <div>
+                    <div class="report-title">真实性验证可视化</div>
+                    <div class="report-meta" id="reportMeta">尚未生成报告</div>
+                    <div class="focus-tags" id="focusTags"></div>
+                </div>
+                <div>
+                    <div style="font-size:12px; color:#047857;">报告ID</div>
+                    <div id="reportId" style="font-weight:600;">--</div>
+                </div>
+            </div>
+
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-label">真实性评分</div>
+                    <div class="summary-value" id="truthScore">--</div>
+                    <div class="summary-sub">Truthfulness</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">一致性评分</div>
+                    <div class="summary-value" id="consistencyScore">--</div>
+                    <div class="summary-sub">Consistency</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">合规性评分</div>
+                    <div class="summary-value" id="complianceScore">--</div>
+                    <div class="summary-sub">Compliance</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">已验证事实</div>
+                    <div class="summary-value" id="verifiedFacts">--</div>
+                    <div class="summary-sub">Facts</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">风险项</div>
+                    <div class="summary-value" id="issuesFound">--</div>
+                    <div class="summary-sub">Issues</div>
+                </div>
+            </div>
+
+            <div class="progress-grid">
+                <div class="progress-item">
+                    <div class="progress-label">
+                        <span>真实性</span><span id="truthPercent">--</span>
+                    </div>
+                    <div class="progress-bar"><div class="progress-fill" id="truthBar"></div></div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-label">
+                        <span>一致性</span><span id="consistencyPercent">--</span>
+                    </div>
+                    <div class="progress-bar"><div class="progress-fill" id="consistencyBar"></div></div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-label">
+                        <span>合规性</span><span id="compliancePercent">--</span>
+                    </div>
+                    <div class="progress-bar"><div class="progress-fill" id="complianceBar"></div></div>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <div class="section-subtitle">风险 & 建议</div>
+                <div class="issues-table" id="issuesTable">
+                    <div class="empty-state">暂无风险项，生成报告后将展示冲突事实、缺失引用等信息。</div>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <div class="section-subtitle">多源验证匹配度</div>
+                <div class="source-list" id="sourcesList">
+                    <div class="empty-state">等待报告生成...</div>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <div class="section-subtitle">执行时间线</div>
+                <div class="timeline" id="timelineList">
+                    <div class="timeline-item">
+                        <div class="timeline-stage">尚未执行</div>
+                        <div class="timeline-duration">触发验证流程后显示</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const STATUS_MAP = {
+            idle: '待命',
+            queued: '排队',
+            running: '执行中',
+            success: '已完成',
+            failed: '失败'
+        };
+
+        async function runStage() {
+            const status = document.getElementById('statusText');
+            status.textContent = '正在调度验证任务...';
+            try {
+                const resp = await fetch('/preprocess/run/validate', { method: 'POST' });
+                const result = await resp.json();
+                if (!resp.ok) {
+                    throw new Error(result.detail || result.message || '调度失败');
+                }
+                const stageState = result.stage_state || {};
+                const statusText = STATUS_MAP[stageState.status] || stageState.status || '已提交';
+                status.textContent = `${stageState.label || '验证'}：${stageState.detail || ''}（${statusText}）`;
+            } catch (error) {
+                status.textContent = '调度失败：' + (error.message || '未知错误');
+            }
+        }
+        function openPipeline() {
+            window.open('/preprocess', '_blank');
+        }
+        function updateConfidenceLabel(value) {
+            document.getElementById('confidenceValue').textContent = value;
+        }
+        function collectValidationConfig() {
+            const focusRaw = document.getElementById('focusInput').value || '';
+            return {
+                dataset: document.getElementById('datasetSelect').value,
+                confidence: parseInt(document.getElementById('confidenceInput').value, 10),
+                focus_topics: focusRaw.split(/[,，]/).map(t => t.trim()).filter(Boolean),
+                enable_multi_source: document.getElementById('multiSourceCheck').checked,
+                enable_sensitivity: document.getElementById('sensitivityCheck').checked,
+                enable_auto_rewrite: document.getElementById('autoRewriteCheck').checked
+            };
+        }
+        async function generateValidationReport() {
+            const status = document.getElementById('statusText');
+            status.textContent = '正在生成真实性验证报告...';
+            try {
+                const payload = collectValidationConfig();
+                const resp = await fetch('/preprocess/validate/report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await resp.json();
+                if (!resp.ok) throw new Error(result.detail || result.message || '生成失败');
+                status.textContent = '报告生成成功';
+                if (result.report) {
+                    renderValidationReport(result.report);
+                }
+            } catch (error) {
+                status.textContent = '报告生成失败：' + (error.message || '未知错误');
+            }
+        }
+        async function loadLatestReport() {
+            try {
+                const resp = await fetch('/preprocess/validate/report/latest');
+                if (!resp.ok) throw new Error('暂无最新报告');
+                const result = await resp.json();
+                if (result.report) {
+                    renderValidationReport(result.report);
+                }
+            } catch (error) {
+                document.getElementById('reportMeta').textContent = error.message || '暂无报告';
+                document.getElementById('issuesTable').innerHTML = '<div class="empty-state">暂无历史报告，请先生成一次。</div>';
+                document.getElementById('sourcesList').innerHTML = '<div class="empty-state">暂无数据</div>';
+                document.getElementById('timelineList').innerHTML = '<div class="timeline-item"><div class="timeline-stage">等待执行</div><div class="timeline-duration">触发验证后更新</div></div>';
+            }
+        }
+        function renderValidationReport(report) {
+            const meta = document.getElementById('reportMeta');
+            meta.textContent = `${report.dataset} • ${formatDate(report.generated_at)}`;
+            document.getElementById('reportId').textContent = report.report_id || '--';
+            renderFocusTags(report.focus_topics || []);
+            const summary = report.summary || {};
+            setSummaryValue('truthScore', summary.truth_score, '%');
+            setSummaryValue('consistencyScore', summary.consistency_score, '%');
+            setSummaryValue('complianceScore', summary.compliance_score, '%');
+            setSummaryValue('verifiedFacts', summary.verified_facts || '--', '');
+            setSummaryValue('issuesFound', summary.issues_found || 0, '项');
+            updateProgressBar('truth', summary.truth_score || 0);
+            updateProgressBar('consistency', summary.consistency_score || 0);
+            updateProgressBar('compliance', summary.compliance_score || 0);
+            renderIssues(report.issues || []);
+            renderSources(report.sources || []);
+            renderTimeline(report.timeline || []);
+        }
+        function renderFocusTags(topics) {
+            const container = document.getElementById('focusTags');
+            container.innerHTML = '';
+            if (!topics.length) return;
+            topics.forEach(topic => {
+                const span = document.createElement('span');
+                span.className = 'focus-tag';
+                span.textContent = topic;
+                container.appendChild(span);
+            });
+        }
+        function setSummaryValue(id, value, suffix = '') {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = (value !== undefined && value !== null && value !== '') ? `${value}${suffix}` : '--';
+        }
+        function updateProgressBar(prefix, value) {
+            const percent = Math.min(100, Math.max(0, value || 0));
+            const bar = document.getElementById(`${prefix}Bar`);
+            const label = document.getElementById(`${prefix}Percent`);
+            if (bar) bar.style.width = `${percent}%`;
+            if (label) label.textContent = `${percent}%`;
+        }
+        function renderIssues(issues) {
+            const container = document.getElementById('issuesTable');
+            if (!issues.length) {
+                container.innerHTML = '<div class="empty-state">本次验证未检测到风险项。</div>';
+                return;
+            }
+            const rows = issues.map(issue => `
+                <tr>
+                    <td>${issue.type || '--'}</td>
+                    <td>${issue.detail || '--'}</td>
+                    <td><span class="badge ${severityBadge(issue.severity)}">${issue.severity || '普通'}</span></td>
+                    <td>${issue.suggestion || '--'}</td>
+                </tr>
+            `).join('');
+            container.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>类型</th>
+                            <th>详情</th>
+                            <th>等级</th>
+                            <th>建议动作</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+        }
+        function severityBadge(severity = '') {
+            const level = severity.toLowerCase();
+            if (level === 'high') return 'badge-high';
+            if (level === 'medium') return 'badge-medium';
+            return 'badge-low';
+        }
+        function renderSources(sources) {
+            const container = document.getElementById('sourcesList');
+            if (!sources.length) {
+                container.innerHTML = '<div class="empty-state">暂无多源对比结果。</div>';
+                return;
+            }
+            container.innerHTML = sources.map(src => `
+                <div class="source-card">
+                    <div class="source-title">${src.name || '未知来源'}</div>
+                    <div>匹配度：<span class="source-match">${Math.round((src.match || 0) * 100)}%</span></div>
+                    <div style="font-size:12px; color:#4b6358; margin-top:4px;">
+                        状态：${src.status === 'verified' ? '✅ 已验证' : '⚠️ 待复核'}
+                    </div>
+                </div>
+            `).join('');
+        }
+        function renderTimeline(timeline) {
+            const container = document.getElementById('timelineList');
+            if (!timeline.length) {
+                container.innerHTML = '<div class="timeline-item"><div class="timeline-stage">等待执行</div><div class="timeline-duration">触发验证后更新</div></div>';
+                return;
+            }
+            container.innerHTML = timeline.map(item => `
+                <div class="timeline-item">
+                    <div class="timeline-stage">${item.stage || '--'}</div>
+                    <div class="timeline-duration">耗时 ${item.duration || '--'} s</div>
+                </div>
+            `).join('');
+        }
+        function formatDate(dateStr) {
+            if (!dateStr) return '--';
+            const date = new Date(dateStr);
+            if (Number.isNaN(date.getTime())) return dateStr;
+            return date.toLocaleString('zh-CN', { hour12: false });
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLatestReport();
+        });
+    </script>
+</body>
+</html>
+

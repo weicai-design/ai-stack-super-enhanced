@@ -117,11 +117,83 @@ class TrialBalanceCalculator:
             return await self._calculate_production_capacity(target_value, parameters)
         elif calculation_type == "cost_breakdown":
             return await self._calculate_cost_breakdown(target_value, parameters)
+        elif calculation_type == "operations":
+            return await self.operations_trial(parameters)
         else:
             return {
                 "success": False,
                 "error": f"不支持的计算类型: {calculation_type}"
             }
+
+    async def operations_trial(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        运营试算：结合营销投入、库存、物流、成本等指标评估可行性
+        """
+        marketing_budget = float(scenario.get("marketing_budget", 100000))
+        cost_per_acquisition = float(scenario.get("cost_per_acquisition", 120))
+        conversion_rate = float(scenario.get("conversion_rate", 0.18))
+        avg_order_value = float(scenario.get("avg_order_value", 320))
+        logistics_capacity = float(scenario.get("logistics_capacity", 1800))
+        inventory_available = float(scenario.get("inventory_available", 2000))
+        operating_cost_rate = float(scenario.get("operating_cost_rate", 0.35))
+        target_margin_rate = float(scenario.get("target_margin_rate", 0.28))
+        service_level_goal = float(scenario.get("service_level_goal", 0.95))
+
+        expected_leads = marketing_budget / max(cost_per_acquisition, 1)
+        expected_orders = expected_leads * conversion_rate
+        expected_revenue = expected_orders * avg_order_value
+
+        capacity_ceiling = min(logistics_capacity, inventory_available)
+        fulfillable_orders = min(expected_orders, capacity_ceiling)
+        fulfillment_rate = fulfillable_orders / expected_orders if expected_orders else 0
+        fulfillable_revenue = fulfillable_orders * avg_order_value
+
+        gross_profit = fulfillable_revenue * (1 - operating_cost_rate)
+        margin_rate = gross_profit / fulfillable_revenue if fulfillable_revenue else 0
+        margin_gap = target_margin_rate - margin_rate
+
+        risk = self._evaluate_operations_risk(
+            fulfillment_rate=fulfillment_rate,
+            capacity_ratio=capacity_ceiling / max(expected_orders, 1),
+            margin_gap=margin_gap,
+            service_level_goal=service_level_goal,
+        )
+
+        recommendations = []
+        if fulfillment_rate < service_level_goal:
+            recommendations.append("提升物流或库存能力以满足服务等级目标")
+        if margin_rate < target_margin_rate:
+            recommendations.append("优化成本结构或提高均单价以实现目标毛利")
+        if not recommendations:
+            recommendations.append("当前方案满足运营指标，可进入执行阶段")
+
+        return {
+            "success": True,
+            "scenario": {
+                "marketing_budget": marketing_budget,
+                "cost_per_acquisition": cost_per_acquisition,
+                "conversion_rate": conversion_rate,
+                "avg_order_value": avg_order_value,
+                "logistics_capacity": logistics_capacity,
+                "inventory_available": inventory_available,
+            },
+            "forecast": {
+                "expected_orders": round(expected_orders, 2),
+                "expected_revenue": round(expected_revenue, 2),
+                "fulfillable_orders": round(fulfillable_orders, 2),
+                "fulfillable_revenue": round(fulfillable_revenue, 2),
+                "fulfillment_rate": round(fulfillment_rate * 100, 2),
+            },
+            "profitability": {
+                "gross_profit": round(gross_profit, 2),
+                "margin_rate": round(margin_rate * 100, 2),
+                "target_margin_rate": round(target_margin_rate * 100, 2),
+                "margin_gap": round(margin_gap * 100, 2),
+            },
+            "risk": risk,
+            "recommendations": recommendations,
+            "calculated_at": datetime.now().isoformat(),
+        }
     
     def _calculate_average_daily(self, historical_data: List[Dict]) -> float:
         """计算历史平均每日交付量"""
@@ -188,6 +260,40 @@ class TrialBalanceCalculator:
             recommendations.append("目标交付量在可达成范围内")
         
         return recommendations
+
+    def _evaluate_operations_risk(
+        self,
+        fulfillment_rate: float,
+        capacity_ratio: float,
+        margin_gap: float,
+        service_level_goal: float,
+    ) -> Dict[str, Any]:
+        score = 90
+        flags = []
+
+        if fulfillment_rate < service_level_goal:
+            deficit = service_level_goal - fulfillment_rate
+            score -= deficit * 100
+            flags.append("服务水平低于目标")
+
+        if capacity_ratio < 1:
+            score -= (1 - capacity_ratio) * 80
+            flags.append("产能无法满足预期订单")
+
+        if margin_gap > 0:
+            score -= margin_gap * 150
+            flags.append("毛利率低于目标")
+
+        score = max(0, min(100, score))
+        level = (
+            "low" if score >= 75 else "medium" if score >= 55 else "high"
+        )
+
+        return {
+            "score": round(score, 2),
+            "level": level,
+            "flags": flags,
+        }
 
     async def _fetch_product_data(
         self,

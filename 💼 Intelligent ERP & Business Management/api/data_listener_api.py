@@ -8,12 +8,10 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from core.data_listener import ERPDataListener, EventType, ERPEvent
+from core.data_listener import EventType, ERPEvent
+from core.listener_container import data_listener
 
 router = APIRouter(prefix="/api/erp/listener", tags=["ERP Data Listener"])
-
-# 全局监听器实例
-data_listener = ERPDataListener()
 
 
 class EventHandlerRequest(BaseModel):
