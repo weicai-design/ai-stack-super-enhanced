@@ -1,0 +1,81 @@
+version: 2
+description: "AI-STACK 日常部署自动化流程（扩展版：支持 npm、模型、外部 API、Sidecar、Docker、Service Register）"
+steps:
+  - name: verify_python
+    type: check
+    description: "确认 python3 可用"
+    command: "python3 --version"
+  - name: verify_node
+    type: check
+    description: "确认 node/npm 可用"
+    command: "node --version && npm --version"
+  - name: verify_docker
+    type: check
+    description: "确认 docker 可用（如需要）"
+    command: "docker --version || echo 'Docker not required'"
+  - name: verify_dependencies
+    type: script
+    description: "运行依赖自检脚本"
+    command: "python3 scripts/check_dependencies.py"
+  - name: npm_install
+    type: npm_install
+    description: "安装 npm 依赖"
+    working_dir: "."
+    condition: "${npm.enabled}"
+  - name: verify_models
+    type: command
+    description: "验证模型服务可用性"
+    command: "curl -f ${MODEL_OLLAMA_BASE_URL}/api/tags || echo 'Model service check skipped'"
+  - name: verify_external_apis
+    type: script
+    description: "验证外部 API 配置"
+    command: "python3 scripts/verify_external_apis.py"
+  - name: apply_migrations
+    type: script
+    description: "运行数据库迁移/seed（如存在）"
+    command: "python3 🚀 Super Agent Main Interface/api/super_agent_api.py --check-only"
+  - name: run_tests
+    type: script
+    description: "执行关键测试（可选）"
+    command: "pytest 🚀 Super Agent Main Interface/tests -k persistence || echo 'Tests skipped'"
+  - name: build_frontend
+    type: command
+    description: "构建/压缩静态资源（如需要）"
+    command: "npm run build || echo 'Frontend build skipped'"
+  - name: docker_build
+    type: docker_build
+    description: "构建 Docker 镜像（如需要）"
+    action: build
+    image: "ai-stack"
+    tag: "${DOCKER_IMAGE_TAG:-latest}"
+    dockerfile: "Dockerfile"
+    condition: "${deploy.docker.enabled}"
+  - name: docker_compose_up
+    type: docker_build
+    description: "启动 Docker Compose 服务（如需要）"
+    action: compose
+    compose_file: "${deploy.docker.compose_file}"
+    condition: "${deploy.docker.enabled}"
+  - name: deploy_sidecars
+    type: sidecar_deploy
+    description: "部署 Sidecar 服务"
+    sidecar: "rag_hub"
+    path: "services/rag_sidecar.py"
+    port: 8001
+    condition: "${deploy.sidecars.enabled}"
+  - name: register_sidecar_services
+    type: service_register
+    description: "注册 Sidecar 服务到 Service Registry"
+    service: "rag_hub"
+    endpoint: "http://localhost:8001"
+    version: "v1"
+    condition: "${deploy.service_registry.enabled}"
+  - name: restart_services
+    type: command
+    description: "重启 FastAPI 与后台服务（根据 profile）"
+    command: "scripts/start_all_services.sh"
+  - name: health_check
+    type: command
+    description: "健康检查"
+    command: "python3 scripts/health_check.py"
+

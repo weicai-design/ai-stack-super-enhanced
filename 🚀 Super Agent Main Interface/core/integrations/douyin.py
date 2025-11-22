@@ -8,11 +8,21 @@
 """
 from __future__ import annotations
 
+import logging
+import os
 import random
+import time
 import uuid
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
+from urllib.parse import urlparse
+
+import httpx
+
+from .api_monitor import APIMonitor
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -41,10 +51,11 @@ class DouyinPublishJob:
     risk: Optional[Dict[str, Any]] = None
     published_at: Optional[datetime] = None
     next_retry_at: Optional[datetime] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class DouyinIntegration:
-    def __init__(self):
+    def __init__(self, api_monitor: Optional[APIMonitor] = None):
         self._auth = DouyinAuthState(
             access_token=None,
             expires_at=None,
@@ -54,6 +65,7 @@ class DouyinIntegration:
         )
         self._jobs: Dict[str, DouyinPublishJob] = {}
         self._callbacks: List[Dict[str, Any]] = []
+        self.api_monitor = api_monitor or APIMonitor()
 
     # -------- 授权 & 状态 --------
     def get_status(self) -> Dict[str, Any]:
@@ -113,7 +125,6 @@ class DouyinIntegration:
             return {"success": False, "error": "缺少授权code"}
         
         import os
-        import httpx
         
         # 真实实现：调用抖音开放平台 token 接口
         client_id = os.getenv("DOUYIN_CLIENT_ID", "your_client_id")
@@ -132,27 +143,29 @@ class DouyinIntegration:
             
             # 如果配置了真实密钥，尝试真实调用；否则使用模拟
             if client_id != "your_client_id" and client_secret != "your_client_secret":
-                try:
-                    with httpx.Client() as client:
-                        resp = client.post(token_url, data=token_data, timeout=10.0)
-                        if resp.status_code == 200:
-                            token_result = resp.json()
-                            if token_result.get("data"):
-                                data = token_result["data"]
-                                self._auth.access_token = data.get("access_token")
-                                self._auth.refresh_token = data.get("refresh_token")
-                                expires_in = data.get("expires_in", 7200)
-                                self._auth.expires_at = datetime.now() + timedelta(seconds=expires_in)
-                                self._auth.scope = data.get("scope", "video.create,video.data")
-                                self._auth.state = None
-                                return {
-                                    "success": True,
-                                    "authorized": True,
-                                    "expires_at": self._auth.expires_at.isoformat(),
-                                    "scope": self._auth.scope
-                                }
-                except Exception as e:
-                    logger.warning(f"抖音真实API调用失败，使用模拟: {e}")
+                resp_json, error = self._call_api(
+                    method="POST",
+                    url=token_url,
+                    system="douyin",
+                    payload=token_data,
+                )
+                if resp_json and resp_json.get("data"):
+                    data = resp_json["data"]
+                    self._auth.access_token = data.get("access_token")
+                    self._auth.refresh_token = data.get("refresh_token")
+                    expires_in = data.get("expires_in", 7200)
+                    self._auth.expires_at = datetime.now() + timedelta(seconds=expires_in)
+                    self._auth.scope = data.get("scope", "video.create,video.data")
+                    self._auth.state = None
+                    return {
+                        "success": True,
+                        "authorized": True,
+                        "expires_at": self._auth.expires_at.isoformat(),
+                        "scope": self._auth.scope,
+                        "mode": "real",
+                    }
+                if error:
+                    logger.warning("抖音真实API调用失败，使用模拟: %s", error)
             
             # 模拟模式（开发/测试环境）
             self._auth.access_token = f"mock_douyin_access_{uuid.uuid4().hex[:8]}"
@@ -263,10 +276,27 @@ class DouyinIntegration:
             job.next_retry_at = None
             job.updated_at = datetime.now()
             return
-        # 模拟抖音API发布
         job.status = "publishing"
         job.updated_at = datetime.now()
-        # 简易失败模拟：关键字或随机
+
+        used_real_api, error = self._try_real_publish(job)
+        if used_real_api and not error:
+            job.status = "success"
+            job.published_at = datetime.now()
+            job.last_error = None
+            job.next_retry_at = None
+            self._emit_callback(job, event="video.publish")
+            job.updated_at = datetime.now()
+            return
+
+        if error:
+            job.status = "failed"
+            job.last_error = error
+            job.next_retry_at = datetime.now() + timedelta(minutes=5)
+            job.updated_at = datetime.now()
+            return
+
+        # 模拟模式：按照风险和关键字决定是否成功
         fail_keywords = ["fail", "失败", "违规"]
         hit_fail_kw = any(kw.lower() in job.title.lower() or kw.lower() in job.content.lower() for kw in fail_keywords)
         random_fail = random.random() < 0.2 and job.attempts == 1
@@ -353,4 +383,79 @@ class DouyinIntegration:
         })
         self._callbacks = self._callbacks[-50:]
         return draft
+
+    # -------- 内部：真实调用 & 监控 --------
+    def _call_api(
+        self,
+        *,
+        method: str,
+        url: str,
+        system: str,
+        payload: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        start = time.perf_counter()
+        status_code = None
+        success = False
+        error = None
+        response_json: Optional[Dict[str, Any]] = None
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                resp = client.request(method.upper(), url, json=payload, headers=headers)
+                status_code = resp.status_code
+                resp.raise_for_status()
+                response_json = resp.json()
+                success = True
+                return response_json, None
+        except Exception as exc:  # pragma: no cover
+            error = str(exc)
+            return None, error
+        finally:
+            duration = (time.perf_counter() - start) * 1000
+            endpoint = urlparse(url).path
+            self.api_monitor.record_call(
+                system=system,
+                endpoint=endpoint,
+                method=method,
+                status_code=status_code,
+                success=success,
+                duration_ms=duration,
+                error=error,
+                metadata={"payload_keys": list((payload or {}).keys())},
+            )
+
+    def _try_real_publish(self, job: DouyinPublishJob) -> Tuple[bool, Optional[str]]:
+        """
+        如果环境变量开启真实模式，则调用 Douyin API 发布文本/图文内容。
+        返回 (是否尝试真实调用, 错误信息)
+        """
+        real_mode = os.getenv("DOUYIN_REAL_MODE", "0") == "1"
+        if not real_mode or not self._auth.access_token:
+            return False, None
+
+        publish_url = os.getenv(
+            "DOUYIN_PUBLISH_URL",
+            "https://open.douyin.com/api/douyin/v1/video/text/create/",
+        )
+        headers = {"access-token": self._auth.access_token}
+        payload = {
+            "text": job.content,
+            "title": job.title,
+            "tags": job.tags,
+            "risk_level": job.risk.get("level") if job.risk else "low",
+        }
+        resp_json, error = self._call_api(
+            method="POST",
+            url=publish_url,
+            system="douyin",
+            payload=payload,
+            headers=headers,
+        )
+        if error:
+            return True, error
+        data = resp_json.get("data") if resp_json else {}
+        if data and data.get("publish_id"):
+            job.metadata = {"publish_id": data["publish_id"]} if hasattr(job, "metadata") else None
+            return True, None
+        return True, "抖音API：未返回 publish_id"
 

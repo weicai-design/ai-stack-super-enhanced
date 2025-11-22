@@ -1,0 +1,59 @@
+name: staging
+description: "预发布环境，启用多租户与真实 API 沙箱"
+env:
+  APP_ENV: staging
+  DATABASE_URL: postgresql+asyncpg://staging:staging@localhost:5432/ai_stack_staging
+  ENABLE_FAKE_APIS: "0"
+  MULTITENANT_ENABLED: "1"
+  DOUYIN_REAL_MODE: "0"
+npm:
+  registry: "https://registry.npmjs.org/"
+  token: "${NPM_TOKEN}"
+  scope: "@ai-stack"
+models:
+  default: "qwen2.5:7b"
+  fallback: "qwen2.5:1.5b"
+  ollama_base_url: "http://ollama-staging:11434"
+external_apis:
+  douyin:
+    enabled: "1"
+    app_key: "${DOUYIN_APP_KEY}"
+    app_secret: "${DOUYIN_APP_SECRET}"
+    real_mode: "0"
+  tushare:
+    enabled: "1"
+    token: "${TUSHARE_TOKEN}"
+  ths:
+    enabled: "1"
+    app_key: "${THS_APP_KEY}"
+    app_secret: "${THS_APP_SECRET}"
+services:
+  api: true
+  worker: true
+  scheduler: true
+  sidecars:
+    - rag_hub
+    - trend_ops
+deploy:
+  auto_migrate: true
+  restart_services:
+    - api
+    - worker
+  health_checks:
+    - "GET http://localhost:8000/api/super-agent/health"
+  docker:
+    enabled: true
+    compose_file: "docker-compose.staging.yml"
+  sidecars:
+    enabled: true
+    services:
+      - name: rag_hub
+        port: 8001
+        path: "services/rag_sidecar.py"
+      - name: trend_ops
+        port: 8002
+        path: "services/trend_sidecar.py"
+notes:
+  - "与生产配置一致的依赖，但使用沙箱 API"
+  - "适合验收/回归测试"
+

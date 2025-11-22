@@ -1,0 +1,45 @@
+name: dev
+description: "本地单机开发环境，使用 SQLite 与最小依赖集"
+env:
+  APP_ENV: development
+  DATABASE_URL: sqlite:///./data/dev.db
+  ENABLE_FAKE_APIS: "1"
+  MULTITENANT_ENABLED: "0"
+npm:
+  registry: "https://registry.npmjs.org/"
+  token: ""
+  scope: ""
+models:
+  default: "qwen2.5:1.5b"
+  fallback: "llama3.2:1b"
+  ollama_base_url: "http://localhost:11434"
+external_apis:
+  douyin:
+    enabled: "0"
+    app_key: ""
+    app_secret: ""
+    real_mode: "0"
+  tushare:
+    enabled: "0"
+    token: ""
+  ths:
+    enabled: "0"
+    app_key: ""
+    app_secret: ""
+services:
+  api: true
+  worker: true
+  scheduler: false
+  sidecars: []
+deploy:
+  auto_migrate: true
+  restart_services:
+    - api
+  docker:
+    enabled: false
+  sidecars:
+    enabled: false
+notes:
+  - "适合个人开发或 CI 快速验证"
+  - "默认使用 sqlite，支持快速重置"
+

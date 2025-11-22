@@ -662,3 +662,9 @@ analysis = requests.get("http://localhost:8000/finance/analysis/profit")
 
 
 
+
+
+
+
+
+

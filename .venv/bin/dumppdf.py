@@ -1,4 +1,4 @@
-#!/Users/ywc/ai-stack-super-enhanced/.venv/bin/python3
+#!/Users/ywc/ai-stack-super-enhanced/.venv/bin/python3.12
 """Extract pdf structure in XML format"""
 
 import logging

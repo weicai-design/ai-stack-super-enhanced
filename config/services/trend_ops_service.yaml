@@ -1,0 +1,25 @@
+service: trend_ops
+description: "趋势分析 / 回测服务"
+operations:
+  - operation: backtest
+    method: POST
+    path: /v1/trend/backtest
+    timeout: 2.5
+    schema:
+      request:
+        properties:
+          indicator: {type: string}
+          window: {type: integer}
+      response:
+        properties:
+          metrics: {type: object}
+          series: {type: array}
+  - operation: scenario
+    method: POST
+    path: /v1/trend/scenario
+    timeout: 2.5
+deployment:
+  recommended: sidecar
+  port: 8022
+  health: GET /health
+

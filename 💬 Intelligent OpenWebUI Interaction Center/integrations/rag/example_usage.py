@@ -7,6 +7,7 @@ OpenWebUI RAG集成使用示例
 
 import asyncio
 import logging
+import sys
 from pathlib import Path
 
 # 配置日志
@@ -15,10 +16,19 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-from rag_integration import RAGIntegrationService, get_rag_service
-from chat_handler import ChatMessageHandler
-from file_upload_handler import FileUploadHandler
-from knowledge_enhancer import KnowledgeEnhancer
+try:
+    from .rag_integration import RAGIntegrationService, get_rag_service
+    from .chat_handler import ChatMessageHandler
+    from .file_upload_handler import FileUploadHandler
+    from .knowledge_enhancer import KnowledgeEnhancer
+except ImportError:
+    current_dir = Path(__file__).parent
+    if str(current_dir) not in sys.path:
+        sys.path.insert(0, str(current_dir))
+    from rag_integration import RAGIntegrationService, get_rag_service
+    from chat_handler import ChatMessageHandler
+    from file_upload_handler import FileUploadHandler
+    from knowledge_enhancer import KnowledgeEnhancer
 
 
 async def example_1_health_check():

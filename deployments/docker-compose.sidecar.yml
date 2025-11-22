@@ -1,0 +1,101 @@
+# P3-401: Sidecar独立部署配置
+# 支持RAG/Trend等Sidecar的可选独立部署
+# Docker Compose v2+ (无需version字段)
+
+services:
+  # API Gateway (Registry)
+  gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: ai-stack-gateway
+    ports:
+      - "9000:9000"
+    environment:
+      - PORT=9000
+      - HOST=0.0.0.0
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./logs/gateway:/app/logs
+    networks:
+      - ai-stack-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # RAG Sidecar (可选)
+  rag-sidecar:
+    build:
+      context: ./📚 Enhanced RAG & Knowledge Graph
+      dockerfile: Dockerfile
+    container_name: ai-stack-rag-sidecar
+    ports:
+      - "8011:8011"
+    environment:
+      - PORT=8011
+      - HOST=0.0.0.0
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=${RAG_DATABASE_URL:-sqlite:///./data/rag.db}
+    volumes:
+      - ./data/rag:/app/data
+      - ./logs/rag:/app/logs
+      - ./models:/app/models
+    networks:
+      - ai-stack-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8011/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    profiles:
+      - rag
+      - all
+
+  # Trend Analysis Sidecar (可选)
+  trend-sidecar:
+    build:
+      context: ./🔍 Intelligent Trend Analysis
+      dockerfile: Dockerfile
+    container_name: ai-stack-trend-sidecar
+    ports:
+      - "8014:8014"
+    environment:
+      - PORT=8014
+      - HOST=0.0.0.0
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=${TREND_DATABASE_URL:-sqlite:///./data/trend.db}
+    volumes:
+      - ./data/trend:/app/data
+      - ./logs/trend:/app/logs
+    networks:
+      - ai-stack-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8014/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    profiles:
+      - trend
+      - all
+
+networks:
+  ai-stack-network:
+    driver: bridge
+    name: ai-stack-network
+
+volumes:
+  rag_data:
+    driver: local
+  trend_data:
+    driver: local
+  logs:
+    driver: local
+

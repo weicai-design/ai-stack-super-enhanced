@@ -12,6 +12,10 @@ import logging
 import hashlib
 import json
 
+from .database_persistence import DatabasePersistence, get_persistence
+from .security.audit_pipeline import SecurityAuditPipeline, get_audit_pipeline
+from .security.risk_engine import SecurityRiskEngine, get_risk_engine
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,6 +99,18 @@ class SecurityComplianceBaseline:
         
         # 审计日志
         self.audit_log: List[Dict[str, Any]] = []
+
+        # 外部依赖
+        self.persistence: Optional[DatabasePersistence] = None
+        self.audit_pipeline: Optional[SecurityAuditPipeline] = None
+        self.risk_engine: Optional[SecurityRiskEngine] = None
+
+        try:
+            self.persistence = get_persistence()
+            self.audit_pipeline = get_audit_pipeline()
+            self.risk_engine = get_risk_engine()
+        except Exception as exc:  # pragma: no cover
+            logger.warning("安全合规基线外部依赖初始化失败: %s", exc)
         
         # 初始化默认策略
         self._initialize_default_policies()
@@ -544,6 +560,41 @@ class SecurityComplianceBaseline:
             description=violation.description
         )
         
+        payload = {
+            "violation_id": violation.violation_id,
+            "violation_type": violation.violation_type.value,
+            "category": violation.category.value,
+            "severity": violation.severity.value,
+            "description": violation.description,
+            "detected_at": violation.detected_at.isoformat(),
+            "source": violation.source,
+            "resource": violation.resource,
+            "metadata": violation.metadata,
+        }
+
+        if self.persistence:
+            try:
+                self.persistence.save(
+                    table_name="security_violations",
+                    record_id=violation.violation_id,
+                    data=payload,
+                    metadata={"severity": violation.severity.value},
+                )
+            except Exception as exc:  # pragma: no cover
+                logger.error("保存违规记录失败: %s", exc)
+
+        if self.audit_pipeline:
+            self.audit_pipeline.log_security_event(
+                event_type=f"violation.{violation.violation_type.value}",
+                source="security_compliance",
+                severity=violation.severity.value,
+                status="failed",
+                metadata=payload,
+            )
+
+        if self.risk_engine:
+            self.risk_engine.record_violation(payload)
+
         logger.warning(f"安全违规: {violation.violation_type.value} - {violation.description}")
     
     def _log_audit_event(
@@ -572,6 +623,34 @@ class SecurityComplianceBaseline:
         limit: int = 100
     ) -> List[Dict[str, Any]]:
         """获取违规记录"""
+        if self.persistence:
+            filters = {}
+            if category:
+                filters["category"] = category.value
+            if severity:
+                filters["severity"] = severity.value
+            records = self.persistence.query(
+                table_name="security_violations",
+                filters=filters or None,
+                limit=limit,
+                order_by="_created_at",
+                order_desc=True,
+            )
+            return [
+                {
+                    "violation_id": r.get("violation_id"),
+                    "violation_type": r.get("violation_type"),
+                    "category": r.get("category"),
+                    "severity": r.get("severity"),
+                    "description": r.get("description"),
+                    "detected_at": r.get("detected_at"),
+                    "source": r.get("source"),
+                    "resource": r.get("resource"),
+                    "action_taken": r.get("action_taken"),
+                }
+                for r in records
+            ]
+
         violations = self.violations
         
         if category:
@@ -602,6 +681,21 @@ class SecurityComplianceBaseline:
         limit: int = 1000
     ) -> List[Dict[str, Any]]:
         """获取审计日志"""
+        if self.persistence:
+            filters = {}
+            if event_type:
+                filters["event_type"] = event_type
+            if severity:
+                filters["severity"] = severity
+            logs = self.persistence.query(
+                table_name="security_audit",
+                filters=filters or None,
+                limit=limit,
+                order_by="_created_at",
+                order_desc=True,
+            )
+            return [{k: v for k, v in log.items() if not k.startswith("_")} for log in logs]
+
         logs = self.audit_log
         
         if event_type:
@@ -680,6 +774,34 @@ class SecurityComplianceBaseline:
     
     def get_statistics(self) -> Dict[str, Any]:
         """获取统计信息"""
+        if self.persistence:
+            recent = self.persistence.query(
+                table_name="security_violations",
+                limit=500,
+                order_by="_created_at",
+                order_desc=True,
+            )
+            category_counts: Dict[str, int] = {}
+            severity_counts: Dict[str, int] = {}
+            type_counts: Dict[str, int] = {}
+            for item in recent:
+                category = item.get("category", "unknown")
+                severity = item.get("severity", "unknown")
+                vtype = item.get("violation_type", "unknown")
+                category_counts[category] = category_counts.get(category, 0) + 1
+                severity_counts[severity] = severity_counts.get(severity, 0) + 1
+                type_counts[vtype] = type_counts.get(vtype, 0) + 1
+            return {
+                "total_violations": self.persistence.count("security_violations"),
+                "recent_violations": len(recent),
+                "category_distribution": category_counts,
+                "severity_distribution": severity_counts,
+                "type_distribution": type_counts,
+                "total_audit_logs": self.persistence.count("security_audit"),
+                "policies_count": len(self.policies),
+                "enabled_policies": len([p for p in self.policies.values() if p.enabled])
+            }
+
         recent_violations = self.violations[-1000:] if self.violations else []
         
         category_counts = {}

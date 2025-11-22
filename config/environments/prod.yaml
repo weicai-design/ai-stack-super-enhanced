@@ -1,0 +1,69 @@
+name: prod
+description: "生产环境，启用所有服务与真实外部 API"
+env:
+  APP_ENV: production
+  DATABASE_URL: postgresql+asyncpg://prod:secure@prod-db:5432/ai_stack
+  ENABLE_FAKE_APIS: "0"
+  MULTITENANT_ENABLED: "1"
+  DOUYIN_REAL_MODE: "1"
+npm:
+  registry: "https://registry.npmjs.org/"
+  token: "${NPM_TOKEN}"
+  scope: "@ai-stack"
+models:
+  default: "qwen2.5:7b"
+  fallback: "qwen2.5:1.5b"
+  ollama_base_url: "http://ollama-prod:11434"
+external_apis:
+  douyin:
+    enabled: "1"
+    app_key: "${DOUYIN_APP_KEY}"
+    app_secret: "${DOUYIN_APP_SECRET}"
+    real_mode: "1"
+  tushare:
+    enabled: "1"
+    token: "${TUSHARE_TOKEN}"
+  ths:
+    enabled: "1"
+    app_key: "${THS_APP_KEY}"
+    app_secret: "${THS_APP_SECRET}"
+services:
+  api: true
+  worker: true
+  scheduler: true
+  monitoring: true
+  sidecars:
+    - rag_hub
+    - trend_ops
+deploy:
+  auto_migrate: false
+  restart_services:
+    - api
+    - worker
+    - scheduler
+  health_checks:
+    - "GET https://ai-stack.example.com/api/super-agent/health"
+  notify_channels:
+    - "slack://devops-alerts"
+  docker:
+    enabled: true
+    compose_file: "docker-compose.prod.yml"
+    image_tag: "latest"
+  sidecars:
+    enabled: true
+    services:
+      - name: rag_hub
+        port: 8001
+        path: "services/rag_sidecar.py"
+        replicas: 2
+      - name: trend_ops
+        port: 8002
+        path: "services/trend_sidecar.py"
+        replicas: 2
+  service_registry:
+    enabled: true
+    endpoint: "http://service-registry:8500"
+notes:
+  - "请确保在运行前已配置外部 API 密钥与证书"
+  - "建议通过 CI/CD 触发此配置"
+

@@ -169,3 +169,9 @@ stock_analyzer = StockAnalyzer()
 
 
 
+
+
+
+
+
+

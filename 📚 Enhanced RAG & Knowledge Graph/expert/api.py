@@ -50,3 +50,9 @@ async def get_advice(
 
 
 
+
+
+
+
+
+

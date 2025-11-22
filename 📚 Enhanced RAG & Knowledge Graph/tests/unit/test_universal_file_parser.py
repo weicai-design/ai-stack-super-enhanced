@@ -1,25 +1,15 @@
-   /enhanced_rag_kg/
-   ├── api/
-   │   ├── app.py
-   │   ├── routes/
-   │   │   ├── ingest.py
-   │   │   ├── search.py
-   │   │   ├── kg.py
-   │   ├── models/
-   │   │   ├── requests.py
-   │   │   ├── responses.py
-   │   ├── utils/
-   │   │   ├── metrics.py
-   │   │   ├── logging.py
-   ├── pipelines/
-   │   ├── hybrid_search.py
-   │   ├── ingestion_pipeline.py
-   ├── preprocessors/
-   │   ├── kg_writer.py
-   ├── tests/
-   │   ├── test_ingest.py
-   │   ├── test_search.py
-   │   ├── test_kg.py
-   ├── requirements.txt
-   ├── README.md
-   └── .env
+"""
+Placeholder unit tests for the universal file parser component.
+
+The previous file contained only textual notes, which caused pytest to crash
+with indentation errors. Replace this placeholder with real tests as soon as
+the parser module stabilises.
+"""
+
+import pytest
+
+
+@pytest.mark.skip(reason="Universal file parser tests not yet implemented.")
+def test_universal_file_parser_placeholder():
+    """Placeholder test to keep pytest passing."""
+    assert True

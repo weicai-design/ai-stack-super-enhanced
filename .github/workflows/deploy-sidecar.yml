@@ -1,0 +1,101 @@
+name: Deploy Sidecar Services
+# P3-401: Sidecar部署工作流
+
+on:
+  workflow_dispatch:
+    inputs:
+      sidecar:
+        description: 'Sidecar服务'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - rag
+          - trend
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      deploy_mode:
+        description: '部署模式'
+        required: true
+        default: 'docker'
+        type: choice
+        options:
+          - docker
+          - systemd
+
+jobs:
+  # ==================== 部署Sidecar服务 ====================
+  deploy-sidecar:
+    name: 部署Sidecar服务
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置SSH密钥
+      if: github.event.inputs.deploy_mode == 'systemd'
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    
+    - name: 部署Docker Sidecar
+      if: github.event.inputs.deploy_mode == 'docker'
+      run: |
+        # 拉取最新镜像
+        docker pull ${{ secrets.DOCKER_USERNAME }}/ai-stack-gateway:latest
+        if [ "${{ github.event.inputs.sidecar }}" = "all" ] || [ "${{ github.event.inputs.sidecar }}" = "rag" ]; then
+          docker pull ${{ secrets.DOCKER_USERNAME }}/ai-stack-rag-sidecar:latest
+        fi
+        if [ "${{ github.event.inputs.sidecar }}" = "all" ] || [ "${{ github.event.inputs.sidecar }}" = "trend" ]; then
+          docker pull ${{ secrets.DOCKER_USERNAME }}/ai-stack-trend-sidecar:latest
+        fi
+        
+        # 使用部署脚本
+        chmod +x scripts/deploy_sidecar.sh
+        ./scripts/deploy_sidecar.sh docker ${{ github.event.inputs.sidecar }} restart
+    
+    - name: 部署Systemd Sidecar
+      if: github.event.inputs.deploy_mode == 'systemd'
+      run: |
+        # 复制文件到服务器
+        scp -r deployments/systemd/* ${{ secrets.DEPLOY_HOST }}:/tmp/
+        scp scripts/deploy_sidecar.sh ${{ secrets.DEPLOY_HOST }}:/tmp/
+        
+        # 在服务器上执行部署
+        ssh ${{ secrets.DEPLOY_HOST }} << 'EOF'
+          chmod +x /tmp/deploy_sidecar.sh
+          sudo /tmp/deploy_sidecar.sh systemd ${{ github.event.inputs.sidecar }} install
+          sudo /tmp/deploy_sidecar.sh systemd ${{ github.event.inputs.sidecar }} start
+          sudo /tmp/deploy_sidecar.sh systemd ${{ github.event.inputs.sidecar }} enable
+        EOF
+    
+    - name: 验证部署
+      run: |
+        sleep 10
+        # 检查Gateway
+        curl -f http://localhost:9000/health || exit 1
+        
+        # 检查RAG Sidecar
+        if [ "${{ github.event.inputs.sidecar }}" = "all" ] || [ "${{ github.event.inputs.sidecar }}" = "rag" ]; then
+          curl -f http://localhost:8011/health || exit 1
+        fi
+        
+        # 检查Trend Sidecar
+        if [ "${{ github.event.inputs.sidecar }}" = "all" ] || [ "${{ github.event.inputs.sidecar }}" = "trend" ]; then
+          curl -f http://localhost:8014/health || exit 1
+        fi
+    
+    - name: 部署通知
+      if: always()
+      run: |
+        echo "部署完成: Sidecar=${{ github.event.inputs.sidecar }}, Environment=${{ github.event.inputs.environment }}, Mode=${{ github.event.inputs.deploy_mode }}"
+

@@ -14,11 +14,19 @@ Network Information Handler
 
 import logging
 import re
+import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 from urllib.parse import urlparse
 
-from rag_integration import get_rag_service
+try:
+    from .rag_integration import get_rag_service
+except ImportError:
+    current_dir = Path(__file__).parent
+    if str(current_dir) not in sys.path:
+        sys.path.insert(0, str(current_dir))
+    from rag_integration import get_rag_service
 
 logger = logging.getLogger(__name__)
 

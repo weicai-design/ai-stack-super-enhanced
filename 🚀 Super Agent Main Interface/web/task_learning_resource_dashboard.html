@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能任务/自我学习/资源管理 - AI Stack</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .tab-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .tab-btn.active:hover {
+            background: #5568d3;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .card-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: #666;
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .chart-container {
+            height: 400px;
+            margin-top: 20px;
+        }
+        
+        .task-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .task-item {
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+        
+        .task-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .task-name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .task-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-running { background: #dbeafe; color: #1e40af; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-failed { background: #fee2e2; color: #991b1b; }
+        .status-paused { background: #e5e7eb; color: #374151; }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+        
+        .hint-item {
+            padding: 15px;
+            border-left: 4px solid;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            background: #f9fafb;
+        }
+        
+        .hint-info { border-color: #3b82f6; }
+        .hint-warning { border-color: #f59e0b; }
+        .hint-error { border-color: #ef4444; }
+        .hint-success { border-color: #10b981; }
+        .hint-suggestion { border-color: #8b5cf6; }
+        
+        .hint-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .hint-message {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        .hint-action {
+            color: #667eea;
+            font-size: 13px;
+            font-style: italic;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        
+        .resource-bar {
+            margin-bottom: 15px;
+        }
+        
+        .resource-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .resource-progress {
+            width: 100%;
+            height: 20px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .resource-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .workflow-progress-container {
+            padding: 20px;
+        }
+        
+        .workflow-chain {
+            margin-bottom: 30px;
+        }
+        
+        .workflow-chain-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .workflow-steps {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        
+        .workflow-step {
+            flex: 1;
+            min-width: 120px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            text-align: center;
+            position: relative;
+            transition: all 0.3s;
+        }
+        
+        .workflow-step.active {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+        
+        .workflow-step.completed {
+            background: #d1fae5;
+            border-color: #10b981;
+        }
+        
+        .workflow-step.failed {
+            background: #fee2e2;
+            border-color: #ef4444;
+        }
+        
+        .workflow-step::after {
+            content: '→';
+            position: absolute;
+            right: -15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: 20px;
+        }
+        
+        .workflow-step:last-child::after {
+            display: none;
+        }
+        
+        .step-name {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .step-status {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .step-duration {
+            font-size: 11px;
+            color: #999;
+            margin-top: 3px;
+        }
+        
+        .workflow-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f9fafb;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        
+        .workflow-info-item {
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .workflow-info-item strong {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 智能任务 / 自我学习 / 资源管理</h1>
+            <p>三大系统统一管理控制台</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="tasks">📋 任务生命周期</button>
+            <button class="tab-btn" data-tab="workflow">🔄 工作流状态</button>
+            <button class="tab-btn" data-tab="learning">📊 学习曲线</button>
+            <button class="tab-btn" data-tab="resource">⚙️ 资源调度</button>
+        </div>
+        
+        <!-- 任务生命周期 -->
+        <div id="tasks" class="tab-content active">
+            <div class="grid">
+                <div class="card">
+                    <div class="card-header">📊 任务统计</div>
+                    <div id="task-stats">
+                        <div class="loading">加载中...</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">📈 任务状态分布</div>
+                    <div id="task-status-chart" class="chart-container"></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">📋 任务列表</div>
+                <div id="task-list" class="task-list">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 工作流状态 -->
+        <div id="workflow" class="tab-content">
+            <div class="grid">
+                <div class="card">
+                    <div class="card-header">📊 工作流统计</div>
+                    <div id="workflow-stats">
+                        <div class="loading">加载中...</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">📈 工作流类型分布</div>
+                    <div id="workflow-type-chart" class="chart-container"></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">🔄 智能线工作流进度</div>
+                <div id="intelligent-workflow-progress" class="workflow-progress-container">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">⚡ 直接操作线工作流进度</div>
+                <div id="direct-workflow-progress" class="workflow-progress-container">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">📋 活跃工作流列表</div>
+                <div id="workflow-list" class="task-list">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 学习曲线 -->
+        <div id="learning" class="tab-content">
+            <div class="grid">
+                <div class="card">
+                    <div class="card-header">📊 学习统计</div>
+                    <div id="learning-stats">
+                        <div class="loading">加载中...</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">📈 学习曲线</div>
+                    <div id="learning-curve-chart" class="chart-container"></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">📚 学习曲线列表</div>
+                <div id="curve-list">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 资源调度 -->
+        <div id="resource" class="tab-content">
+            <div class="grid">
+                <div class="card">
+                    <div class="card-header">💾 资源状态</div>
+                    <div id="resource-status">
+                        <div class="loading">加载中...</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">💡 交互提示</div>
+                    <div id="hints-list" style="max-height: 400px; overflow-y: auto;">
+                        <div class="loading">加载中...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">🎯 调度建议</div>
+                <div id="suggestions-list">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api/super-agent';
+        const API_KEY = localStorage.getItem('api_key') || 'default_key';
+        
+        // Tab切换
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(tab).classList.add('active');
+                
+                // 加载对应数据
+                if (tab === 'tasks') loadTasks();
+                else if (tab === 'workflow') loadWorkflows();
+                else if (tab === 'learning') loadLearning();
+                else if (tab === 'resource') loadResource();
+            });
+        });
+        
+        // 加载任务数据
+        async function loadTasks() {
+            try {
+                // 加载统计
+                const statsRes = await fetch(`${API_BASE}/task-lifecycle/statistics`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const stats = await statsRes.json();
+                renderTaskStats(stats.statistics);
+                
+                // 加载任务列表
+                const listRes = await fetch(`${API_BASE}/task-lifecycle/list?limit=20`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const list = await listRes.json();
+                renderTaskList(list.tasks);
+                
+                // 渲染状态分布图
+                renderTaskStatusChart(stats.statistics);
+            } catch (error) {
+                console.error('加载任务数据失败:', error);
+            }
+        }
+        
+        function renderTaskStats(stats) {
+            const html = `
+                <div class="stat-item">
+                    <span class="stat-label">总任务数</span>
+                    <span class="stat-value">${stats.total_tasks}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">已完成</span>
+                    <span class="stat-value">${stats.completed_count}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">执行中</span>
+                    <span class="stat-value">${stats.running_count}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">失败</span>
+                    <span class="stat-value">${stats.failed_count}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">平均耗时</span>
+                    <span class="stat-value">${stats.average_duration.toFixed(2)}秒</span>
+                </div>
+            `;
+            document.getElementById('task-stats').innerHTML = html;
+        }
+        
+        function renderTaskList(tasks) {
+            if (tasks.length === 0) {
+                document.getElementById('task-list').innerHTML = '<div class="loading">暂无任务</div>';
+                return;
+            }
+            
+            const html = tasks.map(task => {
+                const statusClass = `status-${task.status}`;
+                return `
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-name">${task.task_name}</div>
+                            <span class="task-status ${statusClass}">${task.status}</span>
+                        </div>
+                        <div style="font-size: 13px; color: #666; margin-bottom: 10px;">
+                            类型: ${task.task_type} | 优先级: ${task.priority}
+                        </div>
+                        ${task.status === 'running' ? `
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${task.progress}%"></div>
+                            </div>
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                进度: ${task.progress.toFixed(1)}% ${task.current_step ? `| 当前步骤: ${task.current_step}` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('task-list').innerHTML = html;
+        }
+        
+        function renderTaskStatusChart(stats) {
+            const chart = echarts.init(document.getElementById('task-status-chart'));
+            const data = Object.entries(stats.status_distribution).map(([status, count]) => ({
+                name: status,
+                value: count
+            }));
+            
+            chart.setOption({
+                tooltip: { trigger: 'item' },
+                series: [{
+                    type: 'pie',
+                    data: data,
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 10,
+                            shadowOffsetX: 0,
+                            shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        }
+                    }
+                }]
+            });
+        }
+        
+        // 加载工作流数据
+        async function loadWorkflows() {
+            try {
+                const statusRes = await fetch(`${API_BASE}/workflow/status`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const status = await statusRes.json();
+                
+                if (status.success) {
+                    renderWorkflowStats(status.data);
+                    renderIntelligentWorkflowProgress(status.data.intelligent_workflows || []);
+                    renderDirectWorkflowProgress(status.data.direct_workflows || []);
+                    renderWorkflowList(status.data.active_workflows || []);
+                    renderWorkflowTypeChart(status.data);
+                } else {
+                    console.error('加载工作流状态失败:', status.error);
+                }
+            } catch (error) {
+                console.error('加载工作流数据失败:', error);
+            }
+        }
+        
+        function renderWorkflowStats(data) {
+            const stats = data.statistics || {};
+            const html = `
+                <div class="stat-item">
+                    <span class="stat-label">总工作流数</span>
+                    <span class="stat-value">${stats.total_workflows || 0}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">智能线</span>
+                    <span class="stat-value">${stats.intelligent_count || 0}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">直接操作线</span>
+                    <span class="stat-value">${stats.direct_count || 0}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">活跃工作流</span>
+                    <span class="stat-value">${stats.active_count || 0}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">已完成</span>
+                    <span class="stat-value">${stats.completed_count || 0}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">平均耗时</span>
+                    <span class="stat-value">${(stats.avg_duration_seconds || 0).toFixed(2)}秒</span>
+                </div>
+            `;
+            document.getElementById('workflow-stats').innerHTML = html;
+        }
+        
+        function renderIntelligentWorkflowProgress(workflows) {
+            if (workflows.length === 0) {
+                document.getElementById('intelligent-workflow-progress').innerHTML = '<div class="loading">暂无智能线工作流</div>';
+                return;
+            }
+            
+            const html = workflows.map(workflow => {
+                const steps = [
+                    { name: '初始化', state: 'initialized', key: 'initialized' },
+                    { name: 'RAG检索1', state: 'rag_retrieval_1', key: 'rag_retrieval_1' },
+                    { name: '专家路由', state: 'expert_routing', key: 'expert_routing' },
+                    { name: '模块执行', state: 'module_execution', key: 'module_execution' },
+                    { name: 'RAG检索2', state: 'rag_retrieval_2', key: 'rag_retrieval_2' },
+                    { name: '响应生成', state: 'response_generation', key: 'response_generation' },
+                    { name: '完成', state: 'completed', key: 'completed' }
+                ];
+                
+                const currentState = workflow.state;
+                const stepStates = {};
+                let foundCurrent = false;
+                
+                steps.forEach(step => {
+                    if (step.key === currentState) {
+                        stepStates[step.key] = 'active';
+                        foundCurrent = true;
+                    } else if (!foundCurrent) {
+                        stepStates[step.key] = 'completed';
+                    } else {
+                        stepStates[step.key] = 'pending';
+                    }
+                });
+                
+                if (currentState === 'failed') {
+                    stepStates[currentState] = 'failed';
+                } else if (currentState === 'completed') {
+                    stepStates['completed'] = 'completed';
+                }
+                
+                const stepHtml = steps.map(step => {
+                    const stateClass = stepStates[step.key] || 'pending';
+                    const stepData = workflow.steps?.find(s => s.step_name === step.key);
+                    const duration = stepData?.duration ? `${(stepData.duration * 1000).toFixed(0)}ms` : '';
+                    
+                    return `
+                        <div class="workflow-step ${stateClass}">
+                            <div class="step-name">${step.name}</div>
+                            <div class="step-status">${stepData ? (stepData.error ? '失败' : '完成') : (stateClass === 'active' ? '进行中' : '等待')}</div>
+                            ${duration ? `<div class="step-duration">${duration}</div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+                
+                return `
+                    <div class="workflow-chain">
+                        <div class="workflow-chain-title">
+                            ${workflow.workflow_id} 
+                            <span style="font-size: 12px; color: #666; margin-left: 10px;">
+                                ${workflow.user_input ? workflow.user_input.substring(0, 50) : ''}
+                            </span>
+                        </div>
+                        <div class="workflow-steps">${stepHtml}</div>
+                        <div class="workflow-info">
+                            <div class="workflow-info-item">
+                                <strong>状态:</strong> ${workflow.state}
+                            </div>
+                            <div class="workflow-info-item">
+                                <strong>创建时间:</strong> ${new Date(workflow.created_at).toLocaleString()}
+                            </div>
+                            ${workflow.trace_id ? `
+                                <div class="workflow-info-item">
+                                    <strong>Trace ID:</strong> ${workflow.trace_id.substring(0, 8)}...
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('intelligent-workflow-progress').innerHTML = html;
+        }
+        
+        function renderDirectWorkflowProgress(workflows) {
+            if (workflows.length === 0) {
+                document.getElementById('direct-workflow-progress').innerHTML = '<div class="loading">暂无直接操作线工作流</div>';
+                return;
+            }
+            
+            const html = workflows.map(workflow => {
+                const steps = [
+                    { name: '初始化', state: 'initialized', key: 'initialized' },
+                    { name: '模块执行', state: 'module_execution', key: 'module_execution' },
+                    { name: '响应生成', state: 'response_generation', key: 'response_generation' },
+                    { name: '完成', state: 'completed', key: 'completed' }
+                ];
+                
+                const currentState = workflow.state;
+                const stepStates = {};
+                let foundCurrent = false;
+                
+                steps.forEach(step => {
+                    if (step.key === currentState) {
+                        stepStates[step.key] = 'active';
+                        foundCurrent = true;
+                    } else if (!foundCurrent) {
+                        stepStates[step.key] = 'completed';
+                    } else {
+                        stepStates[step.key] = 'pending';
+                    }
+                });
+                
+                if (currentState === 'failed') {
+                    stepStates[currentState] = 'failed';
+                } else if (currentState === 'completed') {
+                    stepStates['completed'] = 'completed';
+                }
+                
+                const stepHtml = steps.map(step => {
+                    const stateClass = stepStates[step.key] || 'pending';
+                    const stepData = workflow.steps?.find(s => s.step_name === step.key);
+                    const duration = stepData?.duration ? `${(stepData.duration * 1000).toFixed(0)}ms` : '';
+                    
+                    return `
+                        <div class="workflow-step ${stateClass}">
+                            <div class="step-name">${step.name}</div>
+                            <div class="step-status">${stepData ? (stepData.error ? '失败' : '完成') : (stateClass === 'active' ? '进行中' : '等待')}</div>
+                            ${duration ? `<div class="step-duration">${duration}</div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+                
+                return `
+                    <div class="workflow-chain">
+                        <div class="workflow-chain-title">
+                            ${workflow.workflow_id} 
+                            <span style="font-size: 12px; color: #666; margin-left: 10px;">
+                                目标模块: ${workflow.target_module || 'N/A'}
+                            </span>
+                        </div>
+                        <div class="workflow-steps">${stepHtml}</div>
+                        <div class="workflow-info">
+                            <div class="workflow-info-item">
+                                <strong>状态:</strong> ${workflow.state}
+                            </div>
+                            <div class="workflow-info-item">
+                                <strong>创建时间:</strong> ${new Date(workflow.created_at).toLocaleString()}
+                            </div>
+                            ${workflow.trace_id ? `
+                                <div class="workflow-info-item">
+                                    <strong>Trace ID:</strong> ${workflow.trace_id.substring(0, 8)}...
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('direct-workflow-progress').innerHTML = html;
+        }
+        
+        function renderWorkflowList(workflows) {
+            if (workflows.length === 0) {
+                document.getElementById('workflow-list').innerHTML = '<div class="loading">暂无活跃工作流</div>';
+                return;
+            }
+            
+            const html = workflows.map(workflow => {
+                const statusClass = `status-${workflow.state}`;
+                const progress = workflow.steps ? (workflow.steps.length / 7 * 100) : 0;
+                
+                return `
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-name">${workflow.workflow_id}</div>
+                            <span class="task-status ${statusClass}">${workflow.state}</span>
+                        </div>
+                        <div style="font-size: 13px; color: #666; margin-bottom: 10px;">
+                            类型: ${workflow.workflow_type} | 
+                            ${workflow.workflow_type === 'direct' ? `目标模块: ${workflow.target_module || 'N/A'}` : '智能线'}
+                        </div>
+                        ${workflow.state !== 'completed' && workflow.state !== 'failed' ? `
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                进度: ${progress.toFixed(1)}% | 步骤: ${workflow.steps?.length || 0}
+                            </div>
+                        ` : ''}
+                        ${workflow.total_duration ? `
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                总耗时: ${(workflow.total_duration * 1000).toFixed(0)}ms
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('workflow-list').innerHTML = html;
+        }
+        
+        function renderWorkflowTypeChart(data) {
+            const chart = echarts.init(document.getElementById('workflow-type-chart'));
+            const stats = data.statistics || {};
+            const typeStateCounts = data.type_state_counts || {};
+            
+            const intelligentData = typeStateCounts.intelligent || {};
+            const directData = typeStateCounts.direct || {};
+            
+            const series = [];
+            
+            // 智能线数据
+            if (Object.keys(intelligentData).length > 0) {
+                series.push({
+                    name: '智能线',
+                    type: 'bar',
+                    stack: 'workflow',
+                    data: [
+                        intelligentData.initialized || 0,
+                        intelligentData.rag_retrieval_1 || 0,
+                        intelligentData.expert_routing || 0,
+                        intelligentData.module_execution || 0,
+                        intelligentData.rag_retrieval_2 || 0,
+                        intelligentData.response_generation || 0,
+                        intelligentData.completed || 0,
+                        intelligentData.failed || 0
+                    ],
+                    itemStyle: { color: '#667eea' }
+                });
+            }
+            
+            // 直接操作线数据
+            if (Object.keys(directData).length > 0) {
+                series.push({
+                    name: '直接操作线',
+                    type: 'bar',
+                    stack: 'workflow',
+                    data: [
+                        directData.initialized || 0,
+                        0, 0, 0, 0, 0,  // 智能线专用步骤
+                        directData.module_execution || 0,
+                        directData.response_generation || 0,
+                        directData.completed || 0,
+                        directData.failed || 0
+                    ],
+                    itemStyle: { color: '#10b981' }
+                });
+            }
+            
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { data: ['智能线', '直接操作线'] },
+                xAxis: {
+                    type: 'category',
+                    data: ['初始化', 'RAG检索1', '专家路由', '模块执行', 'RAG检索2', '响应生成', '完成', '失败']
+                },
+                yAxis: { type: 'value' },
+                series: series.length > 0 ? series : [{
+                    name: '工作流',
+                    type: 'bar',
+                    data: [0]
+                }]
+            });
+        }
+        
+        // 加载学习数据
+        async function loadLearning() {
+            try {
+                const statsRes = await fetch(`${API_BASE}/learning-curve/statistics`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const stats = await statsRes.json();
+                renderLearningStats(stats.statistics);
+                
+                // 加载曲线列表
+                const curvesRes = await fetch(`${API_BASE}/learning-curve/list`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const curves = await curvesRes.json();
+                renderCurveList(curves.curves || []);
+            } catch (error) {
+                console.error('加载学习数据失败:', error);
+            }
+        }
+        
+        function renderLearningStats(stats) {
+            const html = `
+                <div class="stat-item">
+                    <span class="stat-label">总曲线数</span>
+                    <span class="stat-value">${stats.total_curves}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">总学习点</span>
+                    <span class="stat-value">${stats.total_points}</span>
+                </div>
+            `;
+            document.getElementById('learning-stats').innerHTML = html;
+        }
+        
+        function renderCurveList(curves) {
+            if (curves.length === 0) {
+                document.getElementById('curve-list').innerHTML = '<div class="loading">暂无学习曲线</div>';
+                return;
+            }
+            
+            const html = curves.map(curve => {
+                const latestPoint = curve.points[curve.points.length - 1];
+                return `
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-name">${curve.model_name} - ${curve.task_type}</div>
+                            <span class="stat-value">${latestPoint ? latestPoint.accuracy.toFixed(1) : 0}%</span>
+                        </div>
+                        <div style="font-size: 13px; color: #666;">
+                            学习点: ${curve.points.length} | 最后更新: ${new Date(curve.updated_at).toLocaleString()}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('curve-list').innerHTML = html;
+            
+            // 如果有曲线，显示第一个的图表
+            if (curves.length > 0) {
+                loadCurveChart(curves[0].curve_id);
+            }
+        }
+        
+        async function loadCurveChart(curveId) {
+            try {
+                const res = await fetch(`${API_BASE}/learning-curve/${curveId}/data`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const data = await res.json();
+                renderLearningCurveChart(data.data);
+            } catch (error) {
+                console.error('加载学习曲线图表失败:', error);
+            }
+        }
+        
+        function renderLearningCurveChart(data) {
+            const chart = echarts.init(document.getElementById('learning-curve-chart'));
+            
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { data: ['准确率'] },
+                xAxis: {
+                    type: 'category',
+                    data: data.epochs || data.timestamps.map((_, i) => `点${i+1}`)
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '准确率 (%)',
+                    max: 100
+                },
+                series: [{
+                    name: '准确率',
+                    type: 'line',
+                    data: data.accuracy,
+                    smooth: true,
+                    itemStyle: { color: '#667eea' }
+                }]
+            });
+        }
+        
+        // 加载资源数据
+        async function loadResource() {
+            try {
+                const statusRes = await fetch(`${API_BASE}/resource/status`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const status = await statusRes.json();
+                renderResourceStatus(status.status);
+                
+                const hintsRes = await fetch(`${API_BASE}/resource/hints?unacknowledged_only=true&limit=10`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const hints = await hintsRes.json();
+                renderHints(hints.hints || []);
+                
+                const suggestionsRes = await fetch(`${API_BASE}/resource/suggestions`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const suggestions = await suggestionsRes.json();
+                renderSuggestions(suggestions.suggestions || []);
+            } catch (error) {
+                console.error('加载资源数据失败:', error);
+            }
+        }
+        
+        function renderResourceStatus(status) {
+            const html = Object.entries(status.status).map(([type, info]) => {
+                const usage = (info.used / info.total) * 100;
+                return `
+                    <div class="resource-bar">
+                        <div class="resource-label">
+                            <span>${type.toUpperCase()}</span>
+                            <span>${usage.toFixed(1)}%</span>
+                        </div>
+                        <div class="resource-progress">
+                            <div class="resource-fill" style="width: ${usage}%">${info.used.toFixed(1)}% / ${info.total.toFixed(1)}%</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('resource-status').innerHTML = html;
+        }
+        
+        function renderHints(hints) {
+            if (hints.length === 0) {
+                document.getElementById('hints-list').innerHTML = '<div class="loading">暂无提示</div>';
+                return;
+            }
+            
+            const html = hints.map(hint => {
+                const typeClass = `hint-${hint.hint_type}`;
+                return `
+                    <div class="hint-item ${typeClass}">
+                        <div class="hint-title">${hint.title}</div>
+                        <div class="hint-message">${hint.message}</div>
+                        ${hint.action ? `<div class="hint-action">💡 ${hint.action}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('hints-list').innerHTML = html;
+        }
+        
+        function renderSuggestions(suggestions) {
+            if (suggestions.length === 0) {
+                document.getElementById('suggestions-list').innerHTML = '<div class="loading">暂无建议</div>';
+                return;
+            }
+            
+            const html = suggestions.map(s => `
+                <div class="task-item">
+                    <div class="task-header">
+                        <div class="task-name">${s.message}</div>
+                        <span class="task-status ${s.priority === 'high' ? 'status-failed' : 'status-pending'}">${s.priority}</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            document.getElementById('suggestions-list').innerHTML = html;
+        }
+        
+        // 初始化
+        loadTasks();
+        
+        // 自动刷新
+        setInterval(() => {
+            const activeTab = document.querySelector('.tab-content.active').id;
+            if (activeTab === 'tasks') loadTasks();
+            else if (activeTab === 'workflow') loadWorkflows();
+            else if (activeTab === 'learning') loadLearning();
+            else if (activeTab === 'resource') loadResource();
+        }, 5000);
+    </script>
+</body>
+</html>
+

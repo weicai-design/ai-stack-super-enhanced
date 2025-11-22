@@ -20,10 +20,18 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from api.super_agent_api import router as super_agent_router, observability_system
+from api.super_agent_api import (
+    router as super_agent_router,
+    observability_system,
+    audit_pipeline,
+    risk_engine,
+    permission_guard,
+    crawler_compliance_service,
+)
 from core.observability_middleware import ObservabilityMiddleware
 from core.security.middleware import SecurityMiddleware
 from core.security.audit import get_audit_logger
+from core.tenant_middleware import TenantContextMiddleware
 
 # 配置日志
 logging.basicConfig(
@@ -60,7 +68,18 @@ app = FastAPI(
 # 安全审计中间件应最先执行
 app.add_middleware(
     SecurityMiddleware,
-    audit_logger=get_audit_logger()
+    audit_logger=get_audit_logger(),
+    audit_pipeline=audit_pipeline,
+    risk_engine=risk_engine,
+    permission_guard=permission_guard,
+    crawler_compliance=crawler_compliance_service,
+)
+
+# 多租户上下文中间件
+app.add_middleware(
+    TenantContextMiddleware,
+    header_name="X-Tenant-ID",
+    default_tenant="global",
 )
 
 # P0-018: 添加可观测性中间件（必须在CORS之前）

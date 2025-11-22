@@ -1,0 +1,43 @@
+[Unit]
+Description=AI Stack Trend Analysis Sidecar Service
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ai-stack
+Group=ai-stack
+WorkingDirectory=/opt/ai-stack/trend
+Environment="PATH=/opt/ai-stack/trend/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="PORT=8014"
+Environment="HOST=0.0.0.0"
+
+# 启动命令
+ExecStart=/opt/ai-stack/trend/venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8014 --workers 2
+
+# 重启策略
+Restart=always
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# 资源限制
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/ai-stack/trend/data /opt/ai-stack/trend/logs
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-stack-trend
+
+[Install]
+WantedBy=multi-user.target
+

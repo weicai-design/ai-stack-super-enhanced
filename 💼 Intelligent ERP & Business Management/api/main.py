@@ -28,6 +28,12 @@ from api.trial_balance_api import router as trial_balance_router
 from api.integration_api import router as integration_router
 from api.data_listener_api import router as data_listener_router, data_listener
 
+# 导入ERP监听器
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from erp_listener import get_erp_listener
+
 # 导入数据库
 from core.database import init_db, engine
 from core.database_models import Base
@@ -46,9 +52,18 @@ async def lifespan(app: FastAPI):
     await data_listener.start_listening()
     print("✅ ERP数据监听系统已启动")
     
+    # 启动ERP监听器（4.3: Webhook/轮询）
+    print("🔔 正在启动ERP监听器（Webhook/轮询）...")
+    erp_listener = get_erp_listener()
+    await erp_listener.start()
+    print("✅ ERP监听器已启动")
+    
     yield
     
     # 关闭时的清理工作
+    print("🔔 正在停止ERP监听器...")
+    erp_listener = get_erp_listener()
+    await erp_listener.stop()
     print("🔔 正在停止ERP数据监听系统...")
     await data_listener.stop_listening()
     print("👋 关闭应用")

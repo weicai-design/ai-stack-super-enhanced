@@ -1,0 +1,26 @@
+{
+  "allowed_agents": [
+    "Googlebot",
+    "Bingbot",
+    "Bytespider",
+    "Slackbot"
+  ],
+  "blocked_agents": [
+    "sqlmap",
+    "nikto",
+    "dirbuster",
+    "acunetix"
+  ],
+  "allowed_paths": [
+    "/docs",
+    "/robots.txt",
+    "/sitemaps"
+  ],
+  "blocked_paths": [
+    "/admin",
+    "/security",
+    "/api/secure"
+  ],
+  "rate_limit_per_minute": 60
+}
+

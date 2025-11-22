@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>趋势分析 - 列表</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn.active {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .report-item {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .report-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+        
+        .item-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .item-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+            color: #666;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-info { background: #dbeafe; color: #1e40af; }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 趋势分析</h1>
+            <p>趋势报告与指标分析</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="reports">📊 报告</button>
+            <button class="tab-btn" data-tab="indicators">📈 指标</button>
+            <button class="tab-btn" data-tab="analysis">🔬 分析任务</button>
+        </div>
+        
+        <div class="toolbar">
+            <button class="btn btn-primary" onclick="window.location.href='level3.html?action=create'">➕ 创建报告</button>
+            <button class="btn btn-primary" onclick="startAnalysis()">🚀 启动分析</button>
+            <button class="btn btn-primary" onclick="loadCurrentTab()">🔄 刷新</button>
+        </div>
+        
+        <div id="reports" class="tab-content active">
+            <div id="reportsList" class="loading">加载中...</div>
+        </div>
+        
+        <div id="indicators" class="tab-content">
+            <div id="indicatorsList" class="loading">加载中...</div>
+        </div>
+        
+        <div id="analysis" class="tab-content">
+            <div id="analysisList" class="loading">加载中...</div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api/super-agent';
+        const API_KEY = localStorage.getItem('api_key') || 'default_key';
+        
+        // Tab切换
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(tab).classList.add('active');
+                loadCurrentTab();
+            });
+        });
+        
+        function getCurrentTab() {
+            return document.querySelector('.tab-btn.active').dataset.tab;
+        }
+        
+        async function loadCurrentTab() {
+            const tab = getCurrentTab();
+            if (tab === 'reports') await loadReports();
+            else if (tab === 'indicators') await loadIndicators();
+            else if (tab === 'analysis') await loadAnalysis();
+        }
+        
+        async function loadReports() {
+            try {
+                const res = await fetch(`${API_BASE}/trend/reports?limit=50`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const data = await res.json();
+                renderReports(data.reports || []);
+            } catch (error) {
+                console.error('加载报告失败:', error);
+                document.getElementById('reportsList').innerHTML = '<div class="empty">加载失败</div>';
+            }
+        }
+        
+        function renderReports(reports) {
+            if (reports.length === 0) {
+                document.getElementById('reportsList').innerHTML = '<div class="empty">暂无报告</div>';
+                return;
+            }
+            
+            const html = reports.map(report => {
+                const statusClass = {
+                    'completed': 'badge-success',
+                    'processing': 'badge-warning',
+                    'failed': 'badge-danger'
+                }[report.status] || 'badge-info';
+                
+                return `
+                    <div class="report-item" onclick="viewReport('${report.report_id}')">
+                        <div class="item-header">
+                            <div>
+                                <div class="item-title">${report.title || report.report_id}</div>
+                                <div class="item-meta">
+                                    <span>指标: ${report.indicator || 'N/A'}</span>
+                                    <span>创建: ${new Date(report.created_at).toLocaleString()}</span>
+                                    <span>数据点: ${report.data_points || 0}</span>
+                                </div>
+                            </div>
+                            <span class="badge ${statusClass}">${report.status || 'processing'}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('reportsList').innerHTML = html;
+        }
+        
+        async function loadIndicators() {
+            try {
+                const res = await fetch(`${API_BASE}/trend/indicators?limit=50`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const data = await res.json();
+                renderIndicators(data.indicators || []);
+            } catch (error) {
+                console.error('加载指标失败:', error);
+                document.getElementById('indicatorsList').innerHTML = '<div class="empty">加载失败</div>';
+            }
+        }
+        
+        function renderIndicators(indicators) {
+            if (indicators.length === 0) {
+                document.getElementById('indicatorsList').innerHTML = '<div class="empty">暂无指标</div>';
+                return;
+            }
+            
+            const html = indicators.map(indicator => `
+                <div class="report-item" onclick="viewIndicator('${indicator.indicator_id}')">
+                    <div class="item-header">
+                        <div>
+                            <div class="item-title">${indicator.name || indicator.indicator_id}</div>
+                            <div class="item-meta">
+                                <span>类型: ${indicator.type || 'N/A'}</span>
+                                <span>数据源: ${indicator.data_source || 'N/A'}</span>
+                                <span>最后更新: ${indicator.last_update ? new Date(indicator.last_update).toLocaleString() : 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            document.getElementById('indicatorsList').innerHTML = html;
+        }
+        
+        async function loadAnalysis() {
+            try {
+                const res = await fetch(`${API_BASE}/trend/analysis/tasks?limit=50`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const data = await res.json();
+                renderAnalysis(data.tasks || []);
+            } catch (error) {
+                console.error('加载分析任务失败:', error);
+                document.getElementById('analysisList').innerHTML = '<div class="empty">加载失败</div>';
+            }
+        }
+        
+        function renderAnalysis(tasks) {
+            if (tasks.length === 0) {
+                document.getElementById('analysisList').innerHTML = '<div class="empty">暂无分析任务</div>';
+                return;
+            }
+            
+            const html = tasks.map(task => {
+                const statusClass = {
+                    'running': 'badge-warning',
+                    'completed': 'badge-success',
+                    'failed': 'badge-danger'
+                }[task.status] || 'badge-info';
+                
+                return `
+                    <div class="report-item" onclick="viewAnalysis('${task.task_id}')">
+                        <div class="item-header">
+                            <div>
+                                <div class="item-title">${task.name || task.task_id}</div>
+                                <div class="item-meta">
+                                    <span>类型: ${task.task_type || 'N/A'}</span>
+                                    <span>进度: ${task.progress || 0}%</span>
+                                    <span>创建: ${new Date(task.created_at).toLocaleString()}</span>
+                                </div>
+                            </div>
+                            <span class="badge ${statusClass}">${task.status || 'pending'}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('analysisList').innerHTML = html;
+        }
+        
+        function viewReport(id) {
+            window.location.href = `level3.html?report_id=${id}`;
+        }
+        
+        function viewIndicator(id) {
+            window.location.href = `level3.html?indicator_id=${id}`;
+        }
+        
+        function viewAnalysis(id) {
+            window.location.href = `level3.html?task_id=${id}`;
+        }
+        
+        async function startAnalysis() {
+            const indicator = prompt('请输入要分析的指标:');
+            if (!indicator) return;
+            
+            try {
+                const res = await fetch(`${API_BASE}/trend/analysis/start`, {
+                    method: 'POST',
+                    headers: {
+                        'X-API-Key': API_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ indicator })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('分析任务已启动');
+                    loadAnalysis();
+                } else {
+                    alert('启动失败');
+                }
+            } catch (error) {
+                console.error('启动分析失败:', error);
+                alert('启动失败');
+            }
+        }
+        
+        // 初始化
+        loadReports();
+    </script>
+</body>
+</html>
+

@@ -9,10 +9,19 @@ Knowledge Enhancer
 """
 
 import logging
+import sys
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from rag_integration import get_rag_service
-from enhanced_rag_retrieval import get_rag_retrieval_orchestrator
+try:
+    from .rag_integration import get_rag_service
+    from .enhanced_rag_retrieval import get_rag_retrieval_orchestrator
+except ImportError:
+    current_dir = Path(__file__).parent
+    if str(current_dir) not in sys.path:
+        sys.path.insert(0, str(current_dir))
+    from rag_integration import get_rag_service
+    from enhanced_rag_retrieval import get_rag_retrieval_orchestrator
 
 logger = logging.getLogger(__name__)
 

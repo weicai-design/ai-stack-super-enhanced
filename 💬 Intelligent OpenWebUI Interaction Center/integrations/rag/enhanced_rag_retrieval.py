@@ -17,10 +17,18 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 # 添加路径以导入查询增强模块
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "📚 Enhanced RAG & Knowledge Graph"))
 
-from rag_integration import get_rag_service
+try:
+    from .rag_integration import get_rag_service
+except ImportError:
+    current_dir = Path(__file__).parent
+    if str(current_dir) not in sys.path:
+        sys.path.insert(0, str(current_dir))
+    from rag_integration import get_rag_service
 
 # 尝试导入查询增强模块
 try:
@@ -36,8 +44,6 @@ except ImportError:
         QUERY_ENHANCEMENT_AVAILABLE = False
         QueryEnhancer = None
         logger.warning("查询增强模块不可用，将使用基础检索")
-
-logger = logging.getLogger(__name__)
 
 
 class EnhancedRAGRetrieval:

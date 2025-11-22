@@ -85,6 +85,50 @@ window.ROUTE_MAP = {
     "knowledge": {
         label: "知识沉淀中心",
         path: "knowledge_center.html"
+    },
+    "three-level": {
+        label: "模块三级界面",
+        path: "three_level.html"
+    },
+    "task-learning-resource": {
+        label: "任务/学习/资源",
+        path: "task_learning_resource_dashboard.html"
+    },
+    "tenant-self-service": {
+        label: "租户自助管理",
+        path: "tenant_self_service.html"
+    },
+    "rag-level2": {
+        label: "RAG知识库列表",
+        path: "modules/rag/level2.html"
+    },
+    "rag-level3": {
+        label: "RAG知识库详情",
+        path: "modules/rag/level3.html"
+    },
+    "erp-level2": {
+        label: "ERP管理列表",
+        path: "modules/erp/level2.html"
+    },
+    "erp-level3": {
+        label: "ERP管理详情",
+        path: "modules/erp/level3.html"
+    },
+    "content-level2": {
+        label: "内容创作列表",
+        path: "modules/content/level2.html"
+    },
+    "content-level3": {
+        label: "内容创作详情",
+        path: "modules/content/level3.html"
+    },
+    "trend-level2": {
+        label: "趋势分析列表",
+        path: "modules/trend/level2.html"
+    },
+    "trend-level3": {
+        label: "趋势分析详情",
+        path: "modules/trend/level3.html"
     }
 };
 

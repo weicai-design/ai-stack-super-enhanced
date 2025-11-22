@@ -4,10 +4,17 @@
 """
 from __future__ import annotations
 
+import logging
 import os
 import random
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+from .integrations.api_monitor import APIMonitor
+from .integrations.ths_client import THSQuoteClient
+from .integrations.tushare_client import TushareClient
+
+logger = logging.getLogger(__name__)
 
 
 class BaseStockSource:
@@ -67,14 +74,12 @@ class MockSource(BaseStockSource):
 
 class THSSource(BaseStockSource):
     name = "ths"
-    label = "同花顺极速行情"
+    label = "同花顺极速行情（模拟）"
     vendor = "THS"
-    env_required = ["THS_APP_KEY", "THS_APP_SECRET"]
-    env_optional = ["THS_SIM_ACCOUNT", "THS_SIM_PASSWORD"]
+    env_required = []
     latency_ms = 380
 
     async def quote(self, symbol: str, market: str = "A") -> Dict[str, Any]:
-        # 真实实现应调用同花顺接口；此处模拟带环境数据的结果
         base = 20 + (hash(symbol) % 50) / 3
         jitter = random.uniform(-0.5, 0.5)
         price = round(base + jitter, 2)
@@ -85,29 +90,68 @@ class THSSource(BaseStockSource):
             "bid": round(price - 0.03, 2),
             "ask": round(price + 0.03, 2),
             "ts": datetime.now().isoformat(),
-            "vendor": self.vendor
+            "vendor": self.vendor,
+            "mode": "simulated",
+        }
+
+
+class THSRealSource(BaseStockSource):
+    name = "ths_real"
+    label = "同花顺极速行情（真实）"
+    vendor = "THS"
+    env_required = ["THS_APP_KEY", "THS_APP_SECRET"]
+    latency_ms = 420
+
+    def __init__(self, api_monitor: Optional[APIMonitor] = None):
+        self.api_monitor = api_monitor or APIMonitor()
+        self.client = THSQuoteClient(api_monitor=self.api_monitor)
+        super().__init__()
+        self.ready = self.client.is_configured()
+
+    async def quote(self, symbol: str, market: str = "A") -> Dict[str, Any]:
+        result = await self.client.quote(symbol, market)
+        if not result.success:
+            raise RuntimeError(result.error or "THS实时行情失败")
+        return {
+            "symbol": result.symbol,
+            "market": market,
+            "price": result.price,
+            "bid": result.bid,
+            "ask": result.ask,
+            "vendor": result.vendor,
+            "ts": datetime.now().isoformat(),
+            "mode": "real",
+            "raw": result.raw,
         }
 
 
 class TushareSource(BaseStockSource):
     name = "tushare"
-    label = "Tushare 数据云"
+    label = "Tushare 数据云（真实）"
     vendor = "Tushare"
     env_required = ["TUSHARE_TOKEN"]
     latency_ms = 520
 
+    def __init__(self, api_monitor: Optional[APIMonitor] = None):
+        self.api_monitor = api_monitor or APIMonitor()
+        self.client = TushareClient(api_monitor=self.api_monitor)
+        super().__init__()
+        self.ready = self.client.is_configured()
+
     async def quote(self, symbol: str, market: str = "A") -> Dict[str, Any]:
-        base = 15 + (hash(symbol + "ts") % 70) / 4
-        drift = random.uniform(-0.6, 0.6)
-        price = round(base + drift, 2)
+        result = await self.client.quote(symbol)
+        if not result.get("success"):
+            raise RuntimeError(result.get("error", "Tushare行情失败"))
         return {
             "symbol": symbol,
             "market": market,
-            "price": price,
-            "bid": round(price - 0.05, 2),
-            "ask": round(price + 0.05, 2),
-            "ts": datetime.now().isoformat(),
-            "vendor": self.vendor
+            "price": result.get("close"),
+            "bid": result.get("low"),
+            "ask": result.get("high"),
+            "ts": result.get("trade_date"),
+            "vendor": self.vendor,
+            "mode": "real",
+            "raw": result.get("raw"),
         }
 
 
@@ -134,11 +178,13 @@ class AlphaVantageSource(BaseStockSource):
 
 
 class StockGateway:
-    def __init__(self):
+    def __init__(self, api_monitor: Optional[APIMonitor] = None):
         self.sources: Dict[str, BaseStockSource] = {}
+        self.api_monitor = api_monitor or APIMonitor()
         self.register_source(MockSource())
         self.register_source(THSSource())
-        self.register_source(TushareSource())
+        self.register_source(THSRealSource(api_monitor=self.api_monitor))
+        self.register_source(TushareSource(api_monitor=self.api_monitor))
         self.register_source(AlphaVantageSource())
         ready_sources = [key for key, src in self.sources.items() if src.ready]
         self.active_source: str = ready_sources[0] if ready_sources else "mock"

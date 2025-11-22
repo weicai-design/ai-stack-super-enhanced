@@ -9,12 +9,22 @@ Chat Message Handler
 """
 
 import logging
+import sys
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from rag_integration import get_rag_service
-from network_info_handler import get_network_info_handler
+try:
+    from .rag_integration import get_rag_service
+    from .network_info_handler import get_network_info_handler
+except ImportError:
+    # 允许直接执行模块或位于非标准包名目录
+    current_dir = Path(__file__).parent
+    if str(current_dir) not in sys.path:
+        sys.path.insert(0, str(current_dir))
+    from rag_integration import get_rag_service
+    from network_info_handler import get_network_info_handler
 
 logger = logging.getLogger(__name__)
 

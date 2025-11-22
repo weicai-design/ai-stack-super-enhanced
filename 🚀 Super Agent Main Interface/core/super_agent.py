@@ -14,6 +14,14 @@ from .learning_events import LearningEventBus
 from .task_orchestrator import TaskOrchestrator
 from .closure_recorder import ClosureRecorder
 from .context_compressor import ContextCompressor
+from .unified_event_bus import UnifiedEventBus, get_unified_event_bus
+from .closed_loop_engine import ClosedLoopEngine
+from .execution_checker import ExecutionChecker
+from .feedback_handler import FeedbackHandler
+from .evidence_recorder import EvidenceRecorder
+from .dual_rag_engine import DualRAGEngine
+from .enhanced_expert_router import EnhancedExpertRouter
+from .enhanced_workflow_monitor import EnhancedWorkflowMonitor, WorkflowStepType
 
 class SuperAgent:
     """
@@ -44,6 +52,24 @@ class SuperAgent:
         self.closure_recorder = ClosureRecorder()
         self.closure_recorder.attach_to_event_bus(self.event_bus)
         self.task_orchestrator: Optional[TaskOrchestrator] = None
+        
+        # P0-001: 闭环系统组件
+        self.unified_event_bus = get_unified_event_bus()
+        self.execution_checker = ExecutionChecker(self.unified_event_bus)
+        self.feedback_handler = FeedbackHandler(self.unified_event_bus)
+        self.evidence_recorder = EvidenceRecorder(self.unified_event_bus)
+        self.closed_loop_engine = ClosedLoopEngine(
+            event_bus=self.unified_event_bus,
+            execution_checker=self.execution_checker,
+            feedback_handler=self.feedback_handler,
+            evidence_recorder=self.evidence_recorder,
+            closure_recorder=self.closure_recorder,
+        )
+        
+        # P0-002: 双RAG检索和增强专家路由
+        self.dual_rag_engine = DualRAGEngine(rag_service=None, cache_enabled=True)
+        self.enhanced_expert_router = EnhancedExpertRouter()
+        self.enhanced_workflow_monitor = EnhancedWorkflowMonitor()
         
         # 自动初始化依赖
         self._initialize_dependencies()
@@ -120,6 +146,11 @@ class SuperAgent:
             workflow_id = await self.workflow_monitor.start_workflow(user_input, context)
             await self.workflow_monitor.record_step("user_input", "user_input", success=True, data={"input": user_input})
         
+        # P0-002: 增强工作流监控
+        enhanced_workflow_id = None
+        if self.enhanced_workflow_monitor:
+            enhanced_workflow_id = await self.enhanced_workflow_monitor.start_workflow(user_input, context)
+        
         # 检查缓存（简单查询可以缓存）
         cache_key = f"{user_input}:{input_type}"
         if cache_key in self.response_cache:
@@ -151,9 +182,36 @@ class SuperAgent:
             # 步骤3: 第1次RAG检索（理解需求 + 检索相关知识）⭐并行
             if self.workflow_monitor:
                 await self.workflow_monitor.record_step("rag_retrieval_1", "rag_retrieval")
-            rag_result_1 = await self._first_rag_retrieval(user_input, context)
+            
+            # P0-002: 使用双RAG引擎进行第1次检索
+            if self.dual_rag_engine:
+                rag1_result = await self.dual_rag_engine.first_rag_retrieval(
+                    user_input=user_input,
+                    context=context,
+                    top_k=3,
+                    timeout=2.0,
+                )
+                rag_result_1 = rag1_result.to_dict() if hasattr(rag1_result, 'to_dict') else {
+                    "knowledge": rag1_result.knowledge_items if hasattr(rag1_result, 'knowledge_items') else [],
+                    "understanding": rag1_result.understanding if hasattr(rag1_result, 'understanding') else {},
+                    "query": user_input,
+                }
+                
+                # P0-002: 记录到增强工作流监控
+                if self.enhanced_workflow_monitor:
+                    await self.enhanced_workflow_monitor.record_step(
+                        step_name="rag_retrieval_1",
+                        step_type=WorkflowStepType.RAG_RETRIEVAL_1,
+                        data=rag_result_1,
+                    )
+            else:
+                rag_result_1 = await self._first_rag_retrieval(user_input, context)
+            
             if self.workflow_monitor:
                 await self.workflow_monitor.complete_step("rag_retrieval_1", success=True, result=rag_result_1)
+            
+            if self.enhanced_workflow_monitor:
+                await self.enhanced_workflow_monitor.complete_step("rag_retrieval_1", success=True, result=rag_result_1)
             
             if external_search_context:
                 self._augment_rag_with_search(rag_result_1, external_search_context)
@@ -161,9 +219,37 @@ class SuperAgent:
             # 步骤4: 路由到对应专家
             if self.workflow_monitor:
                 await self.workflow_monitor.record_step("expert_routing", "expert_routing")
-            expert = await self._route_to_expert(user_input, rag_result_1)
+            
+            # P0-002: 使用增强专家路由
+            if self.enhanced_expert_router:
+                expert_result = await self.enhanced_expert_router.route(
+                    user_input=user_input,
+                    rag_result=rag_result_1,
+                    timeout=0.5,
+                )
+                expert = expert_result.to_dict() if hasattr(expert_result, 'to_dict') else {
+                    "expert": expert_result.expert if hasattr(expert_result, 'expert') else "default",
+                    "domain": expert_result.domain if hasattr(expert_result, 'domain') else "general",
+                    "module": expert_result.module if hasattr(expert_result, 'module') else "rag",
+                    "confidence": expert_result.confidence if hasattr(expert_result, 'confidence') else 0.7,
+                    "intent": expert_result.intent if hasattr(expert_result, 'intent') else {},
+                }
+                
+                # P0-002: 记录到增强工作流监控
+                if self.enhanced_workflow_monitor:
+                    await self.enhanced_workflow_monitor.record_step(
+                        step_name="expert_routing",
+                        step_type=WorkflowStepType.EXPERT_ROUTING,
+                        data=expert,
+                    )
+            else:
+                expert = await self._route_to_expert(user_input, rag_result_1)
+            
             if self.workflow_monitor:
                 await self.workflow_monitor.complete_step("expert_routing", success=True, result=expert)
+            
+            if self.enhanced_workflow_monitor:
+                await self.enhanced_workflow_monitor.complete_step("expert_routing", success=True, result=expert)
             
             # 步骤5: 专家分析并调用模块功能执行
             if self.workflow_monitor:
@@ -178,20 +264,73 @@ class SuperAgent:
             # 步骤7: 专家接收结果，第2次RAG检索（整合经验知识）⭐优化版（缓存+超时）
             if self.workflow_monitor:
                 await self.workflow_monitor.record_step("rag_retrieval_2", "rag_retrieval")
-            rag_result_2 = await self._second_rag_retrieval(
-                user_input, execution_result, rag_result_1
-            )
+            
+            # P0-002: 使用双RAG引擎进行第2次检索
+            if self.dual_rag_engine:
+                rag1_result_obj = None
+                if hasattr(rag_result_1, 'knowledge_items'):
+                    rag1_result_obj = rag_result_1
+                elif isinstance(rag_result_1, dict):
+                    # 转换为RAGRetrievalResult对象（简化处理）
+                    from .dual_rag_engine import RAGRetrievalResult
+                    rag1_result_obj = RAGRetrievalResult(
+                        retrieval_id=f"rag1_{uuid4()}",
+                        query=user_input,
+                        knowledge_items=rag_result_1.get("knowledge", []),
+                        understanding=rag_result_1.get("understanding", {}),
+                        retrieval_time=0.0,
+                    )
+                
+                rag2_result = await self.dual_rag_engine.second_rag_retrieval(
+                    user_input=user_input,
+                    execution_result=execution_result,
+                    rag1_result=rag1_result_obj,
+                    top_k=3,
+                    timeout=1.0,
+                )
+                rag_result_2 = rag2_result.to_dict() if hasattr(rag2_result, 'to_dict') else {
+                    "experience": rag2_result.knowledge_items if hasattr(rag2_result, 'knowledge_items') else [],
+                    "understanding": rag2_result.understanding if hasattr(rag2_result, 'understanding') else {},
+                }
+                
+                # P0-002: 记录到增强工作流监控
+                if self.enhanced_workflow_monitor:
+                    await self.enhanced_workflow_monitor.record_step(
+                        step_name="rag_retrieval_2",
+                        step_type=WorkflowStepType.RAG_RETRIEVAL_2,
+                        data=rag_result_2,
+                    )
+            else:
+                rag_result_2 = await self._second_rag_retrieval(
+                    user_input, execution_result, rag_result_1
+                )
+            
             if self.workflow_monitor:
                 await self.workflow_monitor.complete_step("rag_retrieval_2", success=True, result=rag_result_2)
+            
+            if self.enhanced_workflow_monitor:
+                await self.enhanced_workflow_monitor.complete_step("rag_retrieval_2", success=True, result=rag_result_2)
             
             # 步骤8: 专家综合生成最终回复
             if self.workflow_monitor:
                 await self.workflow_monitor.record_step("response_generation", "response_generation")
+            
+            # P0-002: 记录到增强工作流监控
+            if self.enhanced_workflow_monitor:
+                await self.enhanced_workflow_monitor.record_step(
+                    step_name="response_generation",
+                    step_type=WorkflowStepType.RESPONSE_GENERATION,
+                )
+            
             final_response = await self._generate_final_response(
                 expert, execution_result, rag_result_2, external_search_context, slo_context
             )
+            
             if self.workflow_monitor:
                 await self.workflow_monitor.complete_step("response_generation", success=True, result=final_response)
+            
+            if self.enhanced_workflow_monitor:
+                await self.enhanced_workflow_monitor.complete_step("response_generation", success=True, result=final_response)
             
             # 步骤2完成：处理备忘录（异步执行，不阻塞主流程）⭐增强版
             memo_created = False
@@ -225,6 +364,10 @@ class SuperAgent:
             # 完成工作流监控
             if self.workflow_monitor and workflow_id:
                 workflow_result = await self.workflow_monitor.complete_workflow(final_response, response_time)
+            
+            # P0-002: 完成增强工作流监控
+            if self.enhanced_workflow_monitor and enhanced_workflow_id:
+                enhanced_workflow_result = await self.enhanced_workflow_monitor.complete_workflow(final_response, response_time)
             
             # 并行：自我学习监控
             if self.learning_monitor:

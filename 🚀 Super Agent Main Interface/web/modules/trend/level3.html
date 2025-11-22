@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>趋势分析 - 详情/执行</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: white;
+            color: #3b82f6;
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .chart-container {
+            height: 400px;
+            margin-top: 20px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .info-item {
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+        
+        .info-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="itemTitle">🔍 趋势详情</h1>
+            <p id="itemSubtitle">查看和执行分析</p>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="window.location.href='level2.html'">← 返回列表</button>
+                <button class="btn btn-secondary" onclick="executeAnalysis()">🚀 执行分析</button>
+                <button class="btn btn-secondary" onclick="exportReport()">📥 导出报告</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">详细信息</div>
+            <div class="info-grid" id="itemInfo">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">趋势图表</div>
+            <div class="chart-container" id="trendChart"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api/super-agent';
+        const API_KEY = localStorage.getItem('api_key') || 'default_key';
+        const urlParams = new URLSearchParams(window.location.search);
+        const reportId = urlParams.get('report_id');
+        const indicatorId = urlParams.get('indicator_id');
+        const taskId = urlParams.get('task_id');
+        const action = urlParams.get('action');
+        
+        async function loadItem() {
+            if (action === 'create') {
+                document.getElementById('itemTitle').textContent = '🔍 创建新报告';
+                document.getElementById('itemInfo').innerHTML = '<div class="loading">创建表单开发中...</div>';
+                return;
+            }
+            
+            let item = null;
+            if (reportId) {
+                item = await loadReport(reportId);
+            } else if (indicatorId) {
+                item = await loadIndicator(indicatorId);
+            } else if (taskId) {
+                item = await loadTask(taskId);
+            } else {
+                document.getElementById('itemInfo').innerHTML = '<div class="loading">请选择项目</div>';
+                return;
+            }
+            
+            if (item) {
+                renderItemInfo(item);
+                if (item.data) {
+                    renderChart(item.data);
+                }
+            }
+        }
+        
+        async function loadReport(id) {
+            try {
+                const res = await fetch(`${API_BASE}/trend/reports/${id}`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const report = await res.json();
+                document.getElementById('itemTitle').textContent = report.title || id;
+                document.getElementById('itemSubtitle').textContent = `报告 ID: ${id}`;
+                return report;
+            } catch (error) {
+                console.error('加载报告失败:', error);
+                return null;
+            }
+        }
+        
+        async function loadIndicator(id) {
+            try {
+                const res = await fetch(`${API_BASE}/trend/indicators/${id}`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const indicator = await res.json();
+                document.getElementById('itemTitle').textContent = indicator.name || id;
+                document.getElementById('itemSubtitle').textContent = `指标 ID: ${id}`;
+                return indicator;
+            } catch (error) {
+                console.error('加载指标失败:', error);
+                return null;
+            }
+        }
+        
+        async function loadTask(id) {
+            try {
+                const res = await fetch(`${API_BASE}/trend/analysis/tasks/${id}`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const task = await res.json();
+                document.getElementById('itemTitle').textContent = task.name || id;
+                document.getElementById('itemSubtitle').textContent = `任务 ID: ${id}`;
+                return task;
+            } catch (error) {
+                console.error('加载任务失败:', error);
+                return null;
+            }
+        }
+        
+        function renderItemInfo(item) {
+            const html = Object.entries(item).map(([key, value]) => {
+                if (key === 'data' || typeof value === 'object') return '';
+                return `
+                    <div class="info-item">
+                        <div class="info-label">${key}</div>
+                        <div class="info-value">${value || 'N/A'}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('itemInfo').innerHTML = html || '<div class="loading">无数据</div>';
+        }
+        
+        function renderChart(data) {
+            const chart = echarts.init(document.getElementById('trendChart'));
+            
+            if (data.series && data.series.length > 0) {
+                chart.setOption({
+                    tooltip: { trigger: 'axis' },
+                    legend: { data: data.series.map(s => s.name) },
+                    xAxis: {
+                        type: 'category',
+                        data: data.categories || data.timestamps || []
+                    },
+                    yAxis: { type: 'value' },
+                    series: data.series.map(s => ({
+                        name: s.name,
+                        type: 'line',
+                        data: s.data,
+                        smooth: true
+                    }))
+                });
+            } else {
+                chart.setOption({
+                    title: { text: '暂无数据', left: 'center', top: 'middle' }
+                });
+            }
+        }
+        
+        async function executeAnalysis() {
+            if (!reportId && !indicatorId) {
+                alert('请先选择报告或指标');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/trend/analysis/execute`, {
+                    method: 'POST',
+                    headers: {
+                        'X-API-Key': API_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        report_id: reportId,
+                        indicator_id: indicatorId
+                    })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('分析已启动');
+                    setTimeout(() => loadItem(), 2000);
+                } else {
+                    alert('启动失败');
+                }
+            } catch (error) {
+                console.error('执行分析失败:', error);
+                alert('执行失败');
+            }
+        }
+        
+        async function exportReport() {
+            if (!reportId) {
+                alert('请先选择报告');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/trend/reports/${reportId}/export`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `trend_report_${reportId}.pdf`;
+                a.click();
+            } catch (error) {
+                console.error('导出失败:', error);
+                alert('导出失败');
+            }
+        }
+        
+        // 初始化
+        loadItem();
+    </script>
+</body>
+</html>
+

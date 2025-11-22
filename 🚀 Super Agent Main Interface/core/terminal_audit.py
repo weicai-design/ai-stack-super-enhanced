@@ -12,6 +12,9 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import logging
 
+from .security.audit_pipeline import SecurityAuditPipeline, get_audit_pipeline
+from .security.risk_engine import SecurityRiskEngine, get_risk_engine
+
 logger = logging.getLogger(__name__)
 
 # 导出枚举类供其他模块使用
@@ -79,7 +82,12 @@ class TerminalAuditLogger:
     4. 支持日志轮转和归档
     """
     
-    def __init__(self, audit_log_dir: Optional[str] = None):
+    def __init__(
+        self,
+        audit_log_dir: Optional[str] = None,
+        audit_pipeline: Optional[SecurityAuditPipeline] = None,
+        risk_engine: Optional[SecurityRiskEngine] = None,
+    ):
         """
         初始化审计日志系统
         
@@ -103,6 +111,8 @@ class TerminalAuditLogger:
         self.max_log_files = 30  # 保留30天的日志
         self.enable_compression = True
         
+        self.audit_pipeline = audit_pipeline or get_audit_pipeline()
+        self.risk_engine = risk_engine or get_risk_engine()
         logger.info(f"终端审计日志系统已初始化，日志目录: {self.audit_log_dir}")
     
     async def log_event(
@@ -178,6 +188,27 @@ class TerminalAuditLogger:
             if self.current_log_file.stat().st_size > self.max_log_file_size:
                 await self._rotate_log_file()
             
+            if self.audit_pipeline:
+                self.audit_pipeline.log_security_event(
+                    event_type=event_type_str,
+                    source="terminal_audit",
+                    severity=severity_str,
+                    status="success" if success else "failed",
+                    metadata=entry.to_dict(),
+                )
+                self.audit_pipeline.log_command_event(
+                    command=command or "",
+                    actor=user_id or "anonymous",
+                    severity=severity_str,
+                    success=success,
+                    metadata=entry.to_dict(),
+                )
+            if self.risk_engine and not success:
+                self.risk_engine.record_command_event(
+                    user_id=user_id or "anonymous",
+                    success=success,
+                    command=command or "",
+                )
             return log_id
         except Exception as e:
             logger.error(f"写入审计日志失败: {e}")

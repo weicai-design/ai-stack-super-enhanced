@@ -3,7 +3,7 @@ ERP数据监听API
 提供事件监听和处理的RESTful接口
 """
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Request, Header
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -11,7 +11,17 @@ from datetime import datetime
 from core.data_listener import EventType, ERPEvent
 from core.listener_container import data_listener
 
+# 导入ERP监听器
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from erp_listener import get_erp_listener, ListenerMode
+
 router = APIRouter(prefix="/api/erp/listener", tags=["ERP Data Listener"])
+
+# 初始化ERP监听器
+erp_listener = get_erp_listener()
 
 
 class EventHandlerRequest(BaseModel):
@@ -127,6 +137,106 @@ async def register_handler(request: EventHandlerRequest):
             "success": True,
             "message": f"事件处理器已注册: {request.event_type}",
             "handler_name": request.handler_name,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ 4.3: ERP监听器Webhook端点 ============
+
+@router.post("/webhook")
+async def handle_erp_webhook(
+    request: Request,
+    payload: Dict[str, Any] = Body(...),
+    x_signature: Optional[str] = Header(None, alias="X-Signature"),
+):
+    """
+    接收ERP系统Webhook请求
+    
+    这是4.3实现的核心端点，用于接收ERP系统的推送事件
+    """
+    try:
+        # 获取请求头
+        headers = dict(request.headers)
+        
+        # 处理Webhook
+        result = await erp_listener.handle_webhook(
+            payload=payload,
+            signature=x_signature,
+            headers=headers,
+        )
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/start-polling")
+async def start_erp_polling():
+    """启动ERP轮询"""
+    try:
+        await erp_listener.start_polling()
+        return {
+            "success": True,
+            "message": "轮询已启动",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/stop-polling")
+async def stop_erp_polling():
+    """停止ERP轮询"""
+    try:
+        await erp_listener.stop_polling()
+        return {
+            "success": True,
+            "message": "轮询已停止",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/status")
+async def get_erp_listener_status():
+    """获取ERP监听器状态"""
+    try:
+        status = erp_listener.get_status()
+        return {
+            "success": True,
+            "status": status,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/task-queue/size")
+async def get_task_queue_size():
+    """获取任务队列大小"""
+    try:
+        size = await erp_listener.get_task_queue_size()
+        return {
+            "success": True,
+            "queue_size": size,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/task-queue/clear")
+async def clear_task_queue():
+    """清空任务队列"""
+    try:
+        await erp_listener.clear_task_queue()
+        return {
+            "success": True,
+            "message": "任务队列已清空",
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:

@@ -15,6 +15,16 @@ from .web_search import WebSearchService
 from .rag_service_adapter import RAGServiceAdapter
 from .expert_router import ExpertRouter
 from .module_executor import ModuleExecutor
+from .workflow_orchestrator import (
+    WorkflowOrchestrator,
+    WorkflowType,
+    WorkflowState,
+    WorkflowEventType,
+    IntelligentWorkflowData,
+    DirectWorkflowData,
+    WorkflowStep,
+    get_workflow_orchestrator,
+)
 
 __all__ = [
     'SuperAgent',
@@ -29,5 +39,13 @@ __all__ = [
     'RAGServiceAdapter',
     'ExpertRouter',
     'ModuleExecutor',
+    'WorkflowOrchestrator',
+    'WorkflowType',
+    'WorkflowState',
+    'WorkflowEventType',
+    'IntelligentWorkflowData',
+    'DirectWorkflowData',
+    'WorkflowStep',
+    'get_workflow_orchestrator',
 ]
 

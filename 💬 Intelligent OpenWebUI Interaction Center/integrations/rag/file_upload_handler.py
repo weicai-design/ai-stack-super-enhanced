@@ -10,11 +10,18 @@ File Upload Handler
 
 import logging
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Dict, Optional, Any
 
-from rag_integration import get_rag_service
+try:
+    from .rag_integration import get_rag_service
+except ImportError:
+    current_dir = Path(__file__).parent
+    if str(current_dir) not in sys.path:
+        sys.path.insert(0, str(current_dir))
+    from rag_integration import get_rag_service
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-#!/Users/ywc/ai-stack-super-enhanced/.venv/bin/python3
+#!/Users/ywc/ai-stack-super-enhanced/.venv/bin/python3.12
 import sys
 from pymupdf.__main__ import main
 if __name__ == '__main__':

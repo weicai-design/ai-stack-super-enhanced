@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG 知识库 - 详情/执行</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: white;
+            color: #667eea;
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .doc-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .info-item {
+            padding: 10px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+        
+        .info-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .content-area {
+            margin-top: 20px;
+        }
+        
+        .content-text {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        
+        .search-section {
+            margin-top: 20px;
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .search-results {
+            margin-top: 20px;
+        }
+        
+        .result-item {
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .result-score {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .result-content {
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="docTitle">📚 文档详情</h1>
+            <p id="docSubtitle">查看、编辑和执行检索</p>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="window.location.href='level2.html'">← 返回列表</button>
+                <button class="btn btn-secondary" onclick="executeSearch()">🔍 执行检索</button>
+                <button class="btn btn-secondary" onclick="editDocument()">✏️ 编辑</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">文档信息</div>
+            <div class="doc-info" id="docInfo">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">文档内容</div>
+            <div class="content-area">
+                <div class="content-text" id="docContent">加载中...</div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">知识检索</div>
+            <div class="search-section">
+                <input type="text" class="search-box" id="searchInput" placeholder="输入检索关键词...">
+                <button class="btn btn-primary" onclick="executeSearch()">执行检索</button>
+            </div>
+            <div class="search-results" id="searchResults"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api/super-agent';
+        const API_KEY = localStorage.getItem('api_key') || 'default_key';
+        const urlParams = new URLSearchParams(window.location.search);
+        const docId = urlParams.get('doc_id');
+        const action = urlParams.get('action');
+        const query = urlParams.get('query');
+        
+        async function loadDocument() {
+            if (!docId && action !== 'create') {
+                document.getElementById('docInfo').innerHTML = '<div class="loading">请选择文档</div>';
+                return;
+            }
+            
+            if (action === 'create') {
+                document.getElementById('docTitle').textContent = '📚 添加新文档';
+                document.getElementById('docSubtitle').textContent = '创建新的知识文档';
+                document.getElementById('docInfo').innerHTML = `
+                    <div class="info-item">
+                        <div class="info-label">文档ID</div>
+                        <div class="info-value">将自动生成</div>
+                    </div>
+                `;
+                document.getElementById('docContent').innerHTML = '<textarea style="width:100%;height:400px;padding:15px;border:1px solid #ddd;border-radius:8px;font-family:inherit;font-size:14px;" placeholder="在此输入文档内容..."></textarea>';
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/rag/documents/${docId}`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const doc = await res.json();
+                
+                document.getElementById('docTitle').textContent = doc.title || doc.document_id;
+                document.getElementById('docSubtitle').textContent = `文档ID: ${doc.document_id}`;
+                
+                document.getElementById('docInfo').innerHTML = `
+                    <div class="info-item">
+                        <div class="info-label">文档ID</div>
+                        <div class="info-value">${doc.document_id}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">文档类型</div>
+                        <div class="info-value">${doc.doc_type || 'text'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">创建时间</div>
+                        <div class="info-value">${new Date(doc.created_at).toLocaleString()}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">分块数量</div>
+                        <div class="info-value">${doc.chunk_count || 0}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">向量维度</div>
+                        <div class="info-value">${doc.vector_dim || '-'}</div>
+                    </div>
+                `;
+                
+                document.getElementById('docContent').textContent = doc.content || '无内容';
+                
+                if (query) {
+                    document.getElementById('searchInput').value = query;
+                    executeSearch();
+                }
+            } catch (error) {
+                console.error('加载文档失败:', error);
+                document.getElementById('docInfo').innerHTML = '<div class="loading">加载失败</div>';
+            }
+        }
+        
+        async function executeSearch() {
+            const searchQuery = document.getElementById('searchInput').value.trim();
+            if (!searchQuery) {
+                alert('请输入检索关键词');
+                return;
+            }
+            
+            try {
+                document.getElementById('searchResults').innerHTML = '<div class="loading">检索中...</div>';
+                const res = await fetch(`${API_BASE}/rag/search?query=${encodeURIComponent(searchQuery)}&top_k=10`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const results = await res.json();
+                
+                if (results.results && results.results.length > 0) {
+                    const html = results.results.map(result => `
+                        <div class="result-item">
+                            <div class="result-score">相似度: ${(result.score * 100).toFixed(1)}%</div>
+                            <div class="result-content">${result.content || result.text || ''}</div>
+                        </div>
+                    `).join('');
+                    document.getElementById('searchResults').innerHTML = html;
+                } else {
+                    document.getElementById('searchResults').innerHTML = '<div class="loading">未找到相关结果</div>';
+                }
+            } catch (error) {
+                console.error('检索失败:', error);
+                document.getElementById('searchResults').innerHTML = '<div class="loading">检索失败</div>';
+            }
+        }
+        
+        function editDocument() {
+            alert('编辑功能开发中...');
+        }
+        
+        // 搜索框回车事件
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                executeSearch();
+            }
+        });
+        
+        // 初始化
+        loadDocument();
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内容创作 - 列表</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn.active {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .content-item {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .content-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+        
+        .item-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .item-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+            color: #666;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .item-preview {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+            line-height: 1.6;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-info { background: #dbeafe; color: #1e40af; }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 内容创作</h1>
+            <p>内容列表与素材管理</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="contents">📝 内容</button>
+            <button class="tab-btn" data-tab="materials">📦 素材</button>
+            <button class="tab-btn" data-tab="published">📤 已发布</button>
+        </div>
+        
+        <div class="toolbar">
+            <button class="btn btn-primary" onclick="window.location.href='level3.html?action=create'">➕ 创建内容</button>
+            <button class="btn btn-primary" onclick="loadCurrentTab()">🔄 刷新</button>
+        </div>
+        
+        <div id="contents" class="tab-content active">
+            <div id="contentsList" class="loading">加载中...</div>
+        </div>
+        
+        <div id="materials" class="tab-content">
+            <div id="materialsList" class="loading">加载中...</div>
+        </div>
+        
+        <div id="published" class="tab-content">
+            <div id="publishedList" class="loading">加载中...</div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api/super-agent';
+        const API_KEY = localStorage.getItem('api_key') || 'default_key';
+        
+        // Tab切换
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(tab).classList.add('active');
+                loadCurrentTab();
+            });
+        });
+        
+        function getCurrentTab() {
+            return document.querySelector('.tab-btn.active').dataset.tab;
+        }
+        
+        async function loadCurrentTab() {
+            const tab = getCurrentTab();
+            if (tab === 'contents') await loadContents();
+            else if (tab === 'materials') await loadMaterials();
+            else if (tab === 'published') await loadPublished();
+        }
+        
+        async function loadContents() {
+            try {
+                const res = await fetch(`${API_BASE}/content/list?limit=50`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const data = await res.json();
+                renderContents(data.contents || []);
+            } catch (error) {
+                console.error('加载内容失败:', error);
+                document.getElementById('contentsList').innerHTML = '<div class="empty">加载失败</div>';
+            }
+        }
+        
+        function renderContents(contents) {
+            if (contents.length === 0) {
+                document.getElementById('contentsList').innerHTML = '<div class="empty">暂无内容</div>';
+                return;
+            }
+            
+            const html = contents.map(content => {
+                const statusClass = {
+                    'draft': 'badge-warning',
+                    'published': 'badge-success',
+                    'archived': 'badge-info'
+                }[content.status] || 'badge-warning';
+                
+                return `
+                    <div class="content-item" onclick="viewContent('${content.content_id}')">
+                        <div class="item-header">
+                            <div>
+                                <div class="item-title">${content.title || content.content_id}</div>
+                                <div class="item-meta">
+                                    <span>类型: ${content.content_type || 'text'}</span>
+                                    <span>平台: ${content.platform || 'N/A'}</span>
+                                    <span>创建: ${new Date(content.created_at).toLocaleString()}</span>
+                                </div>
+                                <div class="item-preview">${content.preview || content.content?.substring(0, 150) || '无预览'}</div>
+                            </div>
+                            <span class="badge ${statusClass}">${content.status || 'draft'}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('contentsList').innerHTML = html;
+        }
+        
+        async function loadMaterials() {
+            try {
+                const res = await fetch(`${API_BASE}/content/materials?limit=50`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const data = await res.json();
+                renderMaterials(data.materials || []);
+            } catch (error) {
+                console.error('加载素材失败:', error);
+                document.getElementById('materialsList').innerHTML = '<div class="empty">加载失败</div>';
+            }
+        }
+        
+        function renderMaterials(materials) {
+            if (materials.length === 0) {
+                document.getElementById('materialsList').innerHTML = '<div class="empty">暂无素材</div>';
+                return;
+            }
+            
+            const html = materials.map(material => `
+                <div class="content-item" onclick="viewMaterial('${material.material_id}')">
+                    <div class="item-header">
+                        <div>
+                            <div class="item-title">${material.name || material.material_id}</div>
+                            <div class="item-meta">
+                                <span>类型: ${material.material_type || 'N/A'}</span>
+                                <span>来源: ${material.source || 'N/A'}</span>
+                                <span>创建: ${new Date(material.created_at).toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            document.getElementById('materialsList').innerHTML = html;
+        }
+        
+        async function loadPublished() {
+            try {
+                const res = await fetch(`${API_BASE}/content/published?limit=50`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+                const data = await res.json();
+                renderPublished(data.published || []);
+            } catch (error) {
+                console.error('加载已发布内容失败:', error);
+                document.getElementById('publishedList').innerHTML = '<div class="empty">加载失败</div>';
+            }
+        }
+        
+        function renderPublished(published) {
+            if (published.length === 0) {
+                document.getElementById('publishedList').innerHTML = '<div class="empty">暂无已发布内容</div>';
+                return;
+            }
+            
+            const html = published.map(item => `
+                <div class="content-item" onclick="viewContent('${item.content_id}')">
+                    <div class="item-header">
+                        <div>
+                            <div class="item-title">${item.title || item.content_id}</div>
+                            <div class="item-meta">
+                                <span>平台: ${item.platform || 'N/A'}</span>
+                                <span>发布时间: ${new Date(item.published_at).toLocaleString()}</span>
+                                <span>浏览量: ${item.views || 0}</span>
+                            </div>
+                        </div>
+                        <span class="badge badge-success">已发布</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            document.getElementById('publishedList').innerHTML = html;
+        }
+        
+        function viewContent(id) {
+            window.location.href = `level3.html?content_id=${id}`;
+        }
+        
+        function viewMaterial(id) {
+            window.location.href = `level3.html?material_id=${id}`;
+        }
+        
+        // 初始化
+        loadContents();
+    </script>
+</body>
+</html>
+

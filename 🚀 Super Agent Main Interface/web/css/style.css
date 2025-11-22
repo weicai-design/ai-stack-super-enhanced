@@ -192,6 +192,75 @@ body {
     color: var(--primary-color);
 }
 
+/* 3.3: API响应状态样式 */
+.nav-btn.api-success {
+    position: relative;
+    border-left: 3px solid #34C759;
+}
+
+.nav-btn.api-success::after {
+    content: '✓';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #34C759;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.nav-btn.api-warning {
+    position: relative;
+    border-left: 3px solid #FF9500;
+    animation: pulse-warning 2s infinite;
+}
+
+.nav-btn.api-warning::after {
+    content: '⚠';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #FF9500;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.nav-btn.api-error {
+    position: relative;
+    border-left: 3px solid #FF3B30;
+    animation: pulse-error 2s infinite;
+}
+
+.nav-btn.api-error::after {
+    content: '✗';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #FF3B30;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+@keyframes pulse-warning {
+    0%, 100% { 
+        box-shadow: 0 0 0 0 rgba(255, 149, 0, 0.4);
+    }
+    50% { 
+        box-shadow: 0 0 0 4px rgba(255, 149, 0, 0);
+    }
+}
+
+@keyframes pulse-error {
+    0%, 100% { 
+        box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4);
+    }
+    50% { 
+        box-shadow: 0 0 0 4px rgba(255, 59, 48, 0);
+    }
+}
+
 .nav-icon {
     font-size: 18px;
     width: 24px;

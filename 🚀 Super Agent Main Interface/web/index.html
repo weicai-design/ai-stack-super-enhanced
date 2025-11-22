@@ -31,6 +31,7 @@
                         <option value="zh-CN">zh-CN · 中文</option>
                         <option value="en-US">en-US · English</option>
                     </select>
+                    <a href="expert_center.html" target="_blank" style="font-size:13px;padding:6px 12px;border-radius:999px;background:#1d4ed8;color:#fff;text-decoration:none;white-space:nowrap;">打开专家中枢</a>
                 </div>
                 <div id="model-meta" class="small" style="color:#aaa;margin-top:4px;text-align:right;">LLM 状态加载中…</div>
             </div>
@@ -126,6 +127,30 @@
                         <button class="nav-btn" data-module="stock-backtest">
                             <span class="nav-icon">🧪</span>
                             <span class="nav-label">策略回测</span>
+                        </button>
+                        <button class="nav-btn" data-module="task-learning-resource">
+                            <span class="nav-icon">🎯</span>
+                            <span class="nav-label">任务/学习/资源</span>
+                        </button>
+                        <button class="nav-btn" data-module="tenant-self-service">
+                            <span class="nav-icon">🏢</span>
+                            <span class="nav-label">租户自助管理</span>
+                        </button>
+                        <button class="nav-btn" data-module="rag-level2">
+                            <span class="nav-icon">📚</span>
+                            <span class="nav-label">RAG知识库</span>
+                        </button>
+                        <button class="nav-btn" data-module="erp-level2">
+                            <span class="nav-icon">💼</span>
+                            <span class="nav-label">ERP管理</span>
+                        </button>
+                        <button class="nav-btn" data-module="content-level2">
+                            <span class="nav-icon">✍️</span>
+                            <span class="nav-label">内容创作</span>
+                        </button>
+                        <button class="nav-btn" data-module="trend-level2">
+                            <span class="nav-icon">📈</span>
+                            <span class="nav-label">趋势分析</span>
                         </button>
                     </nav>
                 </div>
@@ -491,6 +516,10 @@
                         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
                             <button class="action-btn-small" id="security-filter-all">全部</button>
                             <button class="action-btn-small" id="security-filter-otstatus">仅任务状态变更</button>
+                        </div>
+                        <div class="security-risk-row" id="security-risk-summary" style="display:flex;justify-content:space-between;font-size:12px;color:#bbb;margin-bottom:8px;">
+                            <span>风险等级：<strong id="security-risk-level">--</strong></span>
+                            <span>24h事件：<strong id="security-risk-count">0</strong></span>
                         </div>
                         <div class="security-event-list" id="security-audit-list">
                             <div class="security-empty">加载中...</div>

@@ -8,8 +8,15 @@ Pytest配置
 import sys
 from pathlib import Path
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+
+try:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+except ModuleNotFoundError as exc:
+    pytest.skip(
+        f"SQLAlchemy is required for ERP tests but is not available: {exc}",
+        allow_module_level=True,
+    )
 
 # 添加父目录到路径
 erp_dir = Path(__file__).parent.parent

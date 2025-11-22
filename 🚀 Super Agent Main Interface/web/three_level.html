@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>AI-STACK · 模块三级界面总览</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            background: #050505;
+            color: #fafafa;
+            font-family: "SF Pro Display", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+        }
+        .tri-header {
+            padding: 20px 32px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .tri-header h1 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .tri-header a {
+            color: #9fc3ff;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .tri-layout {
+            display: grid;
+            grid-template-columns: 260px 300px 1fr;
+            min-height: calc(100vh - 80px);
+        }
+        .tri-column {
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .tri-column:last-child {
+            border-right: none;
+        }
+        .tri-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .tri-item {
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: border 0.2s, background 0.2s;
+        }
+        .tri-item.active {
+            border-color: #409EFF;
+            background: rgba(64, 158, 255, 0.08);
+        }
+        .tri-item small {
+            display: block;
+            color: #aaa;
+            margin-top: 4px;
+            font-size: 12px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .metric-card {
+            padding: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .metric-card h4 {
+            margin: 0 0 6px;
+            font-size: 13px;
+            color: #bbb;
+        }
+        .metric-card strong {
+            font-size: 22px;
+            font-weight: 600;
+        }
+        .insight-panel {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 12px;
+            background: rgba(33, 150, 243, 0.08);
+            border: 1px solid rgba(33, 150, 243, 0.25);
+        }
+        .detail-block {
+            margin-top: 16px;
+            padding: 14px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 13px;
+            max-height: 280px;
+            overflow: auto;
+        }
+        .detail-block pre {
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 0;
+            font-family: "JetBrains Mono", Consolas, monospace;
+        }
+        @media (max-width: 1200px) {
+            .tri-layout {
+                grid-template-columns: 1fr;
+            }
+            .tri-column {
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .tri-column:last-child {
+                border-bottom: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="tri-header">
+        <h1>AI-STACK · 模块三级界面</h1>
+        <a href="index.html">← 返回主界面</a>
+    </header>
+    <main class="tri-layout">
+        <section class="tri-column">
+            <h3>一级模块</h3>
+            <ul class="tri-list" id="module-list">
+                <li>加载中...</li>
+            </ul>
+        </section>
+        <section class="tri-column">
+            <h3>二级阶段</h3>
+            <ul class="tri-list" id="stage-list">
+                <li>请选择模块</li>
+            </ul>
+        </section>
+        <section class="tri-column">
+            <div id="view-header">
+                <h3>三级视图</h3>
+                <p class="small" style="color:#aaa;margin-top:-4px;">请选择一个视图以查看实时数据</p>
+            </div>
+            <ul class="tri-list" id="view-list"></ul>
+            <div id="view-data" style="margin-top:20px;">
+                <div class="detail-block">
+                    <p style="margin:0;color:#888;">等待选择视图...</p>
+                </div>
+            </div>
+            <div id="capability-data" style="margin-top:14px;">
+                <div class="detail-block">
+                    <strong>四级能力单元</strong>
+                    <p style="color:#888;margin:6px 0 0;">请选择具体视图查看能力拆解</p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="js/modules_three.js"></script>
+</body>
+</html>
+

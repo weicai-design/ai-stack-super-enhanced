@@ -26,6 +26,9 @@ class App {
         this.taskImpacts = [];
         this.taskAutoRag = true;
         this.taskAutoResource = true;
+        // 3.3: API响应状态管理
+        this.apiStatusMap = new Map(); // 存储每个模块的API状态
+        this.activeModuleButton = null; // 当前激活的模块按钮
         try {
             if (typeof window !== 'undefined' && window.localStorage) {
                 const storedEngines = localStorage.getItem('selectedSearchEngines');
@@ -39,6 +42,8 @@ class App {
         
         // 立即初始化
         this.init();
+        // 3.3: 初始化API响应拦截器
+        this.setupAPIInterceptor();
     }
     
     async streamChatMessage(message, loadingId) {
@@ -541,6 +546,8 @@ class App {
         setInterval(() => this.updateTerminalSecurity(), 4000);
         this.updateSecurityAudit();
         setInterval(() => this.updateSecurityAudit(), 8000);
+        this.updateSecurityRisk();
+        setInterval(() => this.updateSecurityRisk(), 10000);
         this.loadResourceOverview();
         setInterval(() => this.loadResourceOverview(), 15000);
         this.loadTTSSettings();
@@ -876,9 +883,15 @@ class App {
         console.log('🔄 切换模块:', module);
         const route = (window.ROUTE_MAP || {})[module];
         
-        // 更新按钮状态
+        // 3.3: 更新按钮状态并保存当前激活按钮
         document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.module === module);
+            const isActive = btn.dataset.module === module;
+            btn.classList.toggle('active', isActive);
+            if (isActive) {
+                this.activeModuleButton = btn;
+                // 清除之前的状态类
+                btn.classList.remove('api-success', 'api-warning', 'api-error');
+            }
         });
         
         if (!route) {
@@ -907,6 +920,156 @@ class App {
         
         if (route.url) {
             window.open(route.url, '_blank');
+        }
+    }
+    
+    // 3.3: 设置API响应拦截器
+    setupAPIInterceptor() {
+        const originalFetch = window.fetch;
+        const self = this;
+        
+        window.fetch = async function(...args) {
+            const url = args[0];
+            const options = args[1] || {};
+            
+            // 只拦截API调用
+            if (typeof url === 'string' && url.includes('/api/super-agent')) {
+                const module = self.detectModuleFromURL(url);
+                
+                try {
+                    const response = await originalFetch.apply(this, args);
+                    
+                    // 克隆响应以便读取body
+                    const clonedResponse = response.clone();
+                    
+                    // 异步处理响应状态
+                    self.handleAPIResponse(module, response, clonedResponse);
+                    
+                    return response;
+                } catch (error) {
+                    // API调用失败
+                    self.handleAPIError(module, error);
+                    throw error;
+                }
+            }
+            
+            // 非API调用，直接返回
+            return originalFetch.apply(this, args);
+        };
+    }
+    
+    // 3.3: 从URL检测模块
+    detectModuleFromURL(url) {
+        if (url.includes('/rag/')) return 'rag-level2';
+        if (url.includes('/erp/')) return 'erp-level2';
+        if (url.includes('/content/')) return 'content-level2';
+        if (url.includes('/trend/')) return 'trend-level2';
+        return null;
+    }
+    
+    // 3.3: 处理API响应
+    async handleAPIResponse(module, response, clonedResponse) {
+        if (!module) return;
+        
+        const status = response.status;
+        let apiStatus = 'unknown';
+        
+        // 根据HTTP状态码判断
+        if (status >= 200 && status < 300) {
+            apiStatus = 'success';
+        } else if (status >= 400 && status < 500) {
+            apiStatus = 'error';
+        } else if (status >= 500) {
+            apiStatus = 'error';
+        }
+        
+        // 尝试读取响应体判断业务状态
+        try {
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const data = await clonedResponse.json();
+                if (data.success === false) {
+                    apiStatus = 'error';
+                } else if (data.success === true) {
+                    apiStatus = 'success';
+                } else if (data.error || data.message) {
+                    apiStatus = 'warning';
+                }
+            }
+        } catch (e) {
+            // 无法解析JSON，使用HTTP状态码
+        }
+        
+        // 更新模块状态
+        this.updateModuleStatus(module, apiStatus);
+    }
+    
+    // 3.3: 处理API错误
+    handleAPIError(module, error) {
+        if (!module) return;
+        this.updateModuleStatus(module, 'error');
+    }
+    
+    // 3.3: 更新模块导航状态
+    updateModuleStatus(module, status) {
+        // 保存状态
+        this.apiStatusMap.set(module, {
+            status: status,
+            timestamp: Date.now()
+        });
+        
+        // 更新按钮状态
+        const buttons = document.querySelectorAll(`.nav-btn[data-module="${module}"]`);
+        buttons.forEach(btn => {
+            // 移除所有状态类
+            btn.classList.remove('api-success', 'api-warning', 'api-error');
+            
+            // 添加新的状态类
+            if (status === 'success') {
+                btn.classList.add('api-success');
+            } else if (status === 'warning') {
+                btn.classList.add('api-warning');
+            } else if (status === 'error') {
+                btn.classList.add('api-error');
+            }
+        });
+        
+        // 如果当前激活的按钮匹配，也更新状态
+        if (this.activeModuleButton && this.activeModuleButton.dataset.module === module) {
+            this.activeModuleButton.classList.remove('api-success', 'api-warning', 'api-error');
+            if (status === 'success') {
+                this.activeModuleButton.classList.add('api-success');
+            } else if (status === 'warning') {
+                this.activeModuleButton.classList.add('api-warning');
+            } else if (status === 'error') {
+                this.activeModuleButton.classList.add('api-error');
+            }
+        }
+        
+        // 更新状态指示器
+        this.updateStatusIndicator(module, status);
+    }
+    
+    // 3.3: 更新状态指示器
+    updateStatusIndicator(module, status) {
+        const statusIndicator = document.querySelector('.status-indicator');
+        if (!statusIndicator) return;
+        
+        const statusDot = statusIndicator.querySelector('.status-dot');
+        const statusText = statusIndicator.querySelector('.status-text');
+        
+        if (!statusDot || !statusText) return;
+        
+        // 根据状态更新颜色和文本
+        if (status === 'success') {
+            statusDot.style.background = '#34C759';
+            statusText.textContent = '运行正常';
+        } else if (status === 'warning') {
+            statusDot.style.background = '#FF9500';
+            statusText.textContent = '运行告警';
+        } else if (status === 'error') {
+            statusDot.style.background = '#FF3B30';
+            statusText.textContent = '运行异常';
         }
     }
     
@@ -3930,26 +4093,29 @@ class App {
             }
 
             const latest = events[0];
-            statusEl.textContent = latest.success ? '安全' : '异常';
-            statusEl.classList.toggle('alert', !latest.success);
+            const latestSuccess = typeof latest.success === 'boolean' ? latest.success : (latest.status !== 'failed');
+            statusEl.textContent = latestSuccess ? '安全' : '异常';
+            statusEl.classList.toggle('alert', !latestSuccess);
 
             events.forEach((event) => {
                 const item = document.createElement('div');
-                item.className = `security-event ${event.success ? 'success' : 'error'}`;
+                const success = typeof event.success === 'boolean' ? event.success : (event.status !== 'failed');
+                const payload = event.data || event.metadata || {};
+                item.className = `security-event ${success ? 'success' : 'error'}`;
 
                 const header = document.createElement('div');
                 header.className = 'event-header';
                 const time = new Date(event.timestamp).toLocaleTimeString('zh-CN', { hour12: false });
-                header.innerHTML = `<span>${time}</span><span>${event.data?.phase || ''}</span>`;
+                header.innerHTML = `<span>${time}</span><span>${payload.phase || ''}</span>`;
 
                 const command = document.createElement('div');
                 command.className = 'event-command';
-                command.textContent = event.data?.command || '';
+                command.textContent = payload.command || payload.action || '';
 
                 const meta = document.createElement('div');
                 meta.className = 'event-meta';
-                const returnCode = event.data?.metadata?.return_code;
-                const duration = event.data?.metadata?.duration;
+                const returnCode = payload.metadata?.return_code;
+                const duration = payload.metadata?.duration;
                 const extra = [
                     returnCode !== undefined ? `返回码 ${returnCode}` : null,
                     duration !== undefined ? `耗时 ${duration.toFixed(2)}s` : null,
@@ -3963,11 +4129,11 @@ class App {
                 listEl.appendChild(item);
             });
 
-            const latestId = latest.event_id;
+            const latestId = latest.event_id || latest.record_id;
             if (latestId && latestId !== this.latestSecurityEventId) {
                 this.latestSecurityEventId = latestId;
-                if (!latest.success) {
-                    const cmd = latest.data?.command || '未知命令';
+                if (!latestSuccess) {
+                    const cmd = (latest.data?.command) || (latest.metadata?.command) || '未知命令';
                     this.addActivity('🛡️', `终端告警：${cmd}`);
                 } else if (force) {
                     this.addActivity('🛡️', '终端已开始监控');
@@ -4010,6 +4176,42 @@ class App {
             });
         } catch (e) {
             // 静默
+        }
+    }
+
+    async updateSecurityRisk() {
+        const levelEl = document.getElementById('security-risk-level');
+        const countEl = document.getElementById('security-risk-count');
+        if (!levelEl || !countEl) return;
+        try {
+            const resp = await fetch(`${API_BASE}/security/risk/summary`);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const summary = data.summary || {};
+            const distribution = summary.distribution || {};
+            const severity = distribution.by_severity || {};
+            const total = summary.total_events || 0;
+            countEl.textContent = total;
+
+            const critical = severity.critical || 0;
+            const high = severity.high || 0;
+            const medium = severity.medium || 0;
+            let label = '安全';
+            if (critical > 0) {
+                label = '严重';
+            } else if (high > 0) {
+                label = '关注';
+            } else if (medium > 0) {
+                label = '留意';
+            }
+            levelEl.textContent = label;
+            if (label === '严重' || label === '关注') {
+                levelEl.classList.add('alert');
+            } else {
+                levelEl.classList.remove('alert');
+            }
+        } catch (error) {
+            // 忽略
         }
     }
 }

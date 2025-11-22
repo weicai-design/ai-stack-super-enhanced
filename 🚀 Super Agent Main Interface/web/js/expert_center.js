@@ -1,8 +1,15 @@
 class ExpertCenterConsole {
     constructor() {
         this.API = '/api/super-agent/experts';
+        this.lastSessionId = null;
+        this.eventSource = null;
+        this.streamRetryTimer = null;
+        this.collabRefreshTimer = null;
+        this.notificationsEnabled = false;
         this.bindEvents();
         this.loadAll();
+        this.initNotifications();
+        this.initCollabStream();
     }
 
     bindEvents() {
@@ -15,12 +22,16 @@ class ExpertCenterConsole {
             list.style.display = list.style.display === 'none' ? 'block' : 'none';
         });
         document.getElementById('btnLoadHistory')?.addEventListener('click', () => this.loadSimulationHistory());
+        document.getElementById('btnCreateSession')?.addEventListener('click', () => this.createSession());
+        document.getElementById('btnAddContribution')?.addEventListener('click', () => this.addContribution());
+        document.getElementById('btnFinalizeSession')?.addEventListener('click', () => this.finalizeSession());
     }
 
     loadAll() {
         this.loadAbilityMap();
         this.loadRouting();
         this.loadAcceptance();
+        this.loadCollaboration();
     }
 
     async request(path, options) {
@@ -181,6 +192,239 @@ class ExpertCenterConsole {
         } catch (error) {
             const tbody = document.getElementById('acceptanceTable');
             if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="muted">加载失败：${error.message}</td></tr>`;
+        }
+    }
+
+    async loadCollaboration() {
+        const container = document.getElementById('collabSessions');
+        if (container) container.innerHTML = '<div class="muted">加载中...</div>';
+        try {
+            const [active, summary] = await Promise.all([
+                this.request('/collaboration/active'),
+                this.request('/collaboration/summary')
+            ]);
+            this.renderCollabSessions(active.sessions || []);
+            this.renderCollabSummary(summary.summary || {});
+        } catch (error) {
+            if (container) container.innerHTML = `<div class="muted">协同数据加载失败：${error.message}</div>`;
+        }
+    }
+
+    renderCollabSummary(summary) {
+        document.getElementById('statCollabActive').textContent = summary.active_sessions ?? '-';
+        document.getElementById('statCollabTotal').textContent = summary.total_sessions ?? '-';
+        document.getElementById('statCollabSynergy').textContent = summary.avg_synergy !== undefined ? `${(summary.avg_synergy * 100).toFixed(0)}%` : '-';
+        document.getElementById('statCollabLatency').textContent = summary.avg_response_latency_ms ? `${summary.avg_response_latency_ms} ms` : '--';
+    }
+
+    renderCollabSessions(sessions) {
+        const container = document.getElementById('collabSessions');
+        if (!container) return;
+        if (!sessions.length) {
+            container.innerHTML = '<div class="muted">暂无活跃会话，可在右侧发起。</div>';
+            return;
+        }
+        container.innerHTML = sessions.map((session) => {
+            const contributions = session.contributions || [];
+            const last = contributions[contributions.length - 1];
+            return `
+                <div class="session-card">
+                    <h4>${session.topic}</h4>
+                    <div class="session-meta">
+                        会话ID：${session.session_id}<br>
+                        发起人：${session.initiator} · 专家数：${(session.experts || []).length} · 协同指数 ${(((session.metadata?.synergy_score ?? 0) * 100)).toFixed(0)}%
+                    </div>
+                    <p class="muted" style="margin:6px 0;">目标：${(session.goals || []).join(' / ') || '--'}</p>
+                    <p style="margin:6px 0;font-size:13px;">最近贡献：${last ? `${last.expert_name} · ${last.summary}` : '—'}</p>
+                    <button class="btn-secondary" style="margin-top:8px;" data-session="${session.session_id}">复制ID</button>
+                </div>
+            `;
+        }).join('');
+        container.querySelectorAll('button[data-session]').forEach((btn) => {
+            btn.addEventListener('click', (event) => {
+                const sessionId = event.currentTarget.getAttribute('data-session');
+                navigator.clipboard?.writeText(sessionId);
+                this.lastSessionId = sessionId;
+                this.updateCollabConsole(`已复制会话ID：${sessionId}`);
+            });
+        });
+    }
+
+    parseList(text) {
+        return (text || '').split('\n').map((line) => line.trim()).filter(Boolean);
+    }
+
+    parseExperts(text) {
+        const lines = this.parseList(text);
+        return lines.map((line) => {
+            const [expert_id, name, domain, role] = line.split(',').map((part) => part?.trim());
+            return { expert_id, name, domain, role: role || 'delegate' };
+        }).filter((item) => item.expert_id && item.name && item.domain);
+    }
+
+    updateCollabConsole(message) {
+        const box = document.getElementById('collabConsole');
+        if (box) box.textContent = message;
+    }
+
+    initCollabStream() {
+        if (!window.EventSource) {
+            this.updateCollabConsole('浏览器不支持 SSE 实时推送');
+            return;
+        }
+        if (this.eventSource) {
+            this.eventSource.close();
+        }
+        this.eventSource = new EventSource(`${this.API}/collaboration/stream`);
+        this.eventSource.onmessage = (event) => {
+            if (!event.data) return;
+            try {
+                const data = JSON.parse(event.data);
+                this.handleCollabEvent(data);
+            } catch (error) {
+                console.warn('协同事件解析失败', error);
+            }
+        };
+        this.eventSource.onerror = () => {
+            this.updateCollabConsole('实时协同连接中断，5 秒后重试...');
+            if (this.eventSource) {
+                this.eventSource.close();
+                this.eventSource = null;
+            }
+            clearTimeout(this.streamRetryTimer);
+            this.streamRetryTimer = setTimeout(() => this.initCollabStream(), 5000);
+        };
+    }
+
+    handleCollabEvent(event) {
+        const payload = event.payload || {};
+        const ts = event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+        const messageLines = [
+            `[${ts}] ${event.event_type || 'collaboration.event'}`,
+            `主题：${payload.topic || '--'}`,
+            `状态：${payload.status || '--'}`,
+            payload.owner ? `责任人：${payload.owner}` : null,
+        ].filter(Boolean);
+        this.updateCollabConsole(messageLines.join('\n'));
+        this.notifyCollabEvent(payload);
+        clearTimeout(this.collabRefreshTimer);
+        this.collabRefreshTimer = setTimeout(() => this.loadCollaboration(), 300);
+    }
+
+    initNotifications() {
+        if (typeof window === 'undefined' || !('Notification' in window)) {
+            return;
+        }
+        if (Notification.permission === 'granted') {
+            this.notificationsEnabled = true;
+        } else if (Notification.permission === 'default') {
+            Notification.requestPermission().then((permission) => {
+                this.notificationsEnabled = permission === 'granted';
+            });
+        }
+    }
+
+    notifyCollabEvent(payload) {
+        if (!this.notificationsEnabled || !payload.topic) return;
+        const bodyParts = [
+            `状态：${payload.status || '—'}`,
+            payload.owner ? `责任人：${payload.owner}` : null,
+        ].filter(Boolean);
+        try {
+            new Notification(`专家协同：${payload.topic}`, {
+                body: bodyParts.join('\n') || '协同事件更新',
+                tag: payload.session_id || payload.topic,
+            });
+        } catch (error) {
+            console.warn('桌面通知失败', error);
+            this.notificationsEnabled = false;
+        }
+    }
+
+    async createSession() {
+        const topic = document.getElementById('collabTopic')?.value.trim();
+        const initiator = document.getElementById('collabInitiator')?.value.trim();
+        const goals = this.parseList(document.getElementById('collabGoals')?.value || '');
+        const experts = this.parseExperts(document.getElementById('collabExperts')?.value || '');
+        if (!topic || !initiator) {
+            alert('请填写主题与发起人');
+            return;
+        }
+        if (!experts.length) {
+            alert('请至少配置一位专家（格式：expert_id,name,domain,role）');
+            return;
+        }
+        this.updateCollabConsole('⏳ 正在创建会话...');
+        try {
+            const data = await this.request('/collaboration/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic, initiator, goals, experts })
+            });
+            this.lastSessionId = data.session?.session_id;
+            this.updateCollabConsole(`✅ 会话创建成功：${this.lastSessionId}`);
+            this.loadCollaboration();
+        } catch (error) {
+            this.updateCollabConsole(`❌ 会话创建失败：${error.message}`);
+        }
+    }
+
+    async addContribution() {
+        const sessionIdInput = document.getElementById('collabSessionId');
+        const sessionId = sessionIdInput?.value.trim() || this.lastSessionId;
+        const expertId = document.getElementById('collabExpertId')?.value.trim();
+        const expertName = document.getElementById('collabExpertName')?.value.trim();
+        const channel = document.getElementById('collabChannel')?.value.trim() || 'workflow';
+        const summary = document.getElementById('collabSummary')?.value.trim();
+        const actionItems = this.parseList(document.getElementById('collabActions')?.value || '');
+        if (!sessionId || !expertId || !expertName || !summary) {
+            alert('请填写会话ID、专家信息与贡献摘要');
+            return;
+        }
+        this.updateCollabConsole('⏳ 正在追加贡献...');
+        try {
+            const data = await this.request(`/collaboration/session/${sessionId}/contribution`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    expert_id: expertId,
+                    expert_name: expertName,
+                    channel,
+                    summary,
+                    action_items: actionItems,
+                    impact_score: 0.7
+                })
+            });
+            this.lastSessionId = data.session?.session_id;
+            this.updateCollabConsole(`✅ 贡献已记录，当前协同指数 ${(((data.session?.metadata?.synergy_score ?? 0) * 100)).toFixed(0)}%`);
+            this.loadCollaboration();
+            if (sessionIdInput && !sessionIdInput.value) sessionIdInput.value = this.lastSessionId;
+        } catch (error) {
+            this.updateCollabConsole(`❌ 贡献记录失败：${error.message}`);
+        }
+    }
+
+    async finalizeSession() {
+        const sessionId = document.getElementById('collabDecisionSessionId')?.value.trim() || this.lastSessionId;
+        const owner = document.getElementById('collabDecisionOwner')?.value.trim();
+        const summary = document.getElementById('collabDecisionSummary')?.value.trim();
+        const kpis = this.parseList(document.getElementById('collabDecisionKpis')?.value || '');
+        const followups = this.parseList(document.getElementById('collabDecisionFollowups')?.value || '');
+        if (!sessionId || !owner || !summary) {
+            alert('请填写会话ID、责任人与决策摘要');
+            return;
+        }
+        this.updateCollabConsole('⏳ 正在完成会话...');
+        try {
+            await this.request(`/collaboration/session/${sessionId}/decision`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ owner, summary, kpis, followups })
+            });
+            this.updateCollabConsole('✅ 会话已闭环，决策与KPI记录完成');
+            this.loadCollaboration();
+        } catch (error) {
+            this.updateCollabConsole(`❌ 决策记录失败：${error.message}`);
         }
     }
 

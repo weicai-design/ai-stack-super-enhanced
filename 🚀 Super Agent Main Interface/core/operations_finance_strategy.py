@@ -20,6 +20,7 @@ class StrategyTrigger(Enum):
     REPORT_ANOMALY = "report_anomaly"
     KPI_WARNING = "kpi_warning"
     CASH_FLOW_CRITICAL = "cash_flow_critical"
+    RUNWAY_RISK = "runway_risk"
 
 
 class StrategyAction(Enum):
@@ -29,6 +30,7 @@ class StrategyAction(Enum):
     ADJUST_COST = "adjust_cost"
     UPDATE_REPORT = "update_report"
     SYNC_ERP = "sync_erp"
+    SUGGEST_REBALANCE = "suggest_rebalance"
 
 
 class OperationsFinanceStrategy:
@@ -85,29 +87,10 @@ class OperationsFinanceStrategy:
                 "enabled": True
             },
             {
-                "id": "report_sync_003",
-                "name": "报表异常同步",
-                "trigger": StrategyTrigger.REPORT_ANOMALY.value,
-                "condition": {"anomaly_score": 0.7},
-                "actions": [
-                    {
-                        "type": StrategyAction.UPDATE_REPORT.value,
-                        "target": "financial_reports",
-                        "systems": ["operations_finance", "erp"]
-                    },
-                    {
-                        "type": StrategyAction.ALERT_STAKEHOLDERS.value,
-                        "recipients": ["finance_team"],
-                        "systems": ["operations_finance"]
-                    }
-                ],
-                "enabled": True
-            },
-            {
-                "id": "kpi_watch_004",
-                "name": "KPI预警联动",
-                "trigger": StrategyTrigger.KPI_WARNING.value,
-                "condition": {"kpi_type": "runway", "threshold": 6},
+                "id": "runway_predictive_005",
+                "name": "预测型 Runway 守护",
+                "trigger": StrategyTrigger.RUNWAY_RISK.value,
+                "condition": {"forecast_horizon": 6, "threshold": 4},
                 "actions": [
                     {
                         "type": StrategyAction.ALERT_STAKEHOLDERS.value,
@@ -115,46 +98,14 @@ class OperationsFinanceStrategy:
                         "systems": ["operations_finance"]
                     },
                     {
-                        "type": StrategyAction.SYNC_ERP.value,
-                        "target": "financial_status",
-                        "systems": ["erp"]
+                        "type": StrategyAction.SUGGEST_REBALANCE.value,
+                        "target": "cash_flow_plan",
+                        "systems": ["operations_finance", "trend"]
                     }
                 ],
                 "enabled": True
             },
         ]
-    
-    def evaluate_triggers(
-        self,
-        context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """
-        评估触发条件
-        
-        Args:
-            context: 上下文数据（包含预算、成本、报表、KPI等）
-            
-        Returns:
-            触发的策略列表
-        """
-        triggered_strategies = []
-        
-        for strategy in self.strategies:
-            if not strategy.get("enabled", True):
-                continue
-            
-            trigger = strategy.get("trigger")
-            condition = strategy.get("condition", {})
-            
-            # 检查触发条件
-            if self._check_trigger(trigger, condition, context):
-                triggered_strategies.append({
-                    "strategy": strategy,
-                    "triggered_at": datetime.now().isoformat(),
-                    "context": context
-                })
-        
-        return triggered_strategies
     
     def _check_trigger(
         self,
@@ -193,6 +144,8 @@ class OperationsFinanceStrategy:
         elif trigger == StrategyTrigger.CASH_FLOW_CRITICAL.value:
             net_cash = context.get("net_cash", 0.0)
             return net_cash <= 50000  # 临界值
+        elif trigger == StrategyTrigger.RUNWAY_RISK.value:
+            return context.get("predicted_runway", 12) <= condition.get("threshold", 4)
         
         return False
     

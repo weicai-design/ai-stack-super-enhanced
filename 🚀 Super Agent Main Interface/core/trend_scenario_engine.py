@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 import random
 from typing import Dict, List
 
+from .algorithms.exponential_smoothing import HoltWintersParams, holt_winters_forecast
+
 
 @dataclass
 class ScenarioInput:
@@ -42,27 +44,38 @@ class TrendScenarioEngine:
         window = max(30, min(window, 180))
         rng = self._rng(f"{indicator}:{window}")
         base_value = self.base_levels.get(indicator, 100.0)
-        series: List[Dict] = []
+        actual_series = []
         today = datetime.utcnow()
         for i in range(window):
             date = today - timedelta(days=window - i)
             drift = (i - window / 2) * 0.05
             noise = rng.uniform(-2, 2)
-            actual = round(base_value + drift + noise, 2)
-            prediction_error = rng.uniform(-1.5, 1.5)
-            predicted = round(actual + prediction_error, 2)
-            series.append({
-                "date": date.strftime("%Y-%m-%d"),
-                "actual": actual,
-                "predicted": predicted
-            })
+            actual_series.append(
+                {
+                    "date": date.strftime("%Y-%m-%d"),
+                    "value": round(base_value + drift + noise, 2),
+                }
+            )
 
-        diff = [abs(item["actual"] - item["predicted"]) / max(item["actual"], 1) for item in series]
-        mape = round(sum(diff) / len(diff) * 100, 2)
-        hit_rate = round(rng.uniform(0.6, 0.88), 2)
-        sharpe = round(rng.uniform(0.9, 1.8), 2)
-        last_signal = "上行" if series[-1]["predicted"] >= series[-2]["predicted"] else "回调"
-        predicted_change = round(series[-1]["predicted"] - series[-7]["predicted"], 2)
+        historical_values = [item["value"] for item in actual_series]
+        hw_params = HoltWintersParams(alpha=0.5, beta=0.3, gamma=0.2, season_length=max(6, window // 6))
+        hw_forecast, mape = holt_winters_forecast(historical_values, steps=7, params=hw_params)
+
+        series = []
+        for i, item in enumerate(actual_series):
+            predicted = hw_forecast[0] if i == len(actual_series) - 1 else historical_values[i]
+            series.append(
+                {
+                    "date": item["date"],
+                    "actual": item["value"],
+                    "predicted": round(predicted, 2),
+                }
+            )
+
+        hit_rate = round(random.uniform(0.7, 0.9) - mape / 200, 2)
+        sharpe = round(1.2 - mape / 150, 2)
+        last_signal = "上行" if hw_forecast[-1] >= hw_forecast[0] else "回调"
+        predicted_change = round(hw_forecast[-1] - historical_values[-1], 2)
 
         events = [
             {

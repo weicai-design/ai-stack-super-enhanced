@@ -1,0 +1,54 @@
+{
+  "generated_at": "2025-11-21T03:42:25.753686+00:00",
+  "project_root": "/Users/ywc/ai-stack-super-enhanced",
+  "results": [
+    {
+      "section": "python_requirements",
+      "status": "ok",
+      "message": "缺包/版本检查通过",
+      "timestamp": "2025-11-21T03:42:23.837252+00:00"
+    },
+    {
+      "section": "pip_check",
+      "status": "ok",
+      "message": "pip check 通过",
+      "timestamp": "2025-11-21T03:42:24.416948+00:00"
+    },
+    {
+      "section": "npm_check",
+      "status": "ok",
+      "message": "npm ls --depth=0 成功",
+      "timestamp": "2025-11-21T03:42:25.520376+00:00"
+    },
+    {
+      "section": "system_python3",
+      "status": "ok",
+      "message": "Python 3.12.11",
+      "timestamp": "2025-11-21T03:42:25.540064+00:00"
+    },
+    {
+      "section": "system_node",
+      "status": "ok",
+      "message": "v24.7.0",
+      "timestamp": "2025-11-21T03:42:25.585007+00:00"
+    },
+    {
+      "section": "system_npm",
+      "status": "ok",
+      "message": "11.5.1",
+      "timestamp": "2025-11-21T03:42:25.734594+00:00"
+    },
+    {
+      "section": "system_git",
+      "status": "ok",
+      "message": "git version 2.51.0",
+      "timestamp": "2025-11-21T03:42:25.753479+00:00"
+    },
+    {
+      "section": "system_tools",
+      "status": "ok",
+      "message": "核心系统工具已安装",
+      "timestamp": "2025-11-21T03:42:25.753542+00:00"
+    }
+  ]
+}

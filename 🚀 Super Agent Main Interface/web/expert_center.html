@@ -159,9 +159,40 @@
             white-space: pre-wrap;
         }
         .muted { color: #94a3b8; font-size: 13px; }
+        .collaboration-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 18px;
+            margin-top: 18px;
+        }
+        .session-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 16px;
+            background: #fdfcff;
+            box-shadow: 0 10px 25px rgba(99,102,241,0.08);
+        }
+        .session-card h4 {
+            margin: 0;
+        }
+        .session-meta {
+            font-size: 12px;
+            color: #64748b;
+            margin: 6px 0;
+        }
+        .collab-form {
+            border: 1px dashed #c7d2fe;
+            border-radius: 16px;
+            padding: 14px;
+            background: #f5f7ff;
+        }
+        .collab-form h4 {
+            margin-top: 0;
+        }
         @media (max-width: 768px) {
             .hero { flex-direction: column; }
             .control-row input, .control-row textarea { min-width: 100%; }
+            .collaboration-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -279,6 +310,77 @@
                     </tbody>
                 </table>
             </div>
+        </section>
+
+        <section class="card">
+            <div class="section-header">
+                <div>
+                    <h2 style="margin:0;">协同中枢 · Multi-Expert Collaboration</h2>
+                    <p class="muted">创建跨域专家会商、实时记录贡献与决策，确保任务闭环。</p>
+                </div>
+            </div>
+            <div class="stats-grid" style="margin-bottom:18px;">
+                <div class="stat-card">
+                    <span>活跃会话</span>
+                    <strong id="statCollabActive">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>累计会话</span>
+                    <strong id="statCollabTotal">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>平均协同指数</span>
+                    <strong id="statCollabSynergy">-</strong>
+                </div>
+                <div class="stat-card">
+                    <span>平均响应延迟</span>
+                    <strong id="statCollabLatency">-</strong>
+                </div>
+            </div>
+            <div class="collaboration-grid">
+                <div>
+                    <h3 style="margin:0 0 10px;">活跃会话</h3>
+                    <div id="collabSessions" class="timeline"></div>
+                </div>
+                <div class="collab-form">
+                    <h4>创建协同会话</h4>
+                    <div class="control-row">
+                        <input id="collabTopic" placeholder="主题：如 抖音版权风控专项">
+                        <input id="collabInitiator" placeholder="发起人">
+                    </div>
+                    <div class="control-row">
+                        <textarea id="collabGoals" placeholder="目标（每行一个）"></textarea>
+                        <textarea id="collabExperts" placeholder="专家配置：expert_id,name,domain,role"></textarea>
+                    </div>
+                    <button class="btn-primary" id="btnCreateSession">创建会话</button>
+                    <hr style="margin:18px 0;border:none;border-top:1px dashed #cbd5f5;">
+                    <h4>记录专家贡献</h4>
+                    <div class="control-row">
+                        <input id="collabSessionId" placeholder="会话ID">
+                        <input id="collabExpertId" placeholder="专家ID">
+                        <input id="collabExpertName" placeholder="专家名称">
+                    </div>
+                    <div class="control-row">
+                        <input id="collabChannel" placeholder="渠道（如 rag/ops/content ）">
+                        <textarea id="collabSummary" placeholder="贡献摘要"></textarea>
+                        <textarea id="collabActions" placeholder="行动项（每行一个）"></textarea>
+                    </div>
+                    <button class="btn-secondary" id="btnAddContribution">追加贡献</button>
+                    <hr style="margin:18px 0;border:none;border-top:1px dashed #cbd5f5;">
+                    <h4>闭环决策</h4>
+                    <div class="control-row">
+                        <input id="collabDecisionSessionId" placeholder="会话ID">
+                        <input id="collabDecisionOwner" placeholder="责任人">
+                    </div>
+                    <div class="control-row">
+                        <textarea id="collabDecisionSummary" placeholder="决策摘要"></textarea>
+                        <textarea id="collabDecisionKpis" placeholder="监控KPI（每行一个）"></textarea>
+                        <textarea id="collabDecisionFollowups" placeholder="跟进行动（每行一个）"></textarea>
+                    </div>
+                    <button class="btn-primary" id="btnFinalizeSession">完成会话</button>
+                </div>
+            </div>
+            <div class="console-box" id="collabConsole">等待协同动作...</div>
         </section>
     </div>
     <script src="js/expert_center.js"></script>

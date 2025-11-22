@@ -45,7 +45,37 @@ jobs:
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
     
-    - name: 构建并推送Docker镜像
+    - name: 构建并推送Gateway镜像
+      uses: docker/build-push-action@v4
+      with:
+        context: ./api-gateway
+        file: ./api-gateway/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/ai-stack-gateway:latest,${{ secrets.DOCKER_USERNAME }}/ai-stack-gateway:${{ github.sha }}
+        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/ai-stack-gateway:buildcache
+        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/ai-stack-gateway:buildcache,mode=max
+    
+    - name: 构建并推送RAG Sidecar镜像
+      uses: docker/build-push-action@v4
+      with:
+        context: ./📚 Enhanced RAG & Knowledge Graph
+        file: ./📚 Enhanced RAG & Knowledge Graph/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/ai-stack-rag-sidecar:latest,${{ secrets.DOCKER_USERNAME }}/ai-stack-rag-sidecar:${{ github.sha }}
+        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/ai-stack-rag-sidecar:buildcache
+        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/ai-stack-rag-sidecar:buildcache,mode=max
+    
+    - name: 构建并推送Trend Sidecar镜像
+      uses: docker/build-push-action@v4
+      with:
+        context: ./🔍 Intelligent Trend Analysis
+        file: ./🔍 Intelligent Trend Analysis/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/ai-stack-trend-sidecar:latest,${{ secrets.DOCKER_USERNAME }}/ai-stack-trend-sidecar:${{ github.sha }}
+        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/ai-stack-trend-sidecar:buildcache
+        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/ai-stack-trend-sidecar:buildcache,mode=max
+    
+    - name: 构建并推送Docker镜像（旧版兼容）
       uses: docker/build-push-action@v4
       with:
         context: .
