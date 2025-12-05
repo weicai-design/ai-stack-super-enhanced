@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>库存管理中心 · ERP全流程</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --border: #334155;
+            --primary: #38bdf8;
+            --success: #10b981;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --text: #f8fafc;
+            --text-sub: #94a3b8;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+        .inventory-app {
+            min-height: 100vh;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        .header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 16px;
+        }
+        .title h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .title p {
+            margin: 4px 0 0;
+            color: var(--text-sub);
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+        button {
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+            color: #fff;
+        }
+        .btn-secondary {
+            background: rgba(148, 163, 184, 0.2);
+            color: var(--text);
+        }
+        .grid {
+            display: grid;
+            gap: 16px;
+        }
+        .grid.stats {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .card h3 {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-sub);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .card strong {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .card span {
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+        .filters {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        .filters label {
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+            color: var(--text-sub);
+            gap: 6px;
+        }
+        .filters input,
+        .filters select {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text);
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(280px, 1.2fr);
+            gap: 20px;
+        }
+        .table-wrapper {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 0 20px 20px;
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead th {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            text-align: left;
+            padding: 16px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        tbody td {
+            padding: 18px 8px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            font-size: 14px;
+        }
+        tbody tr {
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        tbody tr:hover {
+            background: rgba(56, 189, 248, 0.08);
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge.success { background: rgba(16, 185, 129, 0.12); color: var(--success); }
+        .badge.info { background: rgba(96, 165, 250, 0.12); color: #60a5fa; }
+        .badge.warning { background: rgba(251, 191, 36, 0.12); color: var(--warning); }
+        .badge.danger { background: rgba(248, 113, 113, 0.12); color: var(--danger); }
+        .detail-panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 300px;
+        }
+        .detail-panel h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .lifecycle {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .lifecycle-step {
+            flex: 1 1 120px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.5);
+        }
+        .lifecycle-step.current { border-color: var(--primary); }
+        .lifecycle-step.completed { border-color: var(--success); }
+        .bar {
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            overflow: hidden;
+            margin-top: 6px;
+        }
+        .bar > span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #818cf8, #38bdf8);
+        }
+        .dimension-list {
+            display: grid;
+            gap: 8px;
+        }
+        .dimension-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+        .empty {
+            text-align: center;
+            padding: 40px 10px;
+            color: var(--text-sub);
+        }
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .chip {
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            font-size: 12px;
+        }
+        .stock-info {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .stock-item {
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 8px;
+        }
+        .stock-item label {
+            font-size: 12px;
+            color: var(--text-sub);
+            display: block;
+            margin-bottom: 4px;
+        }
+        .stock-item strong {
+            font-size: 18px;
+            display: block;
+        }
+        @media (max-width: 1024px) {
+            .inventory-app { padding: 16px; }
+            .layout { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="inventory-app">
+        <div class="header">
+            <div class="title">
+                <h1>📦 库存管理中心</h1>
+                <p>覆盖入库→在库→出库→盘点→调拨→优化的全生命周期，实时掌握30项能力指标</p>
+            </div>
+            <div class="actions">
+                <button class="btn-secondary" id="refreshBtn">刷新</button>
+                <button class="btn-primary" id="createBtn">➕ 新建物料</button>
+                <button class="btn-secondary" id="transferBtn">🔄 库存调拨</button>
+            </div>
+        </div>
+
+        <div class="grid stats" id="statsGrid">
+            <!-- 动态统计卡片 -->
+        </div>
+
+        <form class="filters" id="filters">
+            <label>
+                搜索关键词
+                <input type="text" name="search" placeholder="物料编码/名称/类别" />
+            </label>
+            <label>
+                库存状态
+                <select name="status">
+                    <option value="">全部</option>
+                    <option value="缺货">缺货</option>
+                    <option value="预警">预警</option>
+                    <option value="充足">充足</option>
+                    <option value="超储">超储</option>
+                </select>
+            </label>
+            <label>
+                类别
+                <input type="text" name="category" placeholder="物料类别" />
+            </label>
+            <label>
+                库位
+                <input type="text" name="location" placeholder="库位编码" />
+            </label>
+            <label>
+                每页条数
+                <select name="page_size">
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </label>
+            <button class="btn-primary" type="submit" style="align-self:end;">应用筛选</button>
+        </form>
+
+        <div class="layout">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>物料编码</th>
+                            <th>物料名称</th>
+                            <th>在手</th>
+                            <th>已分配</th>
+                            <th>可用</th>
+                            <th>安全库存</th>
+                            <th>状态</th>
+                            <th>库位</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventoryTable">
+                        <tr><td colspan="8" class="empty">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="detail-panel" id="detailPanel">
+                <div>
+                    <h2 id="detailTitle">请选择物料</h2>
+                    <p id="detailSubtitle" class="chips"></p>
+                </div>
+                <div id="stockInfo" class="stock-info">
+                    <!-- 库存信息 -->
+                </div>
+                <div>
+                    <h3>生命周期</h3>
+                    <div class="lifecycle" id="lifecycleView"></div>
+                </div>
+                <div>
+                    <h3>八维度评分</h3>
+                    <div class="dimension-list" id="dimensionList"></div>
+                </div>
+                <div id="insights"></div>
+            </div>
+        </div>
+
+        <div class="card" id="capabilitiesPanel">
+            <h3>30项能力清单</h3>
+            <div class="chips" id="capabilityChips"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/inventory';
+        const statsGrid = document.getElementById('statsGrid');
+        const inventoryTable = document.getElementById('inventoryTable');
+        const detailTitle = document.getElementById('detailTitle');
+        const detailSubtitle = document.getElementById('detailSubtitle');
+        const stockInfo = document.getElementById('stockInfo');
+        const lifecycleView = document.getElementById('lifecycleView');
+        const dimensionList = document.getElementById('dimensionList');
+        const insightsBox = document.getElementById('insights');
+        const capabilityChips = document.getElementById('capabilityChips');
+        const filtersForm = document.getElementById('filters');
+
+        let overviewCache = null;
+        let currentMaterialId = null;
+
+        const statusClass = (status) => {
+            const map = {
+                '缺货': 'danger',
+                '预警': 'warning',
+                '充足': 'success',
+                '超储': 'info'
+            };
+            return `badge ${map[status] || 'info'}`;
+        };
+
+        async function loadOverview() {
+            const res = await fetch(`${API_BASE}/overview`);
+            const data = await res.json();
+            overviewCache = data;
+            renderStats(data);
+            renderCapabilities(data.capabilities || []);
+        }
+
+        function renderStats(data) {
+            const summary = data.summary || {};
+            statsGrid.innerHTML = `
+                <div class="card">
+                    <h3>物料总数</h3>
+                    <strong>${summary.materials ?? '--'}</strong>
+                    <span>总在手库存 ${summary.total_on_hand ?? '--'}</span>
+                </div>
+                <div class="card">
+                    <h3>库存价值</h3>
+                    <strong>¥${(summary.total_value ?? 0).toLocaleString()}</strong>
+                    <span>币种：CNY</span>
+                </div>
+                <div class="card">
+                    <h3>低库存预警</h3>
+                    <strong>${summary.low_stock_count ?? '--'}</strong>
+                    <span>低于安全库存或已缺货</span>
+                </div>
+                <div class="card">
+                    <h3>生命周期</h3>
+                    <strong>${data.lifecycle?.length || 5}</strong>
+                    <span>补货→优化的关键节点</span>
+                </div>
+            `;
+        }
+
+        async function loadInventory() {
+            const params = new URLSearchParams(new FormData(filtersForm));
+            params.append('page', '1');
+            const res = await fetch(`${API_BASE}?${params}`);
+            const data = await res.json();
+            renderInventory(data.inventory || []);
+        }
+
+        function renderInventory(inventory) {
+            if (!inventory.length) {
+                inventoryTable.innerHTML = '<tr><td colspan="8" class="empty">暂无库存物料，尝试调整筛选条件</td></tr>';
+                return;
+            }
+            inventoryTable.innerHTML = inventory.map(item => `
+                <tr data-id="${item.material_id}">
+                    <td>${item.material_id}</td>
+                    <td>${item.name || '—'}</td>
+                    <td>${item.on_hand ?? '—'}</td>
+                    <td>${item.allocated ?? '—'}</td>
+                    <td>${item.available ?? '—'}</td>
+                    <td>${item.safety_stock ?? '—'}</td>
+                    <td><span class="${statusClass(item.stock_status_label)}">${item.stock_status_label || '—'}</span></td>
+                    <td>${item.location || '—'}</td>
+                </tr>
+            `).join('');
+
+            inventoryTable.querySelectorAll('tr').forEach(row => {
+                row.addEventListener('click', () => {
+                    const id = row.getAttribute('data-id');
+                    currentMaterialId = id;
+                    loadInventoryDetail(id);
+                });
+            });
+        }
+
+        async function loadInventoryDetail(materialId) {
+            const res = await fetch(`${API_BASE}/${materialId}`);
+            if (!res.ok) {
+                detailTitle.textContent = '物料不存在';
+                return;
+            }
+            const data = await res.json();
+            const item = data.inventory_item || {};
+            detailTitle.textContent = `物料 ${item.material_id}`;
+            detailSubtitle.innerHTML = `
+                <span class="chip">${item.name || '未定义名称'}</span>
+                <span class="chip">${item.category || '未知类别'}</span>
+                <span class="chip ${statusClass(data.stock_status_label)}">${data.stock_status_label || '未知'}</span>
+            `;
+
+            renderStockInfo(item);
+            renderLifecycleDetail(data.lifecycle || []);
+            renderDimensionDetail(data.dimension_breakdown || []);
+            renderInsights(data.insights || []);
+        }
+
+        function renderStockInfo(item) {
+            stockInfo.innerHTML = `
+                <div class="stock-item">
+                    <label>在手库存</label>
+                    <strong>${item.on_hand ?? '—'}</strong>
+                </div>
+                <div class="stock-item">
+                    <label>已分配</label>
+                    <strong>${item.allocated ?? '—'}</strong>
+                </div>
+                <div class="stock-item">
+                    <label>可用库存</label>
+                    <strong>${item.available ?? '—'}</strong>
+                </div>
+                <div class="stock-item">
+                    <label>安全库存</label>
+                    <strong>${item.safety_stock ?? '—'}</strong>
+                </div>
+                <div class="stock-item">
+                    <label>再订货点</label>
+                    <strong>${item.reorder_point ?? '—'}</strong>
+                </div>
+                <div class="stock-item">
+                    <label>库位</label>
+                    <strong>${item.location || '—'}</strong>
+                </div>
+            `;
+        }
+
+        function renderLifecycleDetail(steps) {
+            lifecycleView.innerHTML = steps.map(step => `
+                <div class="lifecycle-step ${step.status}">
+                    <div style="font-weight:600;">${step.stage}</div>
+                    <div style="font-size:12px;color:var(--text-sub);">序号 ${step.sequence}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderDimensionDetail(items) {
+            if (!items.length && overviewCache?.dimension_summary) {
+                items = overviewCache.dimension_summary;
+            }
+            dimensionList.innerHTML = items.map(item => {
+                const score = item.score || 0;
+                const percentage = Math.min(100, Math.round(score * 100));
+                return `
+                    <div>
+                        <div class="dimension-item">
+                            <span>${item.dimension || item.dimension_id}</span>
+                            <span>${percentage}%</span>
+                        </div>
+                        <div class="bar"><span style="width:${percentage}%;"></span></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderInsights(list) {
+            if (!list.length) {
+                insightsBox.innerHTML = '<p style="color:var(--text-sub);">暂无额外洞察</p>';
+                return;
+            }
+            insightsBox.innerHTML = list.map(text => `<p>${text}</p>`).join('');
+        }
+
+        function renderCapabilities(items) {
+            capabilityChips.innerHTML = items.slice(0, 30).map(item => `
+                <span class="chip">${item.name || item}</span>
+            `).join('');
+        }
+
+        filtersForm.addEventListener('submit', evt => {
+            evt.preventDefault();
+            loadInventory();
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            loadOverview();
+            loadInventory();
+            if (currentMaterialId) loadInventoryDetail(currentMaterialId);
+        });
+
+        document.getElementById('createBtn').addEventListener('click', async () => {
+            const materialId = prompt('物料编码');
+            if (!materialId) return;
+            const name = prompt('物料名称');
+            const onHand = Number(prompt('在手库存') || 0);
+            const payload = {
+                material_id: materialId,
+                name,
+                on_hand: onHand,
+                allocated: 0,
+                safety_stock: 0,
+                reorder_point: 0
+            };
+            const res = await fetch(API_BASE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert('物料创建成功');
+                loadOverview();
+                loadInventory();
+            } else {
+                const data = await res.json();
+                alert(`创建失败: ${data.detail || '未知错误'}`);
+            }
+        });
+
+        document.getElementById('transferBtn').addEventListener('click', async () => {
+            const fromMaterialId = prompt('源物料编码');
+            if (!fromMaterialId) return;
+            const toMaterialId = prompt('目标物料编码（留空表示调出）');
+            const quantity = Number(prompt('调拨数量') || 0);
+            if (quantity <= 0) return;
+            const payload = {
+                from_material_id: fromMaterialId,
+                to_material_id: toMaterialId || null,
+                quantity,
+                reason: '手动调拨'
+            };
+            const res = await fetch(`${API_BASE}/transfer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert('库存调拨成功');
+                loadOverview();
+                loadInventory();
+                if (currentMaterialId) loadInventoryDetail(currentMaterialId);
+            } else {
+                const data = await res.json();
+                alert(`调拨失败: ${data.detail || '未知错误'}`);
+            }
+        });
+
+        loadOverview();
+        loadInventory();
+    </script>
+</body>
+</html>
+

@@ -1,3 +1,195 @@
+"""
+超级Agent主界面API
+提供RESTful API接口
+"""
+
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    UploadFile,
+    File,
+    Body,
+    Query,
+    Depends,
+    Request,
+    Response,
+    status,
+)
+from fastapi.responses import StreamingResponse, JSONResponse
+from pydantic import BaseModel, Field
+from typing import Dict, List, Optional, Any, Callable, Awaitable
+import asyncio
+import time
+from datetime import datetime
+from uuid import uuid4
+
+import sys
+from pathlib import Path
+import json
+import os
+import logging
+import random
+import math
+import re
+from collections import deque, Counter
+import itertools
+import yaml
+import httpx
+
+logger = logging.getLogger(__name__)
+
+# 添加项目根目录到路径（如果还没有）
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+# 添加core模块路径
+core_path = project_root / "core"
+if str(core_path) not in sys.path:
+    sys.path.insert(0, str(core_path))
+
+from core.super_agent import SuperAgent
+from core.memo_system import MemoSystem
+from core.task_planning import TaskPlanning
+from core.self_learning import SelfLearningMonitor
+from core.resource_monitor import ResourceMonitor
+from core.resource_auto_adjuster import ResourceAutoAdjuster
+from core.voice_interaction import VoiceInteraction
+from core.translation import TranslationService
+from core.file_generation import FileGenerationService
+from core.web_search import WebSearchService
+from core.file_format_handler import FileFormatHandler
+from core.terminal_executor import TerminalExecutor
+from core.terminal_audit import TerminalAuditLogger
+from core.performance_monitor import performance_monitor, response_time_optimizer
+from core.llm_service import get_llm_service, LLMProvider
+from core.task_orchestrator import TaskStatus
+from core.learning_events import LearningEventType
+from core.data_sources.factory_data_source import FactoryDataSource
+from core.integrations.external_status import ExternalIntegrationStatus
+from core.task_lifecycle_manager import get_task_lifecycle_manager
+from core.workflow_causal_analyzer import WorkflowCausalAnalyzer
+from core.resource_diagnostic import ResourceDiagnosticEngine
+from core.resource_authorization import ResourceAuthorizationManager
+from core.resource_strategy_engine import ResourceStrategyEngine, ResourceStrategy, StrategyContext
+from core.resource_conflict_scheduler import ResourceConflictScheduler, ConflictType, ResolutionStrategy
+from core.security_compliance_baseline import SecurityComplianceBaseline, ComplianceCategory, SecurityLevel, ViolationType
+from core.observability_system import ObservabilitySystem, SpanType, SpanStatus
+from core.observability_middleware import ObservabilityMiddleware
+from core.observability_persistence import ObservabilityPersistence
+from core.observability_alerts import ObservabilityAlertSystem, AlertRule, AlertSeverity, AlertCondition
+from core.observability_export import ObservabilityExporter
+from core.knowledge_template import KnowledgeTemplateManager, KnowledgeType, KnowledgePriority
+from core.knowledge_ingestion_strategy import KnowledgeIngestionStrategy, IngestionTrigger, IngestionPriority
+from core.security.config import get_security_settings
+from core.security.auth import require_api_token
+from core.security.sensitive_policy import SensitiveContentFilter
+from core.security.audit_pipeline import get_audit_pipeline
+from core.security.permission_guard import get_permission_guard
+from core.security.risk_engine import get_risk_engine
+from core.security.crawler_compliance import get_crawler_compliance_service
+from core.security.approval_workflow import (
+    get_approval_manager,
+    ApprovalStatus,
+)
+ERP_MODULE_ROOT = project_root / "💼 Intelligent ERP & Business Management"
+if ERP_MODULE_ROOT.exists() and str(ERP_MODULE_ROOT) not in sys.path:
+    sys.path.insert(0, str(ERP_MODULE_ROOT))
+try:
+    from core.trial_data_source import DemoFactoryTrialDataSource
+    from core.erp_8d_analysis import analyze_8d
+except ModuleNotFoundError as exc:
+    DemoFactoryTrialDataSource = None
+    analyze_8d = None
+    print(f"[SuperAgentAPI] ERP modules未加载: {exc}")
+from core.strategy_engine import StrategyEngine
+from core.content_compliance import ContentComplianceService
+from core.copyright_inspector import CopyrightInspector, PlatformSourceComparison
+from core.stock_gateway import StockGateway
+from core.stock_simulator import StockSimulator
+from core.stock_backtest import BacktestEngine
+from core.integrations.douyin import DouyinIntegration
+from core.integrations.api_monitor import APIMonitor
+from core.stock_factor_engine import StockFactorEngine, stock_factor_engine
+from core.stock_execution_analyzer import execution_analyzer
+from core.broker_adapter import broker_manager
+from core.storyboard_generator import StoryboardGenerator
+from core.trend_scenario_engine import trend_scenario_engine, ScenarioInput
+from core.trend_data_collector import trend_data_collector
+from core.trend_rag_output import trend_rag_output
+from core.operations_finance_expert import chart_expert, finance_expert
+from core.operations_finance_strategy import operations_finance_strategy
+from core.erp_data_sync import erp_data_sync
+from core.erp_process_service import ERPProcessService
+from core.expert_standardization import expert_standardization
+from core.expert_collaboration import expert_collaboration_hub
+from core.config_automation import (
+    get_env_manager,
+    get_deployment_manager,
+)
+from core.service_registry import get_service_registry, ServiceContract
+from core.service_gateway import get_service_gateway, ServiceCallResult
+from core.coding_assistant_enhanced import documentation_generator, command_replay, cursor_ide_integration
+from core.multitenant_microservice_evolution import multitenant_evolution
+try:
+    from AI_Programming_Assistant.core.cursor_bridge import CursorBridge
+except ModuleNotFoundError:
+    # 如果直接导入失败，尝试相对路径导入
+    try:
+        from ...AI_Programming_Assistant.core.cursor_bridge import CursorBridge
+    except ImportError:
+        CursorBridge = None
+        print("[SuperAgentAPI] CursorBridge模块未加载")
+
+try:
+    from AI_Programming_Assistant.core.cursor_protocol import CursorProtocol
+    from AI_Programming_Assistant.core.cursor_plugin_system import CursorPluginSystem
+    from AI_Programming_Assistant.core.cursor_authorization import CursorAuthorization
+    from AI_Programming_Assistant.core.cursor_local_bridge import CursorLocalBridge
+except ModuleNotFoundError:
+    # 如果直接导入失败，尝试相对路径导入
+    try:
+        from ...AI_Programming_Assistant.core.cursor_protocol import CursorProtocol
+        from ...AI_Programming_Assistant.core.cursor_plugin_system import CursorPluginSystem
+        from ...AI_Programming_Assistant.core.cursor_authorization import CursorAuthorization
+        from ...AI_Programming_Assistant.core.cursor_local_bridge import CursorLocalBridge
+    except ImportError:
+        CursorProtocol = None
+        CursorPluginSystem = None
+        CursorAuthorization = None
+        CursorLocalBridge = None
+        print("[SuperAgentAPI] Cursor相关模块未加载")
+from core.slo_performance_reporter import slo_performance_reporter, VectorIndexBenchmark, StreamingBenchmark, ContextCompressionBenchmark
+from core.acceptance_matrix_generator import acceptance_matrix_generator
+from core.acceptance_recording import acceptance_recording
+from core.ci_evidence_uploader import ci_evidence_uploader
+from core.closed_loop_engine import ClosedLoopEngine, ExecutionStatus
+from core.unified_event_bus import UnifiedEventBus, EventCategory, EventSeverity, get_unified_event_bus, EventFilter
+from core.execution_checker import ExecutionChecker, CheckType, CheckResult
+from core.feedback_handler import FeedbackHandler, FeedbackType, FeedbackStatus
+from core.evidence_recorder import EvidenceRecorder, EvidenceType
+from core.content_deai_pipeline import deai_pipeline
+from core.content_analytics import content_analytics
+from core.database_persistence import DatabasePersistence, get_persistence
+from core.data_sync_manager import DataSyncManager, get_sync_manager
+from core.data_service import DataService, get_data_service
+from core.persistence_seed import PersistenceSeeder
+from core.tenant_manager import tenant_manager
+from core.tenant_context import get_current_tenant
+from core.module_registry import ModuleRegistry
+from core.module_chain import ModuleChainManager
+from core.function_hierarchy import FOUR_LEVEL_FUNCTIONS
+
+RAG_MODULE_ROOT = project_root / "📚 Enhanced RAG & Knowledge Graph"
+if RAG_MODULE_ROOT.exists() and str(RAG_MODULE_ROOT) not in sys.path:
+    sys.path.insert(0, str(RAG_MODULE_ROOT))
+
+try:
+    # RAG模块导入
+    pass
+except ModuleNotFoundError as exc:
+    print(f"[SuperAgentAPI] RAG modules未加载: {exc}")
+
 class StoryboardRequest(BaseModel):
     concept: str
     template: Optional[str] = "fast_promo"
@@ -9,6 +201,21 @@ class StoryboardResponse(BaseModel):
     concept: str
     template: str
     shots: List[Dict[str, Any]]
+
+
+class TenantCreateRequest(BaseModel):
+    tenant_id: str = Field(..., min_length=2, max_length=32, pattern=r"^[a-z0-9\-_]+$")
+    name: str
+    plan: Optional[str] = "enterprise"
+    active: Optional[bool] = True
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class TenantUpdateRequest(BaseModel):
+    name: Optional[str]
+    plan: Optional[str]
+    active: Optional[bool]
+    metadata: Optional[Dict[str, Any]]
 
 
 class ResourceRollbackRequest(BaseModel):
@@ -121,6 +328,24 @@ class ServiceCallRequest(BaseModel):
     operation: str
     payload: Dict[str, Any] = Field(default_factory=dict)
     prefer_internal: bool = True
+
+
+class PlanCreateRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = "work"
+    priority: Optional[str] = "medium"
+    task_ids: Optional[List[int]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class PlanUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    priority: Optional[str] = None
+    task_ids: Optional[List[int]] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class CollaborationEventStreamManager:
@@ -280,6 +505,7 @@ from core.trend_rag_output import trend_rag_output
 from core.operations_finance_expert import chart_expert, finance_expert
 from core.operations_finance_strategy import operations_finance_strategy
 from core.erp_data_sync import erp_data_sync
+from core.erp_process_service import ERPProcessService
 from core.expert_standardization import expert_standardization
 from core.expert_collaboration import expert_collaboration_hub
 from core.config_automation import (
@@ -326,18 +552,18 @@ except ModuleNotFoundError as exc:
     rag_clean = rag_standardize = rag_dedup = rag_validate = rag_auth_score = None
     print(f"[SuperAgentAPI] RAG modules未加载: {exc}")
 
-from AI_Programming_Assistant.core import (
-    CursorAuthorization,
-    CursorBridge,
-    CursorLocalBridge,
-    CursorPluginSystem,
-    CursorProtocol,
-    AuthorizationLevel,
-    AccessScope,
-    PluginPermission,
-    PluginStatus,
-    ProtocolCommand,
-)
+# from AI_Programming_Assistant.core import (
+#     CursorAuthorization,
+#     CursorBridge,
+#     CursorLocalBridge,
+#     CursorPluginSystem,
+#     CursorProtocol,
+#     AuthorizationLevel,
+#     AccessScope,
+#     PluginPermission,
+#     PluginStatus,
+#     ProtocolCommand,
+# )
 from datetime import timedelta
 from dataclasses import dataclass, asdict
 
@@ -384,8 +610,10 @@ _bootstrap_service_contracts()
 
 # 初始化服务
 super_agent = SuperAgent()
-memo_system = MemoSystem()
-task_planning = TaskPlanning(memo_system)
+task_lifecycle_manager = get_task_lifecycle_manager()
+memo_storage = (project_root / "logs" / "memos" / "memos.json")
+memo_system = MemoSystem(storage_path=str(memo_storage))
+task_planning = TaskPlanning(memo_system, lifecycle_manager=task_lifecycle_manager)
 
 # P0-003: 初始化数据持久化和同步服务
 data_persistence = get_persistence()
@@ -446,6 +674,7 @@ risk_engine = get_risk_engine()
 permission_guard = get_permission_guard()
 crawler_compliance_service = get_crawler_compliance_service()
 approval_manager = get_approval_manager()
+# 权限依赖项定义 - 直接使用权限检查函数
 security_read_dep = permission_guard.require("security:read")
 security_write_dep = permission_guard.require("security:write")
 finance_read_dep = permission_guard.require("finance:read")
@@ -1519,7 +1748,12 @@ stock_gateway = StockGateway(api_monitor=api_monitor)
 stock_sim = StockSimulator()
 stock_factor_engine = StockFactorEngine()
 douyin = DouyinIntegration(api_monitor=api_monitor)
-cursor_bridge = CursorBridge()
+# 安全地初始化CursorBridge
+if CursorBridge is not None:
+    cursor_bridge = CursorBridge()
+else:
+    cursor_bridge = None
+    logger.warning("CursorBridge未初始化，相关功能将不可用")
 storyboard_generator = StoryboardGenerator()
 
 # P1-202: 初始化 ERP 11 环节管理器和库存管理器
@@ -1540,6 +1774,18 @@ except Exception as e:
     logger.warning(f"ERP 模块初始化失败: {e}")
     erp_11_stages_manager = None
     inventory_manager = None
+
+try:
+    factory_data_source = FactoryDataSource()
+    factory_data_source_error = None
+except FileNotFoundError as exc:
+    factory_data_source = None
+    factory_data_source_error = str(exc)
+
+erp_process_service = ERPProcessService(
+    stage_manager=erp_11_stages_manager,
+    data_source=factory_data_source,
+)
 
 # P1-203: 初始化双RAG执行引擎和模块执行器
 from core.dual_rag_execution_engine import DualRAGExecutionEngine
@@ -1629,7 +1875,6 @@ compliance_manager = get_compliance_manager()
 compliance_audit_workflow = get_compliance_audit_workflow()
 
 # P2-303: 初始化三大系统
-task_lifecycle_manager = get_task_lifecycle_manager()
 learning_curve_tracker = get_learning_curve_tracker()
 resource_scheduler = get_resource_scheduler()
 
@@ -1662,21 +1907,35 @@ module_registry = ModuleRegistry(
 )
 
 # P0-016: 初始化Cursor集成系统（协议/插件/本地桥/授权）
-cursor_protocol = CursorProtocol()
-cursor_plugin_system = CursorPluginSystem()
-cursor_authorization = CursorAuthorization()
-cursor_local_bridge = CursorLocalBridge(
-    protocol=cursor_protocol,
-    plugin_system=cursor_plugin_system,
-    permission_manager=cursor_plugin_system.permission_manager
-)
+# 安全地初始化Cursor相关组件
+if CursorProtocol is not None:
+    cursor_protocol = CursorProtocol()
+else:
+    cursor_protocol = None
+    print("[SuperAgentAPI] CursorProtocol未初始化")
+
+if CursorPluginSystem is not None:
+    cursor_plugin_system = CursorPluginSystem()
+else:
+    cursor_plugin_system = None
+    print("[SuperAgentAPI] CursorPluginSystem未初始化")
+
+if CursorAuthorization is not None:
+    cursor_authorization = CursorAuthorization()
+else:
+    cursor_authorization = None
+    print("[SuperAgentAPI] CursorAuthorization未初始化")
+
+if CursorLocalBridge is not None and cursor_protocol is not None and cursor_plugin_system is not None:
+    cursor_local_bridge = CursorLocalBridge(
+        protocol=cursor_protocol,
+        plugin_system=cursor_plugin_system,
+        permission_manager=cursor_plugin_system.permission_manager if cursor_plugin_system else None
+    )
+else:
+    cursor_local_bridge = None
+    print("[SuperAgentAPI] CursorLocalBridge未初始化")
 backtest_engine = BacktestEngine()
-try:
-    factory_data_source = FactoryDataSource()
-    factory_data_source_error = None
-except FileNotFoundError as exc:
-    factory_data_source = None
-    factory_data_source_error = str(exc)
 if DemoFactoryTrialDataSource:
     try:
         trial_data_source = DemoFactoryTrialDataSource()
@@ -1699,7 +1958,6 @@ file_generation = FileGenerationService(rag_service=super_agent.rag_service)
 
 # 启动资源监控（后台任务）
 import asyncio
-asyncio.create_task(resource_monitor.start_monitoring(interval=5))
 
 # 启动ERP监听（轻量轮询对比）
 _erp_last_order_count = {"count": 0}
@@ -1731,7 +1989,7 @@ async def _erp_listener():
         except Exception:
             await asyncio.sleep(20)
 
-asyncio.create_task(_erp_listener())
+
 
 bpmn_dir = Path(project_root) / "data" / "bpmn"
 bpmn_dir.mkdir(parents=True, exist_ok=True)
@@ -2180,6 +2438,7 @@ async def add_memo(memo_data: Dict):
 
 
 @router.get("/tasks")
+@router.get("/task-planning/tasks")
 async def get_tasks(
     status: Optional[str] = None,
     needs_confirmation: Optional[bool] = None
@@ -2439,37 +2698,211 @@ async def process_ingestion_queue(request: KnowledgeProcessQueueRequest):
 # ============ P1-021: ERP 11环节与流程可视化 ============
 
 
+class StageInstanceCreateRequest(BaseModel):
+    process_id: str = Field(..., description="所属流程ID")
+    initial_data: Optional[Dict[str, Any]] = Field(default=None, description="初始指标/上下文")
+
+
+class StageUpdateRequest(BaseModel):
+    data: Optional[Dict[str, Any]] = None
+
+
+class StageMetricsRequest(BaseModel):
+    metrics: Dict[str, Any]
+
+
+class TimelineEventRequest(BaseModel):
+    stage_id: str
+    title: str
+    summary: Optional[str] = None
+    impact: Optional[str] = None
+    status: Optional[str] = None
+
+
+class OrderCreateRequest(BaseModel):
+    customer: str
+    value: float
+    currency: str = "CNY"
+    industry: Optional[str] = None
+    delivery_date: Optional[str] = None
+    priority: Optional[str] = "normal"
+    status: Optional[str] = None
+    stage: Optional[str] = None
+    risk: Optional[str] = None
+    dimensions: Optional[Dict[str, float]] = None
+
+
+@router.get("/erp/process/overview")
+async def get_erp_process_overview():
+    """11环节总览统计"""
+    overview = erp_process_service.get_overview()
+    overview["generated_at"] = datetime.now().isoformat()
+    return overview
+
+
 @router.get("/erp/process/stages")
 async def get_erp_process_stages():
     """获取ERP流程阶段概览"""
+    stages = erp_process_service.list_stages()
     return {
         "success": True,
-        "stages": ERP_PROCESS_STAGES,
-        "updated_at": datetime.now().isoformat()
+        "stages": stages,
+        "count": len(stages),
+        "generated_at": datetime.now().isoformat(),
     }
 
 
 @router.get("/erp/process/stages/{stage_id}")
 async def get_erp_process_stage(stage_id: str):
     """获取单个ERP流程阶段详情"""
-    stage = next((s for s in ERP_PROCESS_STAGES if s["id"] == stage_id), None)
+    stage = erp_process_service.get_stage(stage_id)
     if not stage:
         raise HTTPException(status_code=404, detail="流程阶段不存在")
-    extended_stage = dict(stage)
-    extended_stage["related_timeline"] = [
-        item for item in ERP_PROCESS_TIMELINE if item["stage"] == stage_id
-    ]
-    return {"success": True, "stage": extended_stage}
+    return {"success": True, "stage": stage}
 
 
 @router.get("/erp/process/timeline")
-async def get_erp_process_timeline():
+async def get_erp_process_timeline(stage_id: Optional[str] = None):
     """获取ERP流程时间线"""
-    return {
-        "success": True,
-        "timeline": ERP_PROCESS_TIMELINE,
-        "stage_count": len(ERP_PROCESS_STAGES)
-    }
+    return erp_process_service.get_timeline(stage_id)
+
+
+@router.post("/erp/process/timeline")
+async def append_erp_process_timeline(event: TimelineEventRequest):
+    """记录流程时间线事件"""
+    return erp_process_service.record_timeline_event(
+        stage_id=event.stage_id,
+        title=event.title,
+        summary=event.summary,
+        impact=event.impact,
+        status=event.status,
+    )
+
+
+@router.post("/erp/process/stages/{stage_id}/instances")
+async def create_erp_stage_instance(stage_id: str, req: StageInstanceCreateRequest):
+    """创建环节实例"""
+    result = erp_process_service.create_stage_instance(stage_id, req.process_id, req.initial_data)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "创建实例失败"))
+    return result
+
+
+@router.post("/erp/process/instances/{instance_id}/start")
+async def start_erp_stage_instance(instance_id: str, req: StageUpdateRequest):
+    """启动环节实例"""
+    result = erp_process_service.start_stage_instance(instance_id, req.data)
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error", "实例不存在"))
+    return result
+
+
+@router.post("/erp/process/instances/{instance_id}/metrics")
+async def update_erp_stage_metrics(instance_id: str, req: StageMetricsRequest):
+    """更新环节指标"""
+    result = erp_process_service.update_stage_metrics(instance_id, req.metrics)
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error", "实例不存在"))
+    return result
+
+
+@router.post("/erp/process/instances/{instance_id}/complete")
+async def complete_erp_stage_instance(instance_id: str, req: StageUpdateRequest):
+    """完成环节实例"""
+    result = erp_process_service.complete_stage_instance(instance_id, req.data)
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error", "实例不存在"))
+    return result
+
+
+@router.get("/erp/process/matrix")
+async def get_erp_process_matrix():
+    """获取11环节矩阵视图（含虚拟售后/财务环节）"""
+    return erp_process_service.get_stage_matrix()
+
+
+@router.get("/erp/process/blueprints/{stage_id}")
+async def get_erp_stage_blueprint(stage_id: str):
+    """获取指定环节的能力蓝图"""
+    blueprint = erp_process_service.get_stage_blueprint(stage_id)
+    if not blueprint:
+        raise HTTPException(status_code=404, detail="环节蓝图不存在")
+    return blueprint
+
+
+@router.get("/erp/process/dimensions")
+async def get_erp_dimension_analysis(stage_id: Optional[str] = None):
+    """获取ERP八维度分析（整体或单环节）"""
+    result = erp_process_service.get_dimension_analysis(stage_id)
+    if not result.get("success", True):
+        raise HTTPException(status_code=404, detail=result.get("error", "分析失败"))
+    return result
+
+
+@router.get("/erp/process/flowmap")
+async def get_erp_flow_map():
+    """获取流程节点与边信息，用于BPMN/可视化"""
+    return erp_process_service.get_flow_map()
+
+
+@router.get("/erp/process/orders")
+async def get_process_orders():
+    """订单管理环节（T012）"""
+    return erp_process_service.get_orders_view()
+
+
+@router.post("/erp/process/orders")
+async def create_process_order(order: OrderCreateRequest):
+    """创建订单（Local fallback）"""
+    return erp_process_service.add_order(order.dict(exclude_none=True))
+
+
+@router.get("/erp/process/projects")
+async def get_process_projects():
+    """项目管理环节（T013）"""
+    return erp_process_service.get_projects_view()
+
+
+@router.get("/erp/process/procurements")
+async def get_process_procurements():
+    """采购管理环节（T014）"""
+    return erp_process_service.get_procurement_view()
+
+
+@router.get("/erp/process/inventory")
+async def get_process_inventory():
+    """库存管理环节（T015）"""
+    return erp_process_service.get_inventory_view()
+
+
+@router.get("/erp/process/production")
+async def get_process_production():
+    """生产管理环节（T016）"""
+    return erp_process_service.get_production_view()
+
+
+@router.get("/erp/process/quality")
+async def get_process_quality():
+    """质量管理环节（T017）"""
+    return erp_process_service.get_quality_view()
+
+
+@router.get("/erp/process/logistics")
+async def get_process_logistics():
+    """物流管理环节（T018）"""
+    return erp_process_service.get_logistics_view()
+
+
+@router.get("/erp/process/after-sales")
+async def get_process_after_sales():
+    """售后服务环节（T019）"""
+    return erp_process_service.get_after_sales_view()
+
+
+@router.get("/erp/process/finance")
+async def get_process_finance():
+    """财务结算环节（T020）"""
+    return erp_process_service.get_finance_view()
 
 
 @router.get("/trend/indicators")
@@ -2792,7 +3225,7 @@ async def get_trend_rag_output_stats(
 
 # ==================== P2-012: 运营财务跨系统联动 ====================
 
-@router.get("/operations-finance/kpis", dependencies=[finance_read_dep])
+@router.get("/operations-finance/kpis", dependencies=[Depends(finance_read_dep)])
 async def get_operations_finance_kpis():
     """
     获取运营财务KPI指标 - P0-003: 使用真实数据库
@@ -2830,7 +3263,7 @@ async def get_operations_finance_kpis():
     }
 
 
-@router.get("/operations-finance/insights", dependencies=[finance_read_dep])
+@router.get("/operations-finance/insights", dependencies=[Depends(finance_read_dep)])
 async def get_operations_finance_insights():
     """
     获取财务专家洞察 - P0-003: 使用真实数据库
@@ -2885,7 +3318,7 @@ async def recommend_chart(
     }
 
 
-@router.get("/operations-finance/strategy/status", dependencies=[finance_read_dep])
+@router.get("/operations-finance/strategy/status", dependencies=[Depends(finance_read_dep)])
 async def get_strategy_status():
     """
     获取策略联动状态
@@ -2915,7 +3348,7 @@ async def evaluate_strategy_triggers(
     }
 
 
-@router.get("/operations-finance/strategy/history", dependencies=[finance_read_dep])
+@router.get("/operations-finance/strategy/history", dependencies=[Depends(finance_read_dep)])
 async def get_strategy_history(
     limit: int = Query(50, ge=1, le=200)
 ):
@@ -2946,7 +3379,7 @@ async def sync_to_erp(
     }
 
 
-@router.get("/operations-finance/erp/sync/status", dependencies=[finance_read_dep])
+@router.get("/operations-finance/erp/sync/status", dependencies=[Depends(finance_read_dep)])
 async def get_erp_sync_status(
     data_type: Optional[str] = Query(None)
 ):
@@ -2960,7 +3393,7 @@ async def get_erp_sync_status(
     }
 
 
-@router.get("/operations-finance/erp/sync/history", dependencies=[finance_read_dep])
+@router.get("/operations-finance/erp/sync/history", dependencies=[Depends(finance_read_dep)])
 async def get_erp_sync_history(
     data_type: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200)
@@ -3276,7 +3709,7 @@ async def stream_collaboration_events(request: Request):
 # ==================== P1-005: 日常配置与部署自动化 ====================
 
 
-@router.get("/devops/config/profiles", dependencies=[security_read_dep])
+@router.get("/devops/config/profiles", dependencies=[Depends(security_read_dep)])
 async def list_config_profiles():
     """列出可用环境配置"""
     return {
@@ -3286,7 +3719,7 @@ async def list_config_profiles():
     }
 
 
-@router.post("/devops/config/apply", dependencies=[security_write_dep])
+@router.post("/devops/config/apply", dependencies=[Depends(security_write_dep)])
 async def apply_config_profile(req: ConfigApplyRequest):
     """应用指定 profile 并生成 `.env.runtime`"""
     result = env_config_manager.apply_profile(req.profile, overrides=req.overrides)
@@ -3297,7 +3730,7 @@ async def apply_config_profile(req: ConfigApplyRequest):
     }
 
 
-@router.get("/devops/deploy/pipeline", dependencies=[security_read_dep])
+@router.get("/devops/deploy/pipeline", dependencies=[Depends(security_read_dep)])
 async def get_deploy_pipeline():
     """查看部署流水线步骤"""
     return {
@@ -3306,7 +3739,7 @@ async def get_deploy_pipeline():
     }
 
 
-@router.post("/devops/deploy/run", dependencies=[security_write_dep])
+@router.post("/devops/deploy/run", dependencies=[Depends(security_write_dep)])
 async def run_deploy_pipeline(req: DeploymentRunRequest):
     """执行或模拟部署流水线"""
     summary = await deployment_manager.run_pipeline(
@@ -3321,7 +3754,7 @@ async def run_deploy_pipeline(req: DeploymentRunRequest):
     }
 
 
-@router.get("/devops/deploy/history", dependencies=[security_read_dep])
+@router.get("/devops/deploy/history", dependencies=[Depends(security_read_dep)])
 async def get_deploy_history(limit: int = Query(10, ge=1, le=50)):
     """获取最近部署记录"""
     history = deployment_manager.get_history(limit=limit)
@@ -3334,7 +3767,7 @@ async def get_deploy_history(limit: int = Query(10, ge=1, le=50)):
 # ==================== P3-002: 微服务拆分 · 服务注册与通信 ====================
 
 
-@router.get("/architecture/services/summary", dependencies=[security_read_dep])
+@router.get("/architecture/services/summary", dependencies=[Depends(security_read_dep)])
 async def get_service_summary():
     return {
         "success": True,
@@ -3344,7 +3777,7 @@ async def get_service_summary():
     }
 
 
-@router.post("/architecture/services/register", dependencies=[security_write_dep])
+@router.post("/architecture/services/register", dependencies=[Depends(security_write_dep)])
 async def register_service_instance(req: ServiceRegisterRequest):
     instance = service_registry.register_instance(
         service=req.service,
@@ -3357,7 +3790,7 @@ async def register_service_instance(req: ServiceRegisterRequest):
     return {"success": True, "instance": instance.to_dict()}
 
 
-@router.post("/architecture/services/heartbeat", dependencies=[security_write_dep])
+@router.post("/architecture/services/heartbeat", dependencies=[Depends(security_write_dep)])
 async def service_heartbeat(req: ServiceHeartbeatRequest):
     ok = service_registry.heartbeat(req.service, req.instance_id, status=req.status)
     if not ok:
@@ -3365,7 +3798,7 @@ async def service_heartbeat(req: ServiceHeartbeatRequest):
     return {"success": True}
 
 
-@router.post("/architecture/services/call", dependencies=[security_write_dep])
+@router.post("/architecture/services/call", dependencies=[Depends(security_write_dep)])
 async def call_service(req: ServiceCallRequest):
     result: ServiceCallResult = await service_gateway.call_service(
         service=req.service,
@@ -3444,7 +3877,7 @@ async def get_evolution_phases():
 
 
 @router.get("/tenants")
-async def list_tenants(include_inactive: bool = False, _: Dict = Depends(security_read_dep)):
+async def list_tenants(include_inactive: bool = False, security_dep: Dict = Depends(security_read_dep)):
     """列出租户（需安全读权限）"""
     tenants = tenant_manager.list_tenants(include_inactive=include_inactive)
     return {"success": True, "tenants": tenants}
@@ -3465,7 +3898,7 @@ async def get_current_tenant_info(request: Request):
 
 
 @router.post("/tenants")
-async def create_or_update_tenant(req: TenantCreateRequest, _: Dict = Depends(security_write_dep)):
+async def create_or_update_tenant(req: TenantCreateRequest, security_dep: Dict = Depends(security_write_dep)):
     tenant = tenant_manager.upsert_tenant(
         tenant_id=req.tenant_id,
         name=req.name,
@@ -3477,7 +3910,7 @@ async def create_or_update_tenant(req: TenantCreateRequest, _: Dict = Depends(se
 
 
 @router.put("/tenants/{tenant_id}")
-async def update_tenant(tenant_id: str, req: TenantUpdateRequest, _: Dict = Depends(security_write_dep)):
+async def update_tenant(tenant_id: str, req: TenantUpdateRequest, security_dep: Dict = Depends(security_write_dep)):
     existing = tenant_manager.get_tenant(tenant_id)
     if not existing:
         raise HTTPException(status_code=404, detail="租户不存在")
@@ -3492,7 +3925,7 @@ async def update_tenant(tenant_id: str, req: TenantUpdateRequest, _: Dict = Depe
 
 
 @router.delete("/tenants/{tenant_id}")
-async def delete_tenant(tenant_id: str, _: Dict = Depends(security_write_dep)):
+async def delete_tenant(tenant_id: str, security_dep: Dict = Depends(security_write_dep)):
     ok = tenant_manager.delete_tenant(tenant_id)
     if not ok:
         raise HTTPException(status_code=400, detail="无法删除租户（可能是默认租户或不存在）")
@@ -3853,6 +4286,7 @@ async def get_ci_environment():
 
 
 @router.get("/tasks/statistics")
+@router.get("/task-planning/tasks/statistics")
 async def get_task_statistics():
     """获取任务统计信息⭐增强版"""
     stats = task_planning.get_statistics()
@@ -4214,7 +4648,46 @@ async def get_evidence(
     }
 
 
+@router.post("/task-planning/plans")
+async def create_task_plan(request: PlanCreateRequest):
+    """创建工作计划"""
+    try:
+        plan = await task_planning.create_plan_from_task_ids(
+            task_ids=request.task_ids,
+            title=request.title,
+            description=request.description,
+            category=request.category or "work",
+            priority=request.priority or "medium",
+            metadata=request.metadata,
+        )
+        return {"success": True, "plan": plan}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("创建工作计划失败: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="创建工作计划失败")
+
+
+@router.put("/task-planning/plans/{plan_id}")
+async def update_task_plan(plan_id: int, request: PlanUpdateRequest):
+    """更新工作计划"""
+    plan = task_planning.update_plan(plan_id, request.dict(exclude_unset=True))
+    if not plan:
+        raise HTTPException(status_code=404, detail="计划不存在")
+    return {"success": True, "plan": plan}
+
+
+@router.delete("/task-planning/plans/{plan_id}")
+async def delete_task_plan(plan_id: int):
+    """删除工作计划"""
+    success = task_planning.delete_plan(plan_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="计划不存在")
+    return {"success": True, "plan_id": plan_id}
+
+
 @router.get("/plans")
+@router.get("/task-planning/plans")
 async def get_plans():
     """获取工作计划列表"""
     plans = task_planning.plans
@@ -4222,6 +4695,7 @@ async def get_plans():
 
 
 @router.get("/plans/{plan_id}")
+@router.get("/task-planning/plans/{plan_id}")
 async def get_plan(plan_id: int):
     """获取工作计划详情"""
     plan = next((p for p in task_planning.plans if p["id"] == plan_id), None)
@@ -4232,6 +4706,7 @@ async def get_plan(plan_id: int):
 
 
 @router.post("/plans/{plan_id}/confirm")
+@router.post("/task-planning/plans/{plan_id}/confirm")
 async def confirm_plan(
     plan_id: int,
     request: Dict[str, Any] = Body(...)
@@ -4266,15 +4741,18 @@ async def confirm_plan(
             # 重新计算计划
             plan["total_duration_minutes"] = sum(t.get("estimated_duration", 0) for t in plan["tasks"])
             plan["estimated_completion_time"] = task_planning._estimate_completion_time(plan["tasks"])
+        plan["updated_at"] = datetime.now().isoformat()
     else:
         plan["status"] = "rejected"
         plan["rejected_at"] = datetime.now().isoformat()
         plan["rejection_reason"] = request.get("reason", "用户拒绝")
+        plan["updated_at"] = plan["rejected_at"]
     
     return {"success": True, "plan": plan}
 
 
 @router.post("/plans/{plan_id}/execute")
+@router.post("/task-planning/plans/{plan_id}/execute")
 async def execute_plan(plan_id: int, concurrency: int = 2):
     """执行工作计划（并发+依赖处理+简单重试）"""
     plan = next((p for p in task_planning.plans if p["id"] == plan_id), None)
@@ -4342,6 +4820,7 @@ async def execute_plan(plan_id: int, concurrency: int = 2):
         in_progress = {tid for tid in in_progress if tid not in completed and tid not in failed}
         remaining = remaining - completed - set(failed.keys())
 
+    plan["updated_at"] = datetime.now().isoformat()
     return {
         "success": True if not failed else False,
         "plan_id": plan_id,
@@ -6599,7 +7078,7 @@ async def get_bottlenecks():
         "count": len(bottlenecks)
     }
 
-@router.get("/security/audit/overview", dependencies=[security_read_dep])
+@router.get("/security/audit/overview", dependencies=[Depends(security_read_dep)])
 async def security_audit_overview(limit: int = 20):
     """统一安全与合规审计总览"""
     if not audit_pipeline:
@@ -6620,21 +7099,21 @@ async def security_audit_overview(limit: int = 20):
     return {"events": simplified, "count": len(simplified), "statistics": stats}
 
 
-@router.get("/security/audit/http", dependencies=[security_read_dep])
+@router.get("/security/audit/http", dependencies=[Depends(security_read_dep)])
 async def security_audit_http(limit: int = 50):
     if not audit_pipeline:
         return {"records": []}
     return {"records": audit_pipeline.get_http_records(limit)}
 
 
-@router.get("/security/audit/tasks", dependencies=[security_read_dep])
+@router.get("/security/audit/tasks", dependencies=[Depends(security_read_dep)])
 async def security_audit_tasks(limit: int = 50):
     if not audit_pipeline:
         return {"records": []}
     return {"records": audit_pipeline.get_task_records(limit)}
 
 
-@router.get("/security/audit/commands", dependencies=[security_read_dep])
+@router.get("/security/audit/commands", dependencies=[Depends(security_read_dep)])
 async def security_audit_commands(limit: int = 50):
     if not audit_pipeline:
         return {"records": []}
@@ -7104,19 +7583,7 @@ class DouyinPublishRequest(DouyinDraftRequest):
     deai_intensity: float = Field(0.5, ge=0.0, le=1.0, description="去AI化强度（0.0-1.0）")
 
 
-class TenantCreateRequest(BaseModel):
-    tenant_id: str = Field(..., min_length=2, max_length=32, regex=r"^[a-z0-9\-_]+$")
-    name: str
-    plan: Optional[str] = "enterprise"
-    active: Optional[bool] = True
-    metadata: Optional[Dict[str, Any]] = None
 
-
-class TenantUpdateRequest(BaseModel):
-    name: Optional[str]
-    plan: Optional[str]
-    active: Optional[bool]
-    metadata: Optional[Dict[str, Any]]
 
 
 class DouyinWebhookPayload(BaseModel):
@@ -8255,7 +8722,7 @@ async def get_cursor_authorization_statistics():
 
 # ============ P0-017: 安全与合规基线 ============
 
-@router.post("/security/crawler/check", dependencies=[security_read_dep])
+@router.post("/security/crawler/check", dependencies=[Depends(security_read_dep)])
 async def check_crawler_security(
     url: str,
     source: str = "system",
@@ -8280,7 +8747,7 @@ async def check_crawler_security(
     return {"success": True, "result": result}
 
 
-@router.post("/security/content/check", dependencies=[security_read_dep])
+@router.post("/security/content/check", dependencies=[Depends(security_read_dep)])
 async def check_content_security(
     content: str,
     content_type: str = "text",
@@ -8301,7 +8768,7 @@ async def check_content_security(
     return {"success": True, "result": result}
 
 
-@router.post("/security/data/check-permission", dependencies=[security_read_dep])
+@router.post("/security/data/check-permission", dependencies=[Depends(security_read_dep)])
 async def check_data_permission(
     resource_path: str,
     action: str,
@@ -8326,7 +8793,7 @@ async def check_data_permission(
     return {"success": True, "result": result}
 
 
-@router.post("/security/command/check", dependencies=[security_read_dep])
+@router.post("/security/command/check", dependencies=[Depends(security_read_dep)])
 async def check_command_security(
     command: str,
     source: str = "system"
@@ -8345,7 +8812,7 @@ async def check_command_security(
     return {"success": True, "result": result}
 
 
-@router.post("/security/privacy/check", dependencies=[security_read_dep])
+@router.post("/security/privacy/check", dependencies=[Depends(security_read_dep)])
 async def check_privacy_compliance(
     data: str,
     data_type: str = "text",
@@ -8366,7 +8833,7 @@ async def check_privacy_compliance(
     return {"success": True, "result": result}
 
 
-@router.post("/security/approvals/request", dependencies=[security_write_dep])
+@router.post("/security/approvals/request", dependencies=[Depends(security_write_dep)])
 async def submit_sensitive_operation(req: SensitiveOperationRequest):
     approval = approval_manager.submit_request(
         applicant=req.applicant,
@@ -8377,7 +8844,7 @@ async def submit_sensitive_operation(req: SensitiveOperationRequest):
     return {"success": True, "approval": asdict(approval)}
 
 
-@router.post("/security/approvals/{approval_id}/approve", dependencies=[security_write_dep])
+@router.post("/security/approvals/{approval_id}/approve", dependencies=[Depends(security_write_dep)])
 async def approve_sensitive_operation(approval_id: str, decision: ApprovalDecisionRequest):
     approval = approval_manager.approve(approval_id, decision.reviewer, decision.reason)
     if not approval:
@@ -8385,7 +8852,7 @@ async def approve_sensitive_operation(approval_id: str, decision: ApprovalDecisi
     return {"success": True, "approval": asdict(approval)}
 
 
-@router.post("/security/approvals/{approval_id}/reject", dependencies=[security_write_dep])
+@router.post("/security/approvals/{approval_id}/reject", dependencies=[Depends(security_write_dep)])
 async def reject_sensitive_operation(approval_id: str, decision: ApprovalDecisionRequest):
     approval = approval_manager.reject(approval_id, decision.reviewer, decision.reason)
     if not approval:
@@ -8393,7 +8860,7 @@ async def reject_sensitive_operation(approval_id: str, decision: ApprovalDecisio
     return {"success": True, "approval": asdict(approval)}
 
 
-@router.get("/security/approvals/{approval_id}", dependencies=[security_read_dep])
+@router.get("/security/approvals/{approval_id}", dependencies=[Depends(security_read_dep)])
 async def get_sensitive_operation(approval_id: str):
     approval = approval_manager.get_request(approval_id)
     if not approval:
@@ -8401,13 +8868,13 @@ async def get_sensitive_operation(approval_id: str):
     return {"success": True, "approval": asdict(approval)}
 
 
-@router.get("/security/approvals/pending", dependencies=[security_read_dep])
+@router.get("/security/approvals/pending", dependencies=[Depends(security_read_dep)])
 async def list_pending_approvals(limit: int = 50):
     rows = approval_manager.list_requests(status=ApprovalStatus.PENDING, limit=limit)
     return {"success": True, "approvals": rows}
 
 
-@router.get("/security/violations", dependencies=[security_read_dep])
+@router.get("/security/violations", dependencies=[Depends(security_read_dep)])
 async def get_security_violations(
     category: Optional[str] = None,
     severity: Optional[str] = None,
@@ -8442,7 +8909,7 @@ async def get_security_violations(
     return {"success": True, "violations": violations, "count": len(violations)}
 
 
-@router.get("/security/audit-log", dependencies=[security_read_dep])
+@router.get("/security/audit-log", dependencies=[Depends(security_read_dep)])
 async def get_security_audit_log(
     event_type: Optional[str] = None,
     severity: Optional[str] = None,
@@ -8463,7 +8930,7 @@ async def get_security_audit_log(
     return {"success": True, "logs": logs, "count": len(logs)}
 
 
-@router.get("/security/policies", dependencies=[security_read_dep])
+@router.get("/security/policies", dependencies=[Depends(security_read_dep)])
 async def list_security_policies():
     """列出所有安全合规策略"""
     if not security_compliance_baseline:
@@ -8473,7 +8940,7 @@ async def list_security_policies():
     return {"success": True, "policies": policies}
 
 
-@router.get("/security/policies/{policy_id}", dependencies=[security_read_dep])
+@router.get("/security/policies/{policy_id}", dependencies=[Depends(security_read_dep)])
 async def get_security_policy(policy_id: str):
     """获取安全合规策略"""
     if not security_compliance_baseline:
@@ -8486,7 +8953,7 @@ async def get_security_policy(policy_id: str):
     return {"success": True, "policy": policy}
 
 
-@router.put("/security/policies/{policy_id}", dependencies=[security_write_dep])
+@router.put("/security/policies/{policy_id}", dependencies=[Depends(security_write_dep)])
 async def update_security_policy(
     policy_id: str,
     rules: Optional[Dict[str, Any]] = None,
@@ -8510,7 +8977,7 @@ async def update_security_policy(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/security/statistics", dependencies=[security_read_dep])
+@router.get("/security/statistics", dependencies=[Depends(security_read_dep)])
 async def get_security_statistics():
     """获取安全合规统计信息"""
     if not security_compliance_baseline:
@@ -8520,14 +8987,14 @@ async def get_security_statistics():
     return {"success": True, "statistics": stats}
 
 
-@router.get("/security/risk/summary", dependencies=[security_read_dep])
+@router.get("/security/risk/summary", dependencies=[Depends(security_read_dep)])
 async def get_security_risk_summary():
     """获取风控概览"""
     summary = risk_engine.get_summary() if risk_engine else {}
     return {"success": True, "summary": summary}
 
 
-@router.get("/security/risk/events", dependencies=[security_read_dep])
+@router.get("/security/risk/events", dependencies=[Depends(security_read_dep)])
 async def get_security_risk_events(limit: int = 50):
     """获取风控事件列表"""
     events = risk_engine.list_events(limit) if risk_engine else []
@@ -8582,7 +9049,7 @@ async def get_module_chain_entry(module_id: str):
     return {"success": True, "chain": chain}
 
 
-@router.post("/modules/chains/refresh", dependencies=[security_read_dep])
+@router.post("/modules/chains/refresh", dependencies=[Depends(security_read_dep)])
 async def refresh_module_chains():
     chains = await module_chain_manager.refresh()
     return {"success": True, "chains": chains, "count": len(chains)}
@@ -9015,7 +9482,7 @@ class DualRAGQueryRequest(BaseModel):
 @router.post("/dual-rag/execute")
 async def dual_rag_execute(
     request: DualRAGQueryRequest,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """
     执行双RAG流程
@@ -9045,7 +9512,7 @@ async def dual_rag_execute(
 
 @router.get("/dual-rag/performance")
 async def get_dual_rag_performance(
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取双RAG执行性能指标"""
     if not dual_rag_engine:
@@ -9064,8 +9531,8 @@ async def get_dual_rag_performance(
 
 @router.get("/dual-rag/history")
 async def get_dual_rag_history(
-    limit: int = Field(10, ge=1, le=100, description="返回数量"),
-    _: bool = Depends(_get_require_api_key()),
+    limit: int = Query(10, ge=1, le=100, description="返回数量"),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取双RAG执行历史"""
     if not dual_rag_engine:
@@ -9159,7 +9626,7 @@ class ResourceAllocateRequest(BaseModel):
 @router.post("/task-lifecycle/create")
 async def create_task(
     request: TaskCreateRequest,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """创建任务"""
     try:
@@ -9182,7 +9649,7 @@ async def create_task(
 @router.post("/task-lifecycle/{task_id}/start")
 async def start_task(
     task_id: str,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """启动任务"""
     try:
@@ -9205,10 +9672,10 @@ async def start_task(
 @router.post("/task-lifecycle/{task_id}/update-progress")
 async def update_task_progress(
     task_id: str,
-    progress: float = Field(..., ge=0, le=100),
+    progress: float = Body(..., ge=0, le=100),
     current_step: Optional[str] = None,
     completed_steps: Optional[int] = None,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """更新任务进度"""
     try:
@@ -9237,7 +9704,7 @@ async def update_task_progress(
 async def complete_task(
     task_id: str,
     result: Optional[Dict[str, Any]] = None,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """完成任务"""
     try:
@@ -9261,8 +9728,8 @@ async def complete_task(
 async def list_tasks(
     status: Optional[str] = None,
     task_type: Optional[str] = None,
-    limit: int = Field(100, ge=1, le=1000),
-    _: bool = Depends(_get_require_api_key()),
+    limit: int = Query(100, ge=1, le=1000),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """列出任务"""
     try:
@@ -9284,7 +9751,7 @@ async def list_tasks(
 
 @router.get("/task-lifecycle/statistics")
 async def get_task_statistics(
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取任务统计"""
     try:
@@ -9303,7 +9770,7 @@ async def create_learning_curve(
     model_name: str,
     task_type: str,
     curve_id: Optional[str] = None,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """创建学习曲线"""
     try:
@@ -9324,7 +9791,7 @@ async def create_learning_curve(
 @router.post("/learning-curve/add-point")
 async def add_learning_point(
     request: LearningPointRequest,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """添加学习点"""
     try:
@@ -9355,7 +9822,7 @@ async def add_learning_point(
 async def get_learning_curve_data(
     curve_id: str,
     include_loss: bool = False,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取学习曲线数据"""
     try:
@@ -9381,7 +9848,7 @@ async def get_learning_curve_data(
 async def list_learning_curves(
     model_name: Optional[str] = None,
     task_type: Optional[str] = None,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """列出学习曲线"""
     try:
@@ -9401,7 +9868,7 @@ async def list_learning_curves(
 
 @router.get("/learning-curve/statistics")
 async def get_learning_statistics(
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取学习统计"""
     try:
@@ -9418,7 +9885,7 @@ async def get_learning_statistics(
 @router.post("/resource/allocate")
 async def allocate_resource(
     request: ResourceAllocateRequest,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """分配资源"""
     try:
@@ -9442,7 +9909,7 @@ async def allocate_resource(
 @router.post("/resource/release/{allocation_id}")
 async def release_resource(
     allocation_id: str,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """释放资源"""
     try:
@@ -9463,7 +9930,7 @@ async def release_resource(
 
 @router.get("/resource/status")
 async def get_resource_status(
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取资源状态"""
     try:
@@ -9481,8 +9948,8 @@ async def get_resource_status(
 async def get_resource_hints(
     hint_type: Optional[str] = None,
     unacknowledged_only: bool = False,
-    limit: int = Field(50, ge=1, le=200),
-    _: bool = Depends(_get_require_api_key()),
+    limit: int = Query(50, ge=1, le=200),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取交互提示"""
     try:
@@ -9505,7 +9972,7 @@ async def get_resource_hints(
 @router.post("/resource/hints/{hint_id}/acknowledge")
 async def acknowledge_hint(
     hint_id: str,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """确认提示"""
     try:
@@ -9526,7 +9993,7 @@ async def acknowledge_hint(
 
 @router.get("/resource/suggestions")
 async def get_scheduling_suggestions(
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取调度建议"""
     try:
@@ -9566,7 +10033,7 @@ class QuotaUseRequest(BaseModel):
 @router.get("/tenant/quota/list")
 async def list_tenant_quotas(
     tenant_id: str,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取租户所有配额"""
     try:
@@ -9585,7 +10052,7 @@ async def list_tenant_quotas(
 async def get_quota_usage(
     tenant_id: str,
     quota_type: Optional[str] = None,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取配额使用情况"""
     try:
@@ -9603,7 +10070,7 @@ async def get_quota_usage(
 @router.post("/tenant/quota/set")
 async def set_tenant_quota(
     request: QuotaSetRequest,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """设置租户配额"""
     try:
@@ -9628,7 +10095,7 @@ async def set_tenant_quota(
 @router.post("/tenant/quota/use")
 async def use_tenant_quota(
     request: QuotaUseRequest,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """使用配额"""
     try:
@@ -9655,7 +10122,7 @@ async def use_tenant_quota(
 @router.get("/tenant/storage/stats")
 async def get_tenant_storage_stats(
     tenant_id: str,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取租户存储统计"""
     try:
@@ -9684,8 +10151,8 @@ async def query_audit_logs(
     action: Optional[str] = None,
     resource_type: Optional[str] = None,
     user_id: Optional[str] = None,
-    limit: int = Field(100, ge=1, le=1000),
-    _: bool = Depends(_get_require_api_key()),
+    limit: int = Query(100, ge=1, le=1000),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """查询审计日志"""
     try:
@@ -9715,7 +10182,7 @@ async def get_audit_report(
     tenant_id: str,
     start_date: str,
     end_date: str,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """生成审计报表"""
     try:
@@ -9739,8 +10206,8 @@ async def export_audit_logs(
     tenant_id: str,
     start_date: str,
     end_date: str,
-    format: str = Field("json", pattern="^(json|csv)$"),
-    _: bool = Depends(_get_require_api_key()),
+    format: str = Query("json", pattern="^(json|csv)$"),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """导出审计日志"""
     try:
@@ -9764,7 +10231,7 @@ async def export_audit_logs(
 @router.get("/tenant/info")
 async def get_tenant_info(
     tenant_id: str,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取租户信息"""
     try:
@@ -9801,7 +10268,7 @@ async def log_audit_event(
     user_agent: Optional[str] = None,
     success: bool = True,
     error_message: Optional[str] = None,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """记录审计事件"""
     try:
@@ -9830,16 +10297,17 @@ async def log_audit_event(
 
 # ============ P3-403: 性能与可靠性 ============
 
-from tests.performance.test_performance_suite import PerformanceTestSuite
+# TODO: 临时注释掉性能测试相关导入，待修复模块路径问题
+# from tests.performance.test_performance_suite import PerformanceTestSuite
 from core.slo_report_generator import get_slo_report_generator
-from scripts.chaos_engineering.chaos_test_runner import ChaosTestRunner, ChaosScenario
+# from scripts.chaos_engineering.chaos_test_runner import ChaosTestRunner, ChaosScenario
 
 @router.post("/performance/test/load")
 async def run_load_test(
-    endpoint: str = "/health",
-    concurrent_users: int = Field(10, ge=1, le=1000),
-    requests_per_user: int = Field(10, ge=1, le=100),
-    _: bool = Depends(_get_require_api_key()),
+    endpoint: str = Body("/health"),
+    concurrent_users: int = Body(10, ge=1, le=1000),
+    requests_per_user: int = Body(10, ge=1, le=100),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """运行负载测试"""
     try:
@@ -9861,11 +10329,11 @@ async def run_load_test(
 
 @router.post("/performance/test/stress")
 async def run_stress_test(
-    endpoint: str = "/health",
-    initial_users: int = Field(10, ge=1),
-    max_users: int = Field(100, ge=1),
-    step: int = Field(10, ge=1),
-    _: bool = Depends(_get_require_api_key()),
+    endpoint: str = Body("/health"),
+    initial_users: int = Body(10, ge=1),
+    max_users: int = Body(100, ge=1),
+    step: int = Body(10, ge=1),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """运行压力测试"""
     try:
@@ -9889,7 +10357,7 @@ async def run_stress_test(
 @router.get("/slo/report")
 async def get_slo_report(
     measurement_period: Optional[str] = None,
-    _: bool = Depends(_get_require_api_key()),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """获取SLO报告"""
     try:
@@ -9906,12 +10374,12 @@ async def get_slo_report(
 
 @router.post("/slo/target")
 async def set_slo_target(
-    name: str,
-    target_value: float,
-    measurement_window: str = "30d",
-    error_budget: float = Field(0.01, ge=0, le=1),
-    metadata: Optional[Dict[str, Any]] = None,
-    _: bool = Depends(_get_require_api_key()),
+    name: str = Body(...),
+    target_value: float = Body(...),
+    measurement_window: str = Body("30d"),
+    error_budget: float = Body(0.01, ge=0, le=1),
+    metadata: Optional[Dict[str, Any]] = Body(None),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """设置SLO目标"""
     try:
@@ -9939,9 +10407,9 @@ async def set_slo_target(
 
 @router.post("/chaos/test/sidecar-down")
 async def run_chaos_test_sidecar_down(
-    sidecar_name: str = "rag-sidecar",
-    duration: int = Field(60, ge=10, le=300),
-    _: bool = Depends(_get_require_api_key()),
+    sidecar_name: str = Body("rag-sidecar"),
+    duration: int = Body(60, ge=10, le=300),
+    api_token: bool = Depends(require_api_token),
 ) -> Dict[str, Any]:
     """运行Sidecar宕机故障演练"""
     try:
@@ -9961,10 +10429,9 @@ async def run_chaos_test_sidecar_down(
 
 @router.post("/chaos/test/database-degraded")
 async def run_chaos_test_database_degraded(
-    database_name: str = "postgres",
-    degradation_type: str = Field("slow_queries", pattern="^(slow_queries|connection_limit|disk_full)$"),
-    duration: int = Field(60, ge=10, le=300),
-    _: bool = Depends(_get_require_api_key()),
+    database_name: str = Body("postgres"),
+    degradation_type: str = Body("slow_queries", pattern="^(slow_queries|connection_limit|disk_full)$"),
+    duration: int = Body(60, ge=10, le=300)
 ) -> Dict[str, Any]:
     """运行数据库降级故障演练"""
     try:
@@ -9985,10 +10452,9 @@ async def run_chaos_test_database_degraded(
 
 @router.post("/chaos/test/api-timeout")
 async def run_chaos_test_api_timeout(
-    endpoint: str = "/gateway/rag/search",
-    timeout_duration: int = Field(30, ge=5, le=300),
-    test_duration: int = Field(60, ge=10, le=600),
-    _: bool = Depends(_get_require_api_key()),
+    endpoint: str = Body("/gateway/rag/search"),
+    timeout_duration: int = Body(30, ge=5, le=300),
+    test_duration: int = Body(60, ge=10, le=600)
 ) -> Dict[str, Any]:
     """运行API超时故障演练"""
     try:
@@ -10012,6 +10478,11 @@ async def run_chaos_test_api_timeout(
 # 初始化可配置API连接器
 from core.configurable_api_connector import ConfigurableAPIConnector
 from core.rag_service_adapter import RAGServiceAdapter
+from core.module_api_adapters import (
+    ERPAPIConnector,
+    ContentAPIConnector,
+    TrendAPIConnector,
+)
 
 configurable_api_connector = ConfigurableAPIConnector()
 
@@ -10020,6 +10491,24 @@ if super_agent.rag_service:
     configurable_api_connector.register_connector("rag", RAGServiceAdapter, {
         "rag_api_url": os.getenv("RAG_API_URL", "http://localhost:8011")
     })
+
+# 注册ERP服务连接器
+configurable_api_connector.register_connector("erp", ERPAPIConnector, {
+    "erp_api_url": os.getenv("ERP_API_URL", "http://localhost:8013"),
+    "api_key": os.getenv("ERP_API_KEY", ""),
+})
+
+# 注册内容服务连接器
+configurable_api_connector.register_connector("content", ContentAPIConnector, {
+    "content_api_url": os.getenv("CONTENT_API_URL", "http://localhost:8016"),
+    "api_key": os.getenv("CONTENT_API_KEY", ""),
+})
+
+# 注册趋势服务连接器
+configurable_api_connector.register_connector("trend", TrendAPIConnector, {
+    "trend_api_url": os.getenv("TREND_API_URL", "http://localhost:8015"),
+    "api_key": os.getenv("TREND_API_KEY", ""),
+})
 
 # 权限依赖
 rag_read_dep = permission_guard.require("rag:read")
@@ -10034,14 +10523,16 @@ trend_write_dep = permission_guard.require("trend:write")
 
 # ============ RAG 模块接口 ============
 
-@router.get("/rag/documents", dependencies=[rag_read_dep])
+@router.get("/rag/documents", dependencies=[Depends(rag_read_dep)])
 async def get_rag_documents(
     limit: int = 50,
     offset: int = 0,
-    doc_type: Optional[str] = None,
-    _: Dict[str, Any] = Depends(rag_read_dep)
+    doc_type: Optional[str] = None
 ):
     """查询RAG文档列表"""
+    import time
+    start_time = time.time()
+    
     try:
         # 优先使用RAG服务适配器
         if super_agent.rag_service:
@@ -10055,39 +10546,64 @@ async def get_rag_documents(
                     )
                     if response.status_code == 200:
                         data = response.json()
-                        return {
-                            "success": True,
-                            "documents": data.get("documents", []),
-                            "count": data.get("count", 0),
-                            "limit": limit,
-                            "offset": offset
-                        }
+                        result = standardize_response(
+                            data={"documents": data.get("documents", [])},
+                            count=data.get("count", 0),
+                            limit=limit,
+                            offset=offset,
+                        )
+                        log_api_call(
+                            module="rag",
+                            operation="get_documents",
+                            duration=time.time() - start_time,
+                            success=True,
+                        )
+                        return result
             except Exception:
                 pass
         
         # 使用configurable_api_connector调用RAG服务
-        result = await configurable_api_connector.call_api(
+        result_data = await configurable_api_connector.call_api(
             platform="rag",
             endpoint="/api/documents",
             method="GET",
             params={"limit": limit, "offset": offset, "doc_type": doc_type}
         )
-        return {
-            "success": True,
-            "documents": result.get("documents", []),
-            "count": result.get("count", 0),
-            "limit": limit,
-            "offset": offset
-        }
+        
+        # 处理响应数据
+        documents = result_data.get("data", {}).get("documents", result_data.get("documents", []))
+        count = result_data.get("data", {}).get("count", result_data.get("count", len(documents)))
+        
+        result = standardize_response(
+            data={"documents": documents},
+            count=count,
+            limit=limit,
+            offset=offset,
+        )
+        
+        log_api_call(
+            module="rag",
+            operation="get_documents",
+            duration=time.time() - start_time,
+            success=True,
+        )
+        
+        return result
     except Exception as e:
-        logger.error(f"查询RAG文档列表失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+        duration = time.time() - start_time
+        log_api_call(
+            module="rag",
+            operation="get_documents",
+            duration=duration,
+            success=False,
+        )
+        error_response = handle_api_error(e, "查询RAG文档列表", "rag")
+        raise HTTPException(status_code=500, detail=error_response.get("message", "查询失败"))
 
 
-@router.get("/rag/documents/{doc_id}", dependencies=[rag_read_dep])
+@router.get("/rag/documents/{doc_id}", dependencies=[Depends(rag_read_dep)])
 async def get_rag_document(
-    doc_id: str,
-    _: Dict[str, Any] = Depends(rag_read_dep)
+    doc_id: str
 ):
     """查询RAG文档详情"""
     try:
@@ -10114,12 +10630,12 @@ async def get_rag_document(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/rag/search", dependencies=[rag_read_dep])
+@router.get("/rag/search", dependencies=[Depends(rag_read_dep)])
 async def search_rag(
     query: str,
     top_k: int = 10,
     filter_type: Optional[str] = None,
-    _: Dict[str, Any] = Depends(rag_read_dep)
+    rag_dep: Dict[str, Any] = rag_read_dep
 ):
     """执行RAG检索"""
     try:
@@ -10157,9 +10673,9 @@ async def search_rag(
         raise HTTPException(status_code=500, detail=f"检索失败: {str(e)}")
 
 
-@router.get("/rag/stats", dependencies=[rag_read_dep])
+@router.get("/rag/stats", dependencies=[Depends(rag_read_dep)])
 async def get_rag_stats(
-    _: Dict[str, Any] = Depends(rag_read_dep)
+    rag_dep: Dict[str, Any] = rag_read_dep
 ):
     """获取RAG统计信息"""
     try:
@@ -10186,10 +10702,123 @@ async def get_rag_stats(
         raise HTTPException(status_code=500, detail=f"获取统计失败: {str(e)}")
 
 
-@router.post("/rag/writeback", dependencies=[rag_write_dep])
+@router.post("/rag/documents", dependencies=[Depends(rag_write_dep)])
+async def create_rag_document(
+    request: Dict[str, Any] = Body(...),
+    rag_dep: Dict[str, Any] = rag_write_dep
+):
+    """创建RAG文档"""
+    try:
+        title = request.get("title", "")
+        content = request.get("content", "")
+        doc_type = request.get("doc_type", "text")
+        tags = request.get("tags", [])
+        metadata = request.get("metadata", {})
+        
+        if super_agent.rag_service:
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        f"{os.getenv('RAG_API_URL', 'http://localhost:8011')}/api/documents",
+                        json={
+                            "title": title,
+                            "content": content,
+                            "doc_type": doc_type,
+                            "tags": tags,
+                            "metadata": metadata
+                        },
+                        timeout=10.0
+                    )
+                    if response.status_code == 200:
+                        return {"success": True, "document": response.json()}
+            except Exception:
+                pass
+        
+        result = await configurable_api_connector.call_api(
+            platform="rag",
+            endpoint="/api/documents",
+            method="POST",
+            data={
+                "title": title,
+                "content": content,
+                "doc_type": doc_type,
+                "tags": tags,
+                "metadata": metadata
+            }
+        )
+        return {"success": True, "document": result.get("data", result)}
+    except Exception as e:
+        logger.error(f"创建RAG文档失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
+
+
+@router.put("/rag/documents/{doc_id}", dependencies=[Depends(rag_write_dep)])
+async def update_rag_document(
+    doc_id: str,
+    request: Dict[str, Any] = Body(...),
+    rag_dep: Dict[str, Any] = rag_write_dep
+):
+    """更新RAG文档"""
+    try:
+        if super_agent.rag_service:
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.put(
+                        f"{os.getenv('RAG_API_URL', 'http://localhost:8011')}/api/documents/{doc_id}",
+                        json=request,
+                        timeout=10.0
+                    )
+                    if response.status_code == 200:
+                        return {"success": True, "document": response.json()}
+            except Exception:
+                pass
+        
+        result = await configurable_api_connector.call_api(
+            platform="rag",
+            endpoint=f"/api/documents/{doc_id}",
+            method="PUT",
+            data=request
+        )
+        return {"success": True, "document": result.get("data", result)}
+    except Exception as e:
+        logger.error(f"更新RAG文档失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"更新失败: {str(e)}")
+
+
+@router.delete("/rag/documents/{doc_id}", dependencies=[Depends(rag_write_dep)])
+async def delete_rag_document(
+    doc_id: str,
+    rag_dep: Dict[str, Any] = rag_write_dep
+):
+    """删除RAG文档"""
+    try:
+        if super_agent.rag_service:
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.delete(
+                        f"{os.getenv('RAG_API_URL', 'http://localhost:8011')}/api/documents/{doc_id}",
+                        timeout=10.0
+                    )
+                    if response.status_code == 200:
+                        return {"success": True, "message": "删除成功"}
+            except Exception:
+                pass
+        
+        result = await configurable_api_connector.call_api(
+            platform="rag",
+            endpoint=f"/api/documents/{doc_id}",
+            method="DELETE"
+        )
+        return {"success": True, "message": "删除成功", "result": result}
+    except Exception as e:
+        logger.error(f"删除RAG文档失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+
+
+@router.post("/rag/writeback", dependencies=[Depends(rag_write_dep)])
 async def rag_writeback(
     request: Dict[str, Any] = Body(...),
-    _: Dict[str, Any] = Depends(rag_write_dep)
+    rag_dep: Dict[str, Any] = rag_write_dep
 ):
     """RAG数据回写"""
     try:
@@ -10235,12 +10864,12 @@ async def rag_writeback(
 
 # ============ ERP 模块接口 ============
 
-@router.get("/erp/orders", dependencies=[erp_read_dep])
+@router.get("/erp/orders", dependencies=[Depends(erp_read_dep)])
 async def get_erp_orders(
     limit: int = 50,
     offset: int = 0,
     status: Optional[str] = None,
-    _: Dict[str, Any] = Depends(erp_read_dep)
+    erp_dep: Dict[str, Any] = erp_read_dep
 ):
     """查询ERP订单列表"""
     try:
@@ -10262,10 +10891,10 @@ async def get_erp_orders(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/erp/orders/{order_id}", dependencies=[erp_read_dep])
+@router.get("/erp/orders/{order_id}", dependencies=[Depends(erp_read_dep)])
 async def get_erp_order(
     order_id: str,
-    _: Dict[str, Any] = Depends(erp_read_dep)
+    erp_dep: Dict[str, Any] = erp_read_dep
 ):
     """查询ERP订单详情"""
     try:
@@ -10280,11 +10909,11 @@ async def get_erp_order(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/erp/customers", dependencies=[erp_read_dep])
+@router.get("/erp/customers", dependencies=[Depends(erp_read_dep)])
 async def get_erp_customers(
     limit: int = 50,
     offset: int = 0,
-    _: Dict[str, Any] = Depends(erp_read_dep)
+    erp_dep: Dict[str, Any] = erp_read_dep
 ):
     """查询ERP客户列表"""
     try:
@@ -10306,10 +10935,10 @@ async def get_erp_customers(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/erp/customers/{customer_id}", dependencies=[erp_read_dep])
+@router.get("/erp/customers/{customer_id}", dependencies=[Depends(erp_read_dep)])
 async def get_erp_customer(
     customer_id: str,
-    _: Dict[str, Any] = Depends(erp_read_dep)
+    erp_dep: Dict[str, Any] = erp_read_dep
 ):
     """查询ERP客户详情"""
     try:
@@ -10324,12 +10953,12 @@ async def get_erp_customer(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/erp/projects", dependencies=[erp_read_dep])
+@router.get("/erp/projects", dependencies=[Depends(erp_read_dep)])
 async def get_erp_projects(
     limit: int = 50,
     offset: int = 0,
     status: Optional[str] = None,
-    _: Dict[str, Any] = Depends(erp_read_dep)
+    erp_dep: Dict[str, Any] = erp_read_dep
 ):
     """查询ERP项目列表"""
     try:
@@ -10351,10 +10980,10 @@ async def get_erp_projects(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/erp/projects/{project_id}", dependencies=[erp_read_dep])
+@router.get("/erp/projects/{project_id}", dependencies=[Depends(erp_read_dep)])
 async def get_erp_project(
     project_id: str,
-    _: Dict[str, Any] = Depends(erp_read_dep)
+    erp_dep: Dict[str, Any] = erp_read_dep
 ):
     """查询ERP项目详情"""
     try:
@@ -10369,11 +10998,11 @@ async def get_erp_project(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/erp/inventory", dependencies=[erp_read_dep])
+@router.get("/erp/inventory", dependencies=[Depends(erp_read_dep)])
 async def get_erp_inventory(
     limit: int = 50,
     offset: int = 0,
-    _: Dict[str, Any] = Depends(erp_read_dep)
+    erp_dep: Dict[str, Any] = erp_read_dep
 ):
     """查询ERP库存列表"""
     try:
@@ -10395,10 +11024,10 @@ async def get_erp_inventory(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/erp/inventory/{item_id}", dependencies=[erp_read_dep])
+@router.get("/erp/inventory/{item_id}", dependencies=[Depends(erp_read_dep)])
 async def get_erp_inventory_item(
     item_id: str,
-    _: Dict[str, Any] = Depends(erp_read_dep)
+    erp_dep: Dict[str, Any] = erp_read_dep
 ):
     """查询ERP库存详情"""
     try:
@@ -10413,12 +11042,69 @@ async def get_erp_inventory_item(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.post("/erp/{type}/{id}/execute", dependencies=[erp_write_dep])
+@router.post("/erp/orders", dependencies=[Depends(erp_write_dep)])
+async def create_erp_order(
+    request: Dict[str, Any] = Body(...),
+    erp_dep: Dict[str, Any] = erp_write_dep
+):
+    """创建ERP订单"""
+    try:
+        result = await configurable_api_connector.call_api(
+            platform="erp",
+            endpoint="/api/orders",
+            method="POST",
+            data=request
+        )
+        return {"success": True, "order": result.get("data", result)}
+    except Exception as e:
+        logger.error(f"创建ERP订单失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
+
+
+@router.put("/erp/orders/{order_id}", dependencies=[Depends(erp_write_dep)])
+async def update_erp_order(
+    order_id: str,
+    request: Dict[str, Any] = Body(...),
+    erp_dep: Dict[str, Any] = erp_write_dep
+):
+    """更新ERP订单"""
+    try:
+        result = await configurable_api_connector.call_api(
+            platform="erp",
+            endpoint=f"/api/orders/{order_id}",
+            method="PUT",
+            data=request
+        )
+        return {"success": True, "order": result.get("data", result)}
+    except Exception as e:
+        logger.error(f"更新ERP订单失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"更新失败: {str(e)}")
+
+
+@router.delete("/erp/orders/{order_id}", dependencies=[Depends(erp_write_dep)])
+async def delete_erp_order(
+    order_id: str,
+    erp_dep: Dict[str, Any] = erp_write_dep
+):
+    """删除ERP订单"""
+    try:
+        result = await configurable_api_connector.call_api(
+            platform="erp",
+            endpoint=f"/api/orders/{order_id}",
+            method="DELETE"
+        )
+        return {"success": True, "message": "删除成功", "result": result}
+    except Exception as e:
+        logger.error(f"删除ERP订单失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+
+
+@router.post("/erp/{type}/{id}/execute", dependencies=[Depends(erp_write_dep)])
 async def execute_erp_action(
     type: str,
     id: str,
     action: Dict[str, Any] = Body(...),
-    _: Dict[str, Any] = Depends(erp_write_dep)
+    erp_dep: Dict[str, Any] = erp_write_dep
 ):
     """执行ERP操作（批准、拒绝、更新等）"""
     try:
@@ -10437,10 +11123,10 @@ async def execute_erp_action(
         raise HTTPException(status_code=500, detail=f"执行失败: {str(e)}")
 
 
-@router.post("/erp/writeback", dependencies=[erp_write_dep])
+@router.post("/erp/writeback", dependencies=[Depends(erp_write_dep)])
 async def erp_writeback(
     request: Dict[str, Any] = Body(...),
-    _: Dict[str, Any] = Depends(erp_write_dep)
+    erp_dep: Dict[str, Any] = erp_write_dep
 ):
     """ERP数据回写"""
     try:
@@ -10462,13 +11148,13 @@ async def erp_writeback(
 
 # ============ 内容模块接口 ============
 
-@router.get("/content/list", dependencies=[content_read_dep])
+@router.get("/content/list", dependencies=[Depends(content_read_dep)])
 async def get_content_list(
     limit: int = 50,
     offset: int = 0,
     content_type: Optional[str] = None,
     status: Optional[str] = None,
-    _: Dict[str, Any] = Depends(content_read_dep)
+    content_dep: Dict[str, Any] = content_read_dep
 ):
     """查询内容列表"""
     try:
@@ -10490,10 +11176,10 @@ async def get_content_list(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/content/{content_id}", dependencies=[content_read_dep])
+@router.get("/content/{content_id}", dependencies=[Depends(content_read_dep)])
 async def get_content(
     content_id: str,
-    _: Dict[str, Any] = Depends(content_read_dep)
+    content_dep: Dict[str, Any] = content_read_dep
 ):
     """查询内容详情"""
     try:
@@ -10508,10 +11194,67 @@ async def get_content(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.post("/content/generate", dependencies=[content_write_dep])
+@router.post("/content/create", dependencies=[Depends(content_write_dep)])
+async def create_content(
+    request: Dict[str, Any] = Body(...),
+    content_dep: Dict[str, Any] = content_write_dep
+):
+    """创建内容"""
+    try:
+        result = await configurable_api_connector.call_api(
+            platform="content",
+            endpoint="/api/contents",
+            method="POST",
+            data=request
+        )
+        return {"success": True, "content": result.get("data", result)}
+    except Exception as e:
+        logger.error(f"创建内容失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
+
+
+@router.put("/content/{content_id}", dependencies=[Depends(content_write_dep)])
+async def update_content(
+    content_id: str,
+    request: Dict[str, Any] = Body(...),
+    content_dep: Dict[str, Any] = content_write_dep
+):
+    """更新内容"""
+    try:
+        result = await configurable_api_connector.call_api(
+            platform="content",
+            endpoint=f"/api/contents/{content_id}",
+            method="PUT",
+            data=request
+        )
+        return {"success": True, "content": result.get("data", result)}
+    except Exception as e:
+        logger.error(f"更新内容失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"更新失败: {str(e)}")
+
+
+@router.delete("/content/{content_id}", dependencies=[Depends(content_write_dep)])
+async def delete_content(
+    content_id: str,
+    content_dep: Dict[str, Any] = content_write_dep
+):
+    """删除内容"""
+    try:
+        result = await configurable_api_connector.call_api(
+            platform="content",
+            endpoint=f"/api/contents/{content_id}",
+            method="DELETE"
+        )
+        return {"success": True, "message": "删除成功", "result": result}
+    except Exception as e:
+        logger.error(f"删除内容失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+
+
+@router.post("/content/generate", dependencies=[Depends(content_write_dep)])
 async def generate_content(
     request: Dict[str, Any] = Body(...),
-    _: Dict[str, Any] = Depends(content_write_dep)
+    content_dep: Dict[str, Any] = content_write_dep
 ):
     """执行内容生成"""
     try:
@@ -10535,11 +11278,11 @@ async def generate_content(
         raise HTTPException(status_code=500, detail=f"生成失败: {str(e)}")
 
 
-@router.post("/content/{content_id}/publish", dependencies=[content_write_dep])
+@router.post("/content/{content_id}/publish", dependencies=[Depends(content_write_dep)])
 async def publish_content(
     content_id: str,
     request: Dict[str, Any] = Body(...),
-    _: Dict[str, Any] = Depends(content_write_dep)
+    content_dep: Dict[str, Any] = content_write_dep
 ):
     """执行内容发布"""
     try:
@@ -10561,11 +11304,11 @@ async def publish_content(
         raise HTTPException(status_code=500, detail=f"发布失败: {str(e)}")
 
 
-@router.get("/content/materials", dependencies=[content_read_dep])
+@router.get("/content/materials", dependencies=[Depends(content_read_dep)])
 async def get_content_materials(
     limit: int = 50,
     offset: int = 0,
-    _: Dict[str, Any] = Depends(content_read_dep)
+    content_dep: Dict[str, Any] = content_read_dep
 ):
     """查询素材列表"""
     try:
@@ -10587,12 +11330,12 @@ async def get_content_materials(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/content/published", dependencies=[content_read_dep])
+@router.get("/content/published", dependencies=[Depends(content_read_dep)])
 async def get_published_content(
     limit: int = 50,
     offset: int = 0,
     platform: Optional[str] = None,
-    _: Dict[str, Any] = Depends(content_read_dep)
+    content_dep: Dict[str, Any] = content_read_dep
 ):
     """查询已发布内容列表"""
     try:
@@ -10614,10 +11357,10 @@ async def get_published_content(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.post("/content/writeback", dependencies=[content_write_dep])
+@router.post("/content/writeback", dependencies=[Depends(content_write_dep)])
 async def content_writeback(
     request: Dict[str, Any] = Body(...),
-    _: Dict[str, Any] = Depends(content_write_dep)
+    content_dep: Dict[str, Any] = content_write_dep
 ):
     """内容数据回写"""
     try:
@@ -10638,12 +11381,12 @@ async def content_writeback(
 
 # ============ 趋势模块接口 ============
 
-@router.get("/trend/reports", dependencies=[trend_read_dep])
+@router.get("/trend/reports", dependencies=[Depends(trend_read_dep)])
 async def get_trend_reports(
     limit: int = 50,
     offset: int = 0,
     indicator: Optional[str] = None,
-    _: Dict[str, Any] = Depends(trend_read_dep)
+    trend_dep: Dict[str, Any] = trend_read_dep
 ):
     """查询趋势报告列表"""
     try:
@@ -10665,10 +11408,10 @@ async def get_trend_reports(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/trend/reports/{report_id}", dependencies=[trend_read_dep])
+@router.get("/trend/reports/{report_id}", dependencies=[Depends(trend_read_dep)])
 async def get_trend_report(
     report_id: str,
-    _: Dict[str, Any] = Depends(trend_read_dep)
+    trend_dep: Dict[str, Any] = trend_read_dep
 ):
     """查询趋势报告详情"""
     try:
@@ -10683,11 +11426,11 @@ async def get_trend_report(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/trend/indicators", dependencies=[trend_read_dep])
+@router.get("/trend/indicators", dependencies=[Depends(trend_read_dep)])
 async def get_trend_indicators(
     limit: int = 50,
     offset: int = 0,
-    _: Dict[str, Any] = Depends(trend_read_dep)
+    trend_dep: Dict[str, Any] = trend_read_dep
 ):
     """查询趋势指标列表"""
     try:
@@ -10709,10 +11452,10 @@ async def get_trend_indicators(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/trend/indicators/{indicator_id}", dependencies=[trend_read_dep])
+@router.get("/trend/indicators/{indicator_id}", dependencies=[Depends(trend_read_dep)])
 async def get_trend_indicator(
     indicator_id: str,
-    _: Dict[str, Any] = Depends(trend_read_dep)
+    trend_dep: Dict[str, Any] = trend_read_dep
 ):
     """查询趋势指标详情"""
     try:
@@ -10727,12 +11470,12 @@ async def get_trend_indicator(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/trend/analysis/tasks", dependencies=[trend_read_dep])
+@router.get("/trend/analysis/tasks", dependencies=[Depends(trend_read_dep)])
 async def get_trend_analysis_tasks(
     limit: int = 50,
     offset: int = 0,
     status: Optional[str] = None,
-    _: Dict[str, Any] = Depends(trend_read_dep)
+    trend_dep: Dict[str, Any] = trend_read_dep
 ):
     """查询趋势分析任务列表"""
     try:
@@ -10754,10 +11497,10 @@ async def get_trend_analysis_tasks(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.get("/trend/analysis/tasks/{task_id}", dependencies=[trend_read_dep])
+@router.get("/trend/analysis/tasks/{task_id}", dependencies=[Depends(trend_read_dep)])
 async def get_trend_analysis_task(
     task_id: str,
-    _: Dict[str, Any] = Depends(trend_read_dep)
+    trend_dep: Dict[str, Any] = trend_read_dep
 ):
     """查询趋势分析任务详情"""
     try:
@@ -10772,10 +11515,67 @@ async def get_trend_analysis_task(
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
-@router.post("/trend/analysis/start", dependencies=[trend_write_dep])
+@router.post("/trend/reports", dependencies=[Depends(trend_write_dep)])
+async def create_trend_report(
+    request: Dict[str, Any] = Body(...),
+    trend_dep: Dict[str, Any] = trend_write_dep
+):
+    """创建趋势报告"""
+    try:
+        result = await configurable_api_connector.call_api(
+            platform="trend",
+            endpoint="/api/reports",
+            method="POST",
+            data=request
+        )
+        return {"success": True, "report": result.get("data", result)}
+    except Exception as e:
+        logger.error(f"创建趋势报告失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
+
+
+@router.put("/trend/reports/{report_id}", dependencies=[Depends(trend_write_dep)])
+async def update_trend_report(
+    report_id: str,
+    request: Dict[str, Any] = Body(...),
+    trend_dep: Dict[str, Any] = trend_write_dep
+):
+    """更新趋势报告"""
+    try:
+        result = await configurable_api_connector.call_api(
+            platform="trend",
+            endpoint=f"/api/reports/{report_id}",
+            method="PUT",
+            data=request
+        )
+        return {"success": True, "report": result.get("data", result)}
+    except Exception as e:
+        logger.error(f"更新趋势报告失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"更新失败: {str(e)}")
+
+
+@router.delete("/trend/reports/{report_id}", dependencies=[Depends(trend_write_dep)])
+async def delete_trend_report(
+    report_id: str,
+    trend_dep: Dict[str, Any] = trend_write_dep
+):
+    """删除趋势报告"""
+    try:
+        result = await configurable_api_connector.call_api(
+            platform="trend",
+            endpoint=f"/api/reports/{report_id}",
+            method="DELETE"
+        )
+        return {"success": True, "message": "删除成功", "result": result}
+    except Exception as e:
+        logger.error(f"删除趋势报告失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+
+
+@router.post("/trend/analysis/start", dependencies=[Depends(trend_write_dep)])
 async def start_trend_analysis(
     request: Dict[str, Any] = Body(...),
-    _: Dict[str, Any] = Depends(trend_write_dep)
+    trend_dep: Dict[str, Any] = trend_write_dep
 ):
     """启动趋势分析任务"""
     try:
@@ -10797,10 +11597,10 @@ async def start_trend_analysis(
         raise HTTPException(status_code=500, detail=f"启动失败: {str(e)}")
 
 
-@router.post("/trend/analysis/execute", dependencies=[trend_write_dep])
+@router.post("/trend/analysis/execute", dependencies=[Depends(trend_write_dep)])
 async def execute_trend_analysis(
     request: Dict[str, Any] = Body(...),
-    _: Dict[str, Any] = Depends(trend_write_dep)
+    trend_dep: Dict[str, Any] = trend_write_dep
 ):
     """执行趋势分析"""
     try:
@@ -10822,11 +11622,11 @@ async def execute_trend_analysis(
         raise HTTPException(status_code=500, detail=f"执行失败: {str(e)}")
 
 
-@router.get("/trend/reports/{report_id}/export", dependencies=[trend_read_dep])
+@router.get("/trend/reports/{report_id}/export", dependencies=[Depends(trend_read_dep)])
 async def export_trend_report(
     report_id: str,
     format: str = "pdf",
-    _: Dict[str, Any] = Depends(trend_read_dep)
+    trend_dep: Dict[str, Any] = trend_read_dep
 ):
     """导出趋势报告"""
     try:
@@ -10842,10 +11642,10 @@ async def export_trend_report(
         raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
 
 
-@router.post("/trend/writeback", dependencies=[trend_write_dep])
+@router.post("/trend/writeback", dependencies=[Depends(trend_write_dep)])
 async def trend_writeback(
     request: Dict[str, Any] = Body(...),
-    _: Dict[str, Any] = Depends(trend_write_dep)
+    trend_dep: Dict[str, Any] = trend_write_dep
 ):
     """趋势数据回写"""
     try:
@@ -10862,3 +11662,495 @@ async def trend_writeback(
     except Exception as e:
         logger.error(f"趋势回写失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"回写失败: {str(e)}")
+
+
+# ============ 6.4: 统一串联接口 - 任务→学习→资源→RAG/模块 ============
+
+class UnifiedChainRequest(BaseModel):
+    """统一串联请求"""
+    include_tasks: bool = Field(True, description="包含任务数据")
+    include_learning: bool = Field(True, description="包含学习数据")
+    include_resources: bool = Field(True, description="包含资源数据")
+    include_rag: bool = Field(True, description="包含RAG数据")
+    include_modules: bool = Field(True, description="包含模块数据")
+    task_status: Optional[str] = Field(None, description="任务状态过滤")
+    learning_limit: int = Field(10, description="学习数据限制")
+    resource_metrics: bool = Field(True, description="是否获取资源指标")
+
+
+class TaskSummary(BaseModel):
+    """任务摘要（6.4增强）"""
+    total: int
+    pending: int
+    running: int
+    completed: int
+    failed: int
+    tasks: List[Dict[str, Any]]
+    statistics: Optional[Dict[str, Any]] = None
+
+
+class LearningSummary(BaseModel):
+    """学习摘要（6.4增强）"""
+    total_actions: int
+    activity_level: str
+    insights: List[Dict[str, Any]]
+    patterns: List[Dict[str, Any]]
+    recommendations: List[Dict[str, Any]]
+    curves: Optional[List[Dict[str, Any]]] = None
+    statistics: Optional[Dict[str, Any]] = None
+
+
+class ResourceSummary(BaseModel):
+    """资源摘要（6.4增强）"""
+    cpu: Dict[str, Any]
+    memory: Dict[str, Any]
+    disk: Dict[str, Any]
+    network: Dict[str, Any]
+    status: str
+    alerts: List[Dict[str, Any]]
+    gpus: Optional[Dict[str, Any]] = None
+    containers: Optional[Dict[str, Any]] = None
+    conflicts: Optional[List[Dict[str, Any]]] = None
+    scheduling_strategy: Optional[Dict[str, Any]] = None
+    hints: Optional[List[Dict[str, Any]]] = None
+    allocations: Optional[Dict[str, Any]] = None
+
+
+class RAGSummary(BaseModel):
+    """RAG摘要"""
+    total_documents: int
+    recent_documents: List[Dict[str, Any]]
+    search_stats: Dict[str, Any]
+    kg_summary: Dict[str, Any]
+
+
+class ModuleSummary(BaseModel):
+    """模块摘要"""
+    modules: List[Dict[str, Any]]
+    total_modules: int
+    active_modules: int
+
+
+class UnifiedChainResponse(BaseModel):
+    """统一串联响应"""
+    success: bool
+    timestamp: str
+    tasks: Optional[TaskSummary] = None
+    learning: Optional[LearningSummary] = None
+    resources: Optional[ResourceSummary] = None
+    rag: Optional[RAGSummary] = None
+    modules: Optional[ModuleSummary] = None
+    execution_time_ms: float
+
+
+@router.post("/unified-chain", response_model=UnifiedChainResponse)
+async def unified_chain(request: UnifiedChainRequest):
+    """
+    统一串联接口：任务→学习→资源→RAG/模块
+    前端统一展示所有模块数据
+    """
+    start_time = time.time()
+    timestamp = datetime.now().isoformat()
+    
+    try:
+        result = {
+            "success": True,
+            "timestamp": timestamp,
+            "tasks": None,
+            "learning": None,
+            "resources": None,
+            "rag": None,
+            "modules": None,
+        }
+        
+        # 1. 获取任务数据（6.4增强：使用任务生命周期管理器）
+        if request.include_tasks:
+            try:
+                # 使用任务生命周期管理器获取任务
+                task_status_filter = None
+                if request.task_status:
+                    try:
+                        task_status_filter = TaskStatus(request.task_status)
+                    except ValueError:
+                        pass
+                
+                lifecycle_tasks = task_lifecycle_manager.list_tasks(
+                    status=task_status_filter,
+                    limit=50
+                )
+                
+                # 获取任务统计
+                task_stats = task_lifecycle_manager.get_task_statistics()
+                
+                # 转换为字典格式
+                tasks_data = [task.to_dict() for task in lifecycle_tasks]
+                
+                task_summary = {
+                    "total": task_stats.get("total_tasks", 0),
+                    "pending": task_stats.get("status_distribution", {}).get("pending", 0),
+                    "running": task_stats.get("status_distribution", {}).get("running", 0),
+                    "completed": task_stats.get("status_distribution", {}).get("completed", 0),
+                    "failed": task_stats.get("status_distribution", {}).get("failed", 0),
+                    "tasks": tasks_data[:20],  # 限制返回数量
+                    "statistics": {
+                        "average_duration": task_stats.get("average_duration", 0),
+                        "completed_count": task_stats.get("completed_count", 0),
+                        "failed_count": task_stats.get("failed_count", 0),
+                        "running_count": task_stats.get("running_count", 0),
+                    }
+                }
+                result["tasks"] = TaskSummary(**task_summary)
+            except Exception as e:
+                logger.warning(f"获取任务数据失败: {e}", exc_info=True)
+                # 降级到task_planning
+                try:
+                    tasks = task_planning.get_tasks(status=request.task_status)
+                    task_summary = {
+                        "total": len(tasks),
+                        "pending": len([t for t in tasks if t.get("status") == "pending"]),
+                        "running": len([t for t in tasks if t.get("status") == "running"]),
+                        "completed": len([t for t in tasks if t.get("status") == "completed"]),
+                        "failed": len([t for t in tasks if t.get("status") == "failed"]),
+                        "tasks": tasks[:20]
+                    }
+                    result["tasks"] = TaskSummary(**task_summary)
+                except:
+                    result["tasks"] = TaskSummary(
+                        total=0, pending=0, running=0, completed=0, failed=0, tasks=[]
+                    )
+        
+        # 2. 获取学习数据（6.4增强：使用学习曲线追踪器）
+        if request.include_learning:
+            try:
+                # 使用学习曲线追踪器获取数据
+                learning_stats = learning_curve_tracker.get_learning_statistics()
+                
+                # 获取学习曲线列表
+                curves = learning_curve_tracker.list_curves(limit=10)
+                curves_data = [curve.to_dict() for curve in curves]
+                
+                # 获取行为模式分析
+                behavior_patterns = learning_curve_tracker.analyze_behavior_patterns(days=30)
+                
+                # 获取专家建议
+                suggestions = learning_curve_tracker.get_suggestions(limit=request.learning_limit)
+                suggestions_data = [s.to_dict() for s in suggestions]
+                
+                # 聚合学习数据
+                learning_summary = {
+                    "total_actions": learning_stats.get("total_points", 0),
+                    "activity_level": "high" if learning_stats.get("total_points", 0) > 100 else "medium" if learning_stats.get("total_points", 0) > 50 else "low",
+                    "insights": [
+                        {
+                            "type": "learning_curve",
+                            "message": f"共有 {learning_stats.get('total_curves', 0)} 条学习曲线，{learning_stats.get('total_points', 0)} 个学习点",
+                            "data": learning_stats
+                        },
+                        {
+                            "type": "behavior_pattern",
+                            "message": f"检测到 {len(behavior_patterns.get('patterns', {}).get('most_used_modules', {}))} 个常用模块",
+                            "data": behavior_patterns
+                        }
+                    ][:request.learning_limit],
+                    "patterns": [
+                        {
+                            "type": "module_usage",
+                            "data": behavior_patterns.get("patterns", {}).get("most_used_modules", {})
+                        },
+                        {
+                            "type": "action_distribution",
+                            "data": behavior_patterns.get("patterns", {}).get("action_type_distribution", {})
+                        }
+                    ][:request.learning_limit],
+                    "recommendations": [
+                        {
+                            "type": "expert_suggestion",
+                            "title": s.title,
+                            "content": s.content,
+                            "priority": s.priority,
+                            "suggestion_type": s.suggestion_type
+                        }
+                        for s in suggestions_data[:request.learning_limit]
+                    ],
+                    "curves": curves_data,
+                    "statistics": learning_stats
+                }
+                result["learning"] = LearningSummary(**learning_summary)
+            except Exception as e:
+                logger.warning(f"获取学习数据失败: {e}", exc_info=True)
+                # 降级到learning_monitor
+                try:
+                    if hasattr(learning_monitor, 'get_insights'):
+                        insights = await learning_monitor.get_insights(limit=request.learning_limit)
+                    else:
+                        insights = []
+                    
+                    if hasattr(learning_monitor, 'get_patterns'):
+                        patterns = await learning_monitor.get_patterns()
+                    else:
+                        patterns = []
+                    
+                    if hasattr(learning_monitor, 'get_recommendations'):
+                        recommendations = await learning_monitor.get_recommendations()
+                    else:
+                        recommendations = []
+                    
+                    user_profile = {}
+                    if hasattr(learning_monitor, 'user_learning'):
+                        try:
+                            user_profile = learning_monitor.user_learning.get_user_profile()
+                        except:
+                            pass
+                    
+                    learning_summary = {
+                        "total_actions": user_profile.get("total_actions", 0),
+                        "activity_level": user_profile.get("activity_level", "unknown"),
+                        "insights": insights[:request.learning_limit],
+                        "patterns": patterns[:request.learning_limit],
+                        "recommendations": recommendations[:request.learning_limit]
+                    }
+                    result["learning"] = LearningSummary(**learning_summary)
+                except:
+                    result["learning"] = LearningSummary(
+                        total_actions=0,
+                        activity_level="unknown",
+                        insights=[],
+                        patterns=[],
+                        recommendations=[]
+                    )
+        
+        # 3. 获取资源数据（6.4增强：使用资源调度器）
+        if request.include_resources:
+            try:
+                # 使用资源调度器获取资源状态
+                resource_status = resource_scheduler.get_resource_status()
+                
+                # 获取CPU状态
+                cpu_state = resource_scheduler.get_cpu_state()
+                
+                # 获取GPU状态
+                gpu_states = resource_scheduler.get_gpu_states()
+                
+                # 获取容器状态
+                container_states = resource_scheduler.get_container_states()
+                
+                # 获取冲突队列
+                conflicts = resource_scheduler.get_conflict_queue(use_priority=False)
+                conflicts_data = [c.to_dict() for c in conflicts[:10]]  # 限制数量
+                
+                # 获取调度策略
+                current_strategy = resource_scheduler.get_scheduling_strategy()
+                
+                # 获取提示
+                hints = resource_scheduler.get_hints(unacknowledged_only=True, limit=10)
+                hints_data = [h.to_dict() for h in hints]
+                
+                # 构建资源摘要
+                if cpu_state:
+                    cpu_info = {
+                        "usage_percent": cpu_state.usage_percent,
+                        "cores": cpu_state.metadata.get("cores", 0),
+                        "status": cpu_state.status,
+                        "available": cpu_state.available
+                    }
+                else:
+                    # 降级到psutil
+                    import psutil
+                    cpu_percent = psutil.cpu_percent(interval=0.1)
+                    cpu_info = {
+                        "usage_percent": cpu_percent,
+                        "cores": psutil.cpu_count(),
+                        "status": "healthy" if cpu_percent < 80 else "warning",
+                        "available": 100.0 - cpu_percent
+                    }
+                
+                # 获取内存信息
+                import psutil
+                memory = psutil.virtual_memory()
+                memory_info = {
+                    "used_gb": memory.used / (1024**3),
+                    "total_gb": memory.total / (1024**3),
+                    "usage_percent": memory.percent,
+                    "available_gb": memory.available / (1024**3)
+                }
+                
+                # 获取磁盘信息
+                disk = psutil.disk_usage('/')
+                disk_info = {
+                    "used_gb": disk.used / (1024**3),
+                    "total_gb": disk.total / (1024**3),
+                    "usage_percent": (disk.used / disk.total) * 100,
+                    "free_gb": disk.free / (1024**3)
+                }
+                
+                # 确定整体状态
+                overall_status = "healthy"
+                alerts = []
+                
+                if cpu_info["usage_percent"] > 90 or memory_info["usage_percent"] > 90:
+                    overall_status = "critical"
+                    alerts.append({"type": "resource_high", "message": "资源使用率过高"})
+                elif cpu_info["usage_percent"] > 80 or memory_info["usage_percent"] > 80:
+                    overall_status = "warning"
+                    alerts.append({"type": "resource_warning", "message": "资源使用率较高"})
+                
+                # 添加冲突告警
+                if conflicts_data:
+                    alerts.append({
+                        "type": "conflict",
+                        "message": f"检测到 {len(conflicts_data)} 个资源冲突",
+                        "count": len(conflicts_data)
+                    })
+                
+                resource_summary = {
+                    "cpu": cpu_info,
+                    "memory": memory_info,
+                    "disk": disk_info,
+                    "network": {},  # 可以后续添加网络信息
+                    "gpus": {gpu_id: gpu.to_dict() for gpu_id, gpu in gpu_states.items()},
+                    "containers": {cid: c.to_dict() for cid, c in container_states.items()},
+                    "status": overall_status,
+                    "alerts": alerts,
+                    "conflicts": conflicts_data,
+                    "scheduling_strategy": current_strategy,
+                    "hints": hints_data,
+                    "allocations": {
+                        "total": resource_status.get("total_allocations", 0),
+                        "active_hints": resource_status.get("active_hints", 0)
+                    }
+                }
+                result["resources"] = ResourceSummary(**resource_summary)
+            except Exception as e:
+                logger.warning(f"获取资源数据失败: {e}", exc_info=True)
+                # 降级到psutil
+                try:
+                    import psutil
+                    cpu_percent = psutil.cpu_percent(interval=0.1)
+                    memory = psutil.virtual_memory()
+                    disk = psutil.disk_usage('/')
+                    
+                    resource_summary = {
+                        "cpu": {
+                            "usage_percent": cpu_percent,
+                            "cores": psutil.cpu_count()
+                        },
+                        "memory": {
+                            "used_gb": memory.used / (1024**3),
+                            "total_gb": memory.total / (1024**3),
+                            "usage_percent": memory.percent
+                        },
+                        "disk": {
+                            "used_gb": disk.used / (1024**3),
+                            "total_gb": disk.total / (1024**3),
+                            "usage_percent": disk.percent
+                        },
+                        "network": {},
+                        "status": "healthy" if cpu_percent < 80 and memory.percent < 80 else "warning",
+                        "alerts": []
+                    }
+                    result["resources"] = ResourceSummary(**resource_summary)
+                except:
+                    result["resources"] = ResourceSummary(
+                        cpu={"usage_percent": 0, "cores": 0},
+                        memory={"used_gb": 0, "total_gb": 0, "usage_percent": 0},
+                        disk={"used_gb": 0, "total_gb": 0, "usage_percent": 0},
+                        network={},
+                        status="unknown",
+                        alerts=[]
+                    )
+        
+        # 4. 获取RAG数据
+        if request.include_rag:
+            try:
+                # 获取最近文档
+                recent_docs = _load_recent_rag_documents(limit=10)
+                
+                # 获取搜索统计
+                search_stats = _build_search_stats()
+                
+                # 获取知识图谱摘要
+                kg_summary = _build_kg_summary(limit=10)
+                
+                rag_summary = {
+                    "total_documents": len(recent_docs),
+                    "recent_documents": recent_docs,
+                    "search_stats": search_stats,
+                    "kg_summary": kg_summary
+                }
+                result["rag"] = RAGSummary(**rag_summary)
+            except Exception as e:
+                logger.warning(f"获取RAG数据失败: {e}")
+                result["rag"] = RAGSummary(
+                    total_documents=0,
+                    recent_documents=[],
+                    search_stats={},
+                    kg_summary={}
+                )
+        
+        # 5. 获取模块数据
+        if request.include_modules:
+            try:
+                # 获取模块注册表
+                if hasattr(ModuleRegistry, 'get_instance'):
+                    registry = ModuleRegistry.get_instance()
+                    modules = registry.list_modules() if hasattr(registry, 'list_modules') else []
+                else:
+                    modules = []
+                
+                # 如果没有模块注册表，使用默认模块列表
+                if not modules:
+                    modules = [
+                        {"name": "任务管理", "status": "active", "type": "task"},
+                        {"name": "学习系统", "status": "active", "type": "learning"},
+                        {"name": "资源管理", "status": "active", "type": "resource"},
+                        {"name": "RAG知识库", "status": "active", "type": "rag"},
+                    ]
+                
+                module_summary = {
+                    "modules": modules,
+                    "total_modules": len(modules),
+                    "active_modules": len([m for m in modules if m.get("status") == "active"])
+                }
+                result["modules"] = ModuleSummary(**module_summary)
+            except Exception as e:
+                logger.warning(f"获取模块数据失败: {e}")
+                result["modules"] = ModuleSummary(
+                    modules=[],
+                    total_modules=0,
+                    active_modules=0
+                )
+        
+        execution_time = (time.time() - start_time) * 1000
+        result["execution_time_ms"] = execution_time
+        
+        return UnifiedChainResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"统一串联接口失败: {e}", exc_info=True)
+        execution_time = (time.time() - start_time) * 1000
+        raise HTTPException(
+            status_code=500,
+            detail=f"串联失败: {str(e)}"
+        )
+
+
+@router.get("/unified-dashboard", response_model=UnifiedChainResponse)
+async def unified_dashboard(
+    include_tasks: bool = True,
+    include_learning: bool = True,
+    include_resources: bool = True,
+    include_rag: bool = True,
+    include_modules: bool = True
+):
+    """
+    统一仪表板接口（GET版本）
+    前端统一展示所有模块数据
+    """
+    request = UnifiedChainRequest(
+        include_tasks=include_tasks,
+        include_learning=include_learning,
+        include_resources=include_resources,
+        include_rag=include_rag,
+        include_modules=include_modules
+    )
+    return await unified_chain(request)

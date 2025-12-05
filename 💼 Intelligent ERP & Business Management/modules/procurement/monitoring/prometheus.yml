@@ -1,0 +1,49 @@
+# Prometheus监控配置
+# 采购管理模块专用监控
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'procurement-cluster'
+    environment: '${ENVIRONMENT:-development}'
+
+# 告警规则文件
+rule_files:
+  - 'alerts.yml'
+
+# 抓取配置
+scrape_configs:
+  # 采购应用指标
+  - job_name: 'procurement-app'
+    static_configs:
+      - targets: ['procurement-app:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    
+  # PostgreSQL数据库指标
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:9187']
+    scrape_interval: 30s
+    
+  # Redis指标
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:9121']
+    scrape_interval: 30s
+    
+  # 节点指标（系统资源）
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+
+# 远程写入配置（可选）
+# remote_write:
+#   - url: http://thanos:10908/api/v1/receive
+
+# 远程读取配置（可选）
+# remote_read:
+#   - url: http://thanos:10908/api/v1/read

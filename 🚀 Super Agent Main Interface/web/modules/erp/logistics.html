@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>物流管理中心 · ERP全流程</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --border: #334155;
+            --primary: #38bdf8;
+            --success: #10b981;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --text: #f8fafc;
+            --text-sub: #94a3b8;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+        .logistics-app {
+            min-height: 100vh;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        .header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 16px;
+        }
+        .title h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .title p {
+            margin: 4px 0 0;
+            color: var(--text-sub);
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+        button {
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+            color: #fff;
+        }
+        .btn-secondary {
+            background: rgba(148, 163, 184, 0.2);
+            color: var(--text);
+        }
+        .grid {
+            display: grid;
+            gap: 16px;
+        }
+        .grid.stats {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .card h3 {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-sub);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .card strong {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .card span {
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+        .filters {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        .filters label {
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+            color: var(--text-sub);
+            gap: 6px;
+        }
+        .filters input,
+        .filters select {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text);
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(280px, 1.2fr);
+            gap: 20px;
+        }
+        .table-wrapper {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 0 20px 20px;
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead th {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            text-align: left;
+            padding: 16px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        tbody td {
+            padding: 18px 8px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            font-size: 14px;
+        }
+        tbody tr {
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        tbody tr:hover {
+            background: rgba(56, 189, 248, 0.08);
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge.success { background: rgba(16, 185, 129, 0.12); color: var(--success); }
+        .badge.info { background: rgba(96, 165, 250, 0.12); color: #60a5fa; }
+        .badge.warning { background: rgba(251, 191, 36, 0.12); color: var(--warning); }
+        .badge.danger { background: rgba(248, 113, 113, 0.12); color: var(--danger); }
+        .detail-panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 300px;
+        }
+        .detail-panel h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .lifecycle {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .lifecycle-step {
+            flex: 1 1 120px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.5);
+        }
+        .lifecycle-step.current { border-color: var(--primary); }
+        .lifecycle-step.completed { border-color: var(--success); }
+        .bar {
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            overflow: hidden;
+            margin-top: 6px;
+        }
+        .bar > span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #818cf8, #38bdf8);
+        }
+        .dimension-list {
+            display: grid;
+            gap: 8px;
+        }
+        .dimension-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+        .empty {
+            text-align: center;
+            padding: 40px 10px;
+            color: var(--text-sub);
+        }
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .chip {
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            font-size: 12px;
+        }
+        .shipment-info {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .shipment-item {
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 8px;
+        }
+        .shipment-item label {
+            font-size: 12px;
+            color: var(--text-sub);
+            display: block;
+            margin-bottom: 4px;
+        }
+        .shipment-item strong {
+            font-size: 18px;
+            display: block;
+        }
+        .milestones {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .milestone {
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--primary);
+            font-size: 13px;
+        }
+        @media (max-width: 1024px) {
+            .logistics-app { padding: 16px; }
+            .layout { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="logistics-app">
+        <div class="header">
+            <div class="title">
+                <h1>🚚 物流管理中心</h1>
+                <p>覆盖装运准备→干线运输→清关/交接→签收的全生命周期，实时掌握20项能力指标</p>
+            </div>
+            <div class="actions">
+                <button class="btn-secondary" id="refreshBtn">刷新</button>
+                <button class="btn-primary" id="createBtn">➕ 新建运单</button>
+            </div>
+        </div>
+
+        <div class="grid stats" id="statsGrid">
+            <!-- 动态统计卡片 -->
+        </div>
+
+        <form class="filters" id="filters">
+            <label>
+                搜索关键词
+                <input type="text" name="search" placeholder="运单号/订单号/承运商/物流单号" />
+            </label>
+            <label>
+                运单状态
+                <select name="status">
+                    <option value="">全部</option>
+                    <option value="ready">待发运</option>
+                    <option value="packing">打包中</option>
+                    <option value="picked_up">已提货</option>
+                    <option value="in_transit">运输中</option>
+                    <option value="customs">清关中</option>
+                    <option value="in_delivery">配送中</option>
+                    <option value="delivered">已签收</option>
+                    <option value="completed">已完成</option>
+                    <option value="exception">异常</option>
+                </select>
+            </label>
+            <label>
+                承运商
+                <input type="text" name="carrier" placeholder="承运商名称" />
+            </label>
+            <label>
+                运输方式
+                <select name="transport_mode">
+                    <option value="">全部</option>
+                    <option value="海运">海运</option>
+                    <option value="空运">空运</option>
+                    <option value="陆运">陆运</option>
+                    <option value="多式联运">多式联运</option>
+                </select>
+            </label>
+            <label>
+                订单号
+                <input type="text" name="order_id" placeholder="订单号" />
+            </label>
+            <label>
+                每页条数
+                <select name="page_size">
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </label>
+            <button class="btn-primary" type="submit" style="align-self:end;">应用筛选</button>
+        </form>
+
+        <div class="layout">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>运单号</th>
+                            <th>订单号</th>
+                            <th>承运商</th>
+                            <th>运输方式</th>
+                            <th>起运地</th>
+                            <th>目的地</th>
+                            <th>预计到达</th>
+                            <th>状态</th>
+                            <th>到岸成本</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logisticsTable">
+                        <tr><td colspan="9" class="empty">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="detail-panel" id="detailPanel">
+                <div>
+                    <h2 id="detailTitle">请选择运单</h2>
+                    <p id="detailSubtitle" class="chips"></p>
+                </div>
+                <div id="shipmentInfo" class="shipment-info">
+                    <!-- 运单信息 -->
+                </div>
+                <div>
+                    <h3>生命周期</h3>
+                    <div class="lifecycle" id="lifecycleView"></div>
+                </div>
+                <div id="milestonesSection">
+                    <h3>里程碑</h3>
+                    <div class="milestones" id="milestonesView"></div>
+                </div>
+                <div>
+                    <h3>八维度评分</h3>
+                    <div class="dimension-list" id="dimensionList"></div>
+                </div>
+                <div id="insights"></div>
+            </div>
+        </div>
+
+        <div class="card" id="capabilitiesPanel">
+            <h3>20项能力清单</h3>
+            <div class="chips" id="capabilityChips"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/logistics';
+        const statsGrid = document.getElementById('statsGrid');
+        const logisticsTable = document.getElementById('logisticsTable');
+        const detailTitle = document.getElementById('detailTitle');
+        const detailSubtitle = document.getElementById('detailSubtitle');
+        const shipmentInfo = document.getElementById('shipmentInfo');
+        const lifecycleView = document.getElementById('lifecycleView');
+        const milestonesView = document.getElementById('milestonesView');
+        const dimensionList = document.getElementById('dimensionList');
+        const insightsBox = document.getElementById('insights');
+        const capabilityChips = document.getElementById('capabilityChips');
+        const filtersForm = document.getElementById('filters');
+
+        let overviewCache = null;
+        let currentShipmentId = null;
+
+        const statusClass = (status) => {
+            const map = {
+                '待发运': 'info',
+                '打包中': 'info',
+                '已提货': 'info',
+                '运输中': 'success',
+                '清关中': 'warning',
+                '配送中': 'info',
+                '已签收': 'success',
+                '已完成': 'success',
+                '异常': 'danger'
+            };
+            return `badge ${map[status] || 'info'}`;
+        };
+
+        async function loadOverview() {
+            const res = await fetch(`${API_BASE}/overview`);
+            const data = await res.json();
+            overviewCache = data;
+            renderStats(data);
+            renderCapabilities(data.capabilities || []);
+        }
+
+        function renderStats(data) {
+            const summary = data.summary || {};
+            statsGrid.innerHTML = `
+                <div class="card">
+                    <h3>总运单数</h3>
+                    <strong>${summary.total_shipments ?? '--'}</strong>
+                    <span>运输中 ${summary.in_transit ?? '--'} 个</span>
+                </div>
+                <div class="card">
+                    <h3>到岸成本</h3>
+                    <strong>¥${(summary.total_landed_cost ?? 0).toLocaleString()}</strong>
+                    <span>物流+保险+清关</span>
+                </div>
+                <div class="card">
+                    <h3>准时交付率</h3>
+                    <strong>${summary.on_time_rate ?? '--'}%</strong>
+                    <span>已签收运单的准时率</span>
+                </div>
+                <div class="card">
+                    <h3>生命周期</h3>
+                    <strong>${data.lifecycle?.length || 4}</strong>
+                    <span>装运→签收的关键节点</span>
+                </div>
+            `;
+        }
+
+        async function loadLogistics() {
+            const params = new URLSearchParams(new FormData(filtersForm));
+            params.append('page', '1');
+            const res = await fetch(`${API_BASE}?${params}`);
+            const data = await res.json();
+            renderLogistics(data.shipments || []);
+        }
+
+        function renderLogistics(shipments) {
+            if (!shipments.length) {
+                logisticsTable.innerHTML = '<tr><td colspan="9" class="empty">暂无运单，尝试调整筛选条件</td></tr>';
+                return;
+            }
+            logisticsTable.innerHTML = shipments.map(shipment => {
+                const isDelayed = shipment.is_delayed ? '⚠️ ' : '';
+                return `
+                    <tr data-id="${shipment.shipment_id}">
+                        <td>${isDelayed}${shipment.shipment_id}</td>
+                        <td>${shipment.order_id || '—'}</td>
+                        <td>${shipment.carrier || '—'}</td>
+                        <td>${shipment.transport_mode || '—'}</td>
+                        <td>${shipment.origin || '—'}</td>
+                        <td>${shipment.destination || '—'}</td>
+                        <td>${shipment.eta || '—'}</td>
+                        <td><span class="${statusClass(shipment.status_label)}">${shipment.status_label || '—'}</span></td>
+                        <td>¥${(shipment.landed_cost || 0).toLocaleString()}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            logisticsTable.querySelectorAll('tr').forEach(row => {
+                row.addEventListener('click', () => {
+                    const id = row.getAttribute('data-id');
+                    currentShipmentId = id;
+                    loadShipmentDetail(id);
+                });
+            });
+        }
+
+        async function loadShipmentDetail(shipmentId) {
+            const res = await fetch(`${API_BASE}/${shipmentId}`);
+            if (!res.ok) {
+                detailTitle.textContent = '运单不存在';
+                return;
+            }
+            const data = await res.json();
+            const shipment = data.shipment || {};
+            detailTitle.textContent = `运单 ${shipment.shipment_id}`;
+            detailSubtitle.innerHTML = `
+                <span class="chip">${shipment.order_id || '未关联订单'}</span>
+                <span class="chip">${shipment.carrier || '未知承运商'}</span>
+                <span class="chip ${statusClass(data.status_label)}">${data.status_label || '未知'}</span>
+            `;
+
+            renderShipmentInfo(shipment, data);
+            renderLifecycleDetail(data.lifecycle || []);
+            renderMilestones(data.milestones || []);
+            renderDimensionDetail(data.dimension_breakdown || []);
+            renderInsights(data.insights || []);
+        }
+
+        function renderShipmentInfo(shipment, data) {
+            shipmentInfo.innerHTML = `
+                <div class="shipment-item">
+                    <label>物流成本</label>
+                    <strong>¥${(shipment.cost || 0).toLocaleString()}</strong>
+                </div>
+                <div class="shipment-item">
+                    <label>保险费用</label>
+                    <strong>¥${(shipment.insurance || 0).toLocaleString()}</strong>
+                </div>
+                <div class="shipment-item">
+                    <label>清关费用</label>
+                    <strong>¥${(shipment.customs_cost || 0).toLocaleString()}</strong>
+                </div>
+                <div class="shipment-item">
+                    <label>到岸成本</label>
+                    <strong>¥${(data.landed_cost || 0).toLocaleString()}</strong>
+                </div>
+                <div class="shipment-item">
+                    <label>起运地</label>
+                    <strong>${shipment.origin || '—'}</strong>
+                </div>
+                <div class="shipment-item">
+                    <label>目的地</label>
+                    <strong>${shipment.destination || '—'}</strong>
+                </div>
+                <div class="shipment-item">
+                    <label>预计到达</label>
+                    <strong>${shipment.eta || '—'}</strong>
+                </div>
+                <div class="shipment-item">
+                    <label>当前位置</label>
+                    <strong>${shipment.current_location || '—'}</strong>
+                </div>
+            `;
+        }
+
+        function renderLifecycleDetail(steps) {
+            lifecycleView.innerHTML = steps.map(step => `
+                <div class="lifecycle-step ${step.status}">
+                    <div style="font-weight:600;">${step.stage}</div>
+                    <div style="font-size:12px;color:var(--text-sub);">序号 ${step.sequence}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderMilestones(milestones) {
+            if (!milestones.length) {
+                milestonesView.innerHTML = '<span class="chip">暂无里程碑</span>';
+                return;
+            }
+            milestonesView.innerHTML = milestones.map(m => `
+                <span class="milestone">${m}</span>
+            `).join('');
+        }
+
+        function renderDimensionDetail(items) {
+            if (!items.length && overviewCache?.dimension_summary) {
+                items = overviewCache.dimension_summary;
+            }
+            dimensionList.innerHTML = items.map(item => {
+                const score = item.score || 0;
+                const percentage = Math.min(100, Math.round(score * 100));
+                return `
+                    <div>
+                        <div class="dimension-item">
+                            <span>${item.dimension || item.dimension_id}</span>
+                            <span>${percentage}%</span>
+                        </div>
+                        <div class="bar"><span style="width:${percentage}%;"></span></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderInsights(list) {
+            if (!list.length) {
+                insightsBox.innerHTML = '<p style="color:var(--text-sub);">暂无额外洞察</p>';
+                return;
+            }
+            insightsBox.innerHTML = list.map(text => `<p>${text}</p>`).join('');
+        }
+
+        function renderCapabilities(items) {
+            capabilityChips.innerHTML = items.slice(0, 20).map(item => `
+                <span class="chip">${item.name || item}</span>
+            `).join('');
+        }
+
+        filtersForm.addEventListener('submit', evt => {
+            evt.preventDefault();
+            loadLogistics();
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            loadOverview();
+            loadLogistics();
+            if (currentShipmentId) loadShipmentDetail(currentShipmentId);
+        });
+
+        document.getElementById('createBtn').addEventListener('click', async () => {
+            const orderId = prompt('订单号');
+            if (!orderId) return;
+            const carrier = prompt('承运商');
+            if (!carrier) return;
+            const payload = {
+                order_id: orderId,
+                carrier,
+                status: 'ready'
+            };
+            const res = await fetch(API_BASE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert('运单创建成功');
+                loadOverview();
+                loadLogistics();
+            } else {
+                const data = await res.json();
+                alert(`创建失败: ${data.detail || '未知错误'}`);
+            }
+        });
+
+        loadOverview();
+        loadLogistics();
+    </script>
+</body>
+</html>
+

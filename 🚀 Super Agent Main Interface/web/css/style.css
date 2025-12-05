@@ -261,6 +261,73 @@ body {
     }
 }
 
+/* 3.3: 加载状态样式 */
+.nav-btn.api-loading {
+    position: relative;
+    border-left: 3px solid #007AFF;
+    background: rgba(0, 122, 255, 0.1);
+}
+
+.nav-btn.api-loading::after {
+    content: '⟳';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #007AFF;
+    font-weight: bold;
+    font-size: 14px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* 3.3: Toast通知样式 */
+.toast {
+    position: fixed;
+    top: 80px;
+    right: 24px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-lg);
+    z-index: 10000;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease;
+    max-width: 300px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-success {
+    border-left: 4px solid #34C759;
+    color: var(--text-primary);
+}
+
+.toast-warning {
+    border-left: 4px solid #FF9500;
+    color: var(--text-primary);
+}
+
+.toast-error {
+    border-left: 4px solid #FF3B30;
+    color: var(--text-primary);
+}
+
+.toast-info {
+    border-left: 4px solid #007AFF;
+    color: var(--text-primary);
+}
+
 .nav-icon {
     font-size: 18px;
     width: 24px;

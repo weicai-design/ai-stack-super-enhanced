@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>订单管理中心 · ERP全流程</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --border: #334155;
+            --primary: #38bdf8;
+            --success: #10b981;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --text: #f8fafc;
+            --text-sub: #94a3b8;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+        .orders-app {
+            min-height: 100vh;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        .header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 16px;
+        }
+        .title h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .title p {
+            margin: 4px 0 0;
+            color: var(--text-sub);
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+        button {
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+            color: #fff;
+        }
+        .btn-secondary {
+            background: rgba(148, 163, 184, 0.2);
+            color: var(--text);
+        }
+        .grid {
+            display: grid;
+            gap: 16px;
+        }
+        .grid.stats {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .card h3 {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-sub);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .card strong {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .card span {
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+        .filters {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        .filters label {
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+            color: var(--text-sub);
+            gap: 6px;
+        }
+        .filters input,
+        .filters select {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text);
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(280px, 1.2fr);
+            gap: 20px;
+        }
+        .table-wrapper {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 0 20px 20px;
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead th {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            text-align: left;
+            padding: 16px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        tbody td {
+            padding: 18px 8px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            font-size: 14px;
+        }
+        tbody tr {
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        tbody tr:hover {
+            background: rgba(56, 189, 248, 0.08);
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge.success { background: rgba(16, 185, 129, 0.12); color: var(--success); }
+        .badge.info { background: rgba(96, 165, 250, 0.12); color: #60a5fa; }
+        .badge.warning { background: rgba(251, 191, 36, 0.12); color: var(--warning); }
+        .badge.danger { background: rgba(248, 113, 113, 0.12); color: var(--danger); }
+        .detail-panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 300px;
+        }
+        .detail-panel h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .lifecycle {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .lifecycle-step {
+            flex: 1 1 120px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.5);
+        }
+        .lifecycle-step.current { border-color: var(--primary); }
+        .lifecycle-step.completed { border-color: var(--success); }
+        .bar {
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            overflow: hidden;
+            margin-top: 6px;
+        }
+        .bar > span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #818cf8, #38bdf8);
+        }
+        .dimension-list {
+            display: grid;
+            gap: 8px;
+        }
+        .dimension-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+        .empty {
+            text-align: center;
+            padding: 40px 10px;
+            color: var(--text-sub);
+        }
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .chip {
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            font-size: 12px;
+        }
+        @media (max-width: 1024px) {
+            .orders-app { padding: 16px; }
+            .layout { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="orders-app">
+        <div class="header">
+            <div class="title">
+                <h1>📦 订单管理中心</h1>
+                <p>覆盖接收→评估→承诺→执行→回款的全生命周期，实时掌握25项能力指标</p>
+            </div>
+            <div class="actions">
+                <button class="btn-secondary" id="refreshBtn">刷新</button>
+                <button class="btn-primary" id="createBtn">➕ 新建订单</button>
+            </div>
+        </div>
+
+        <div class="grid stats" id="statsGrid">
+            <!-- 动态统计卡片 -->
+        </div>
+
+        <form class="filters" id="filters">
+            <label>
+                搜索关键词
+                <input type="text" name="search" placeholder="订单/客户/风险" />
+            </label>
+            <label>
+                状态
+                <select name="status">
+                    <option value="">全部</option>
+                    <option value="confirming">待确认</option>
+                    <option value="approved">已承诺</option>
+                    <option value="executing">执行中</option>
+                    <option value="completed">已完成</option>
+                </select>
+            </label>
+            <label>
+                优先级
+                <select name="priority">
+                    <option value="">全部</option>
+                    <option value="urgent">紧急</option>
+                    <option value="high">高</option>
+                    <option value="normal">普通</option>
+                </select>
+            </label>
+            <label>
+                阶段
+                <select name="stage">
+                    <option value="">全部</option>
+                </select>
+            </label>
+            <label>
+                每页条数
+                <select name="page_size">
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </label>
+            <button class="btn-primary" type="submit" style="align-self:end;">应用筛选</button>
+        </form>
+
+        <div class="layout">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>订单号</th>
+                            <th>客户</th>
+                            <th>行业</th>
+                            <th>金额</th>
+                            <th>阶段</th>
+                            <th>状态</th>
+                            <th>优先级</th>
+                            <th>交付</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersTable">
+                        <tr><td colspan="8" class="empty">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="detail-panel" id="detailPanel">
+                <div>
+                    <h2 id="detailTitle">请选择订单</h2>
+                    <p id="detailSubtitle" class="chips"></p>
+                </div>
+                <div>
+                    <h3>生命周期</h3>
+                    <div class="lifecycle" id="lifecycleView"></div>
+                </div>
+                <div>
+                    <h3>八维度评分</h3>
+                    <div class="dimension-list" id="dimensionList"></div>
+                </div>
+                <div id="insights"></div>
+            </div>
+        </div>
+
+        <div class="card" id="capabilitiesPanel">
+            <h3>25项能力清单</h3>
+            <div class="chips" id="capabilityChips"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/orders';
+        const statsGrid = document.getElementById('statsGrid');
+        const ordersTable = document.getElementById('ordersTable');
+        const detailTitle = document.getElementById('detailTitle');
+        const detailSubtitle = document.getElementById('detailSubtitle');
+        const lifecycleView = document.getElementById('lifecycleView');
+        const dimensionList = document.getElementById('dimensionList');
+        const insightsBox = document.getElementById('insights');
+        const capabilityChips = document.getElementById('capabilityChips');
+        const filtersForm = document.getElementById('filters');
+
+        let overviewCache = null;
+        let currentOrderId = null;
+
+        const statusClass = (status) => {
+            const map = {
+                confirming: 'warning',
+                approved: 'info',
+                executing: 'info',
+                completed: 'success'
+            };
+            return `badge ${map[status] || 'info'}`;
+        };
+
+        async function loadOverview() {
+            const res = await fetch(`${API_BASE}/overview`);
+            const data = await res.json();
+            overviewCache = data;
+            renderStats(data);
+            renderLifecycleOptions(data.lifecycle || []);
+            renderCapabilities(data.capabilities || []);
+        }
+
+        function renderStats(data) {
+            const summary = data.summary || {};
+            statsGrid.innerHTML = `
+                <div class="card">
+                    <h3>总订单数</h3>
+                    <strong>${summary.total_orders ?? '--'}</strong>
+                    <span>确认订单 ${summary.confirmed_orders ?? '--'} 个</span>
+                </div>
+                <div class="card">
+                    <h3>订单金额</h3>
+                    <strong>¥${(summary.total_value ?? 0).toLocaleString()}</strong>
+                    <span>币种：${summary.currency || 'CNY'}</span>
+                </div>
+                <div class="card">
+                    <h3>风险分布</h3>
+                    <strong>${data.risk_heatmap?.danger || data.risk_heatmap?.finance || 0}</strong>
+                    <span>高风险订单（含进度/法律/供应）</span>
+                </div>
+                <div class="card">
+                    <h3>生命周期</h3>
+                    <strong>${data.lifecycle?.length || 6}</strong>
+                    <span>接收→回款的关键节点</span>
+                </div>
+            `;
+        }
+
+        function renderLifecycleOptions(steps) {
+            const stageSelect = filtersForm.querySelector('select[name="stage"]');
+            stageSelect.innerHTML = '<option value="">全部</option>';
+            steps.forEach(step => {
+                const opt = document.createElement('option');
+                opt.value = step.name;
+                opt.textContent = step.name;
+                stageSelect.appendChild(opt);
+            });
+        }
+
+        async function loadOrders() {
+            const params = new URLSearchParams(new FormData(filtersForm));
+            const res = await fetch(`${API_BASE}?${params}`);
+            const data = await res.json();
+            renderOrders(data.orders || []);
+        }
+
+        function renderOrders(orders) {
+            if (!orders.length) {
+                ordersTable.innerHTML = '<tr><td colspan="8" class="empty">暂无订单，尝试调整筛选条件</td></tr>';
+                return;
+            }
+            ordersTable.innerHTML = orders.map(order => `
+                <tr data-id="${order.order_id}">
+                    <td>${order.order_id}</td>
+                    <td>${order.customer || '—'}</td>
+                    <td>${order.industry || '—'}</td>
+                    <td>¥${Number(order.value || 0).toLocaleString()}</td>
+                    <td>${order.stage || '—'}</td>
+                    <td><span class="${statusClass(order.status)}">${order.status || '—'}</span></td>
+                    <td><span class="chip">${order.priority || 'normal'}</span></td>
+                    <td>${order.delivery_date || '—'}</td>
+                </tr>
+            `).join('');
+
+            ordersTable.querySelectorAll('tr').forEach(row => {
+                row.addEventListener('click', () => {
+                    const id = row.getAttribute('data-id');
+                    currentOrderId = id;
+                    loadOrderDetail(id);
+                });
+            });
+        }
+
+        async function loadOrderDetail(orderId) {
+            const res = await fetch(`${API_BASE}/${orderId}`);
+            if (!res.ok) {
+                detailTitle.textContent = '订单不存在';
+                return;
+            }
+            const data = await res.json();
+            const order = data.order || {};
+            detailTitle.textContent = `订单 ${order.order_id}`;
+            detailSubtitle.innerHTML = `
+                <span class="chip">${order.customer || '未定义客户'}</span>
+                <span class="chip">${order.industry || '未知行业'}</span>
+                <span class="chip">金额 ¥${Number(order.value || 0).toLocaleString()}</span>
+            `;
+
+            renderLifecycleDetail(data.lifecycle || []);
+            renderDimensionDetail(data.dimension_breakdown || []);
+            renderInsights(data.insights || []);
+        }
+
+        function renderLifecycleDetail(steps) {
+            lifecycleView.innerHTML = steps.map(step => `
+                <div class="lifecycle-step ${step.status}">
+                    <div style="font-weight:600;">${step.stage}</div>
+                    <div style="font-size:12px;color:var(--text-sub);">序号 ${step.sequence}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderDimensionDetail(items) {
+            if (!items.length && overviewCache?.dimension_summary) {
+                items = overviewCache.dimension_summary;
+            }
+            dimensionList.innerHTML = items.map(item => {
+                const percentage = Math.min(100, Math.round((item.score || 0) * 100));
+                return `
+                    <div>
+                        <div class="dimension-item">
+                            <span>${item.dimension || item.dimension_id}</span>
+                            <span>${percentage}%</span>
+                        </div>
+                        <div class="bar"><span style="width:${percentage}%;"></span></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderInsights(list) {
+            if (!list.length) {
+                insightsBox.innerHTML = '<p style="color:var(--text-sub);">暂无额外洞察</p>';
+                return;
+            }
+            insightsBox.innerHTML = list.map(text => `<p>${text}</p>`).join('');
+        }
+
+        function renderCapabilities(items) {
+            capabilityChips.innerHTML = items.slice(0, 25).map(item => `
+                <span class="chip">${item.name || item}</span>
+            `).join('');
+        }
+
+        filtersForm.addEventListener('submit', evt => {
+            evt.preventDefault();
+            loadOrders();
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            loadOverview();
+            loadOrders();
+            if (currentOrderId) loadOrderDetail(currentOrderId);
+        });
+
+        document.getElementById('createBtn').addEventListener('click', async () => {
+            const customer = prompt('客户名称');
+            if (!customer) return;
+            const value = Number(prompt('订单金额（元）') || 0);
+            const payload = {
+                customer,
+                value,
+                status: 'confirming',
+                priority: 'normal'
+            };
+            const res = await fetch(API_BASE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert('订单创建成功');
+                loadOverview();
+                loadOrders();
+            } else {
+                alert('创建失败');
+            }
+        });
+
+        loadOverview();
+        loadOrders();
+    </script>
+</body>
+</html>
+

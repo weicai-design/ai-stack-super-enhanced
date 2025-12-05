@@ -1,0 +1,45 @@
+{
+  "tasks": [
+    {
+      "task_id": "daily_health_check",
+      "name": "日常健康检查",
+      "description": "执行日常健康检查脚本",
+      "cron_expression": "0 2 * * *",
+      "command": "./scripts/daily_health_check.sh",
+      "enabled": true,
+      "timeout": 600,
+      "retry_on_failure": true,
+      "max_retries": 3,
+      "retry_delay": 60,
+      "metadata": {}
+    },
+    {
+      "task_id": "compliance_check",
+      "name": "合规检查",
+      "description": "执行合规检查脚本",
+      "cron_expression": "0 3 * * 0",
+      "command": "python scripts/compliance_check.py --tenant-id global",
+      "enabled": true,
+      "timeout": 1800,
+      "retry_on_failure": false,
+      "max_retries": 0,
+      "retry_delay": 60,
+      "metadata": {}
+    },
+    {
+      "task_id": "data_backup",
+      "name": "数据备份",
+      "description": "执行数据备份",
+      "cron_expression": "0 1 * * *",
+      "command": "python -c \"from core.data_service import data_service; data_service.backup()\"",
+      "enabled": true,
+      "timeout": 3600,
+      "retry_on_failure": true,
+      "max_retries": 2,
+      "retry_delay": 300,
+      "metadata": {}
+    }
+  ],
+  "updated_at": "2024-01-01T00:00:00"
+}
+

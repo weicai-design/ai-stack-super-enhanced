@@ -278,7 +278,7 @@ class TonghuashunConnector:
         market: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        获取股票行情
+        获取股票行情（生产级实现）
         
         Args:
             symbol: 股票代码（如：000001, 600519）
@@ -303,11 +303,31 @@ class TonghuashunConnector:
                 "timestamp": "2024-01-01T10:00:00"
             }
         """
+        # 参数验证
+        if not symbol or not isinstance(symbol, str):
+            error_msg = f"无效的股票代码: {symbol}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+            }
+        
         try:
             # 标准化股票代码
             normalized_symbol = self._normalize_symbol(symbol, market)
             
-            # 调用API
+            # 验证密钥
+            if not self.api_key and not self.app_key:
+                error_msg = "同花顺API密钥未配置"
+                logger.error(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "symbol": normalized_symbol,
+                }
+            
+            # 调用API（带重试）
             response = await self._make_request(
                 endpoint=f"/api/quote/{normalized_symbol}",
                 method="GET",
@@ -315,9 +335,17 @@ class TonghuashunConnector:
             )
             
             if not response.get("success"):
-                raise Exception(f"获取行情失败: {response.get('error', '未知错误')}")
+                error_msg = f"获取行情失败: {response.get('error', '未知错误')}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
             
             data = response.get("data", {})
+            
+            # 验证响应数据
+            if not data or "price" not in data:
+                error_msg = "API返回数据格式错误"
+                logger.error(f"{error_msg}: {data}")
+                raise Exception(error_msg)
             
             # 标准化返回格式
             quote_data = {
@@ -336,14 +364,41 @@ class TonghuashunConnector:
                 "timestamp": data.get("timestamp", datetime.now().isoformat()),
             }
             
+            # 数据验证
+            if quote_data["price"] <= 0:
+                error_msg = f"无效的行情价格: {quote_data['price']}"
+                logger.error(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "symbol": normalized_symbol,
+                }
+            
             logger.info(f"成功获取行情: {normalized_symbol} = {quote_data['price']}")
             return quote_data
             
-        except Exception as e:
-            logger.error(f"获取行情失败 {symbol}: {str(e)}")
+        except httpx.TimeoutException as e:
+            error_msg = f"获取行情超时: {str(e)}"
+            logger.error(error_msg)
             return {
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
+                "symbol": symbol,
+            }
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP错误 {e.response.status_code}: {e.response.text}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+            }
+        except Exception as e:
+            error_msg = f"获取行情失败: {str(e)}"
+            logger.error(f"{error_msg} {symbol}: {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "error": error_msg,
                 "symbol": symbol,
             }
     
@@ -357,7 +412,7 @@ class TonghuashunConnector:
         market: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        下单交易
+        下单交易（生产级实现）
         
         Args:
             symbol: 股票代码（如：000001, 600519）
@@ -382,19 +437,86 @@ class TonghuashunConnector:
                 "created_at": "2024-01-01T10:00:00"
             }
         """
+        # 参数验证
+        if not symbol or not isinstance(symbol, str):
+            error_msg = f"无效的股票代码: {symbol}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+            }
+        
+        if action not in ["buy", "sell"]:
+            error_msg = f"无效的交易方向: {action}，必须是 'buy' 或 'sell'"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+                "action": action,
+            }
+        
+        if order_type not in ["limit", "market"]:
+            error_msg = f"无效的订单类型: {order_type}，必须是 'limit' 或 'market'"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+                "order_type": order_type,
+            }
+        
+        if order_type == "limit" and price is None:
+            error_msg = "限价单必须指定价格"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+                "order_type": order_type,
+            }
+        
+        if price is not None and price <= 0:
+            error_msg = f"无效的价格: {price}，必须大于0"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+                "price": price,
+            }
+        
+        if quantity <= 0:
+            error_msg = f"无效的数量: {quantity}，必须大于0"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+                "quantity": quantity,
+            }
+        
+        if quantity % 100 != 0:
+            error_msg = f"数量必须是100的整数倍，当前: {quantity}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+                "quantity": quantity,
+            }
+        
         try:
-            # 验证参数
-            if action not in ["buy", "sell"]:
-                raise ValueError(f"无效的交易方向: {action}，必须是 'buy' 或 'sell'")
-            
-            if order_type not in ["limit", "market"]:
-                raise ValueError(f"无效的订单类型: {order_type}，必须是 'limit' 或 'market'")
-            
-            if order_type == "limit" and price is None:
-                raise ValueError("限价单必须指定价格")
-            
-            if quantity <= 0 or quantity % 100 != 0:
-                raise ValueError(f"数量必须是100的整数倍，当前: {quantity}")
+            # 验证密钥
+            if not self.api_key and not self.app_key:
+                error_msg = "同花顺API密钥未配置"
+                logger.error(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "symbol": symbol,
+                }
             
             # 标准化股票代码
             normalized_symbol = self._normalize_symbol(symbol, market)
@@ -408,9 +530,9 @@ class TonghuashunConnector:
             }
             
             if price is not None:
-                order_data["price"] = price
+                order_data["price"] = round(price, 2)  # 价格保留2位小数
             
-            # 调用API
+            # 调用API（带重试）
             response = await self._make_request(
                 endpoint="/api/order/place",
                 method="POST",
@@ -418,9 +540,17 @@ class TonghuashunConnector:
             )
             
             if not response.get("success"):
-                raise Exception(f"下单失败: {response.get('error', '未知错误')}")
+                error_msg = f"下单失败: {response.get('error', '未知错误')}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
             
             data = response.get("data", {})
+            
+            # 验证响应数据
+            if not data or "order_id" not in data:
+                error_msg = "API返回数据格式错误，缺少order_id"
+                logger.error(f"{error_msg}: {data}")
+                raise Exception(error_msg)
             
             # 标准化返回格式
             order_result = {
@@ -432,22 +562,53 @@ class TonghuashunConnector:
                 "price": price,
                 "order_type": order_type,
                 "status": data.get("status", "pending"),
-                "filled_quantity": data.get("filled_quantity", 0),
-                "average_price": data.get("average_price", 0),
-                "commission": data.get("commission", 0),
+                "filled_quantity": int(data.get("filled_quantity", 0)),
+                "average_price": float(data.get("average_price", 0)),
+                "commission": float(data.get("commission", 0)),
                 "created_at": data.get("created_at", datetime.now().isoformat()),
             }
             
             logger.info(
-                f"成功下单: {normalized_symbol} {action} {quantity}股 @ {price or '市价'}"
+                f"成功下单: {normalized_symbol} {action} {quantity}股 @ {price or '市价'} (订单ID: {order_result['order_id']})"
             )
             return order_result
             
-        except Exception as e:
-            logger.error(f"下单失败 {symbol}: {str(e)}")
+        except httpx.TimeoutException as e:
+            error_msg = f"下单超时: {str(e)}"
+            logger.error(error_msg)
             return {
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
+                "symbol": symbol,
+                "action": action,
+                "quantity": quantity,
+            }
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP错误 {e.response.status_code}: {e.response.text}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+                "action": action,
+                "quantity": quantity,
+            }
+        except ValueError as e:
+            error_msg = f"参数验证失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "symbol": symbol,
+                "action": action,
+                "quantity": quantity,
+            }
+        except Exception as e:
+            error_msg = f"下单失败: {str(e)}"
+            logger.error(f"{error_msg} {symbol}: {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "error": error_msg,
                 "symbol": symbol,
                 "action": action,
                 "quantity": quantity,

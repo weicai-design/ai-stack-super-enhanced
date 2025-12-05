@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import logging
 
-from core.erp_11_stages_manager import erp_11_stages_manager, ERPStage
+from ..core.erp_11_stages_manager import erp_11_stages_manager, ERPStage
 from analytics.erp_eight_dimensions_analyzer import ERPEightDimensionsAnalyzer
 
 logger = logging.getLogger(__name__)

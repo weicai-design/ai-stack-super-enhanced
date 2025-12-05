@@ -1,0 +1,54 @@
+{
+  "task_id": "T004",
+  "task_name": "实现RAG模块3个专家",
+  "test_timestamp": "2025-11-27T11:42:25.603982",
+  "total_tests": 7,
+  "passed_tests": 5,
+  "failed_tests": 2,
+  "pass_rate": 71.42857142857143,
+  "test_duration": 0.6609899997711182,
+  "test_results": [
+    {
+      "test_name": "专家系统初始化",
+      "status": "PASS",
+      "details": "成功创建包含3个专家的系统",
+      "timestamp": "2025-11-27T11:42:24.943048"
+    },
+    {
+      "test_name": "查询分析功能",
+      "status": "PASS",
+      "details": "成功分析不同类型查询意图",
+      "timestamp": "2025-11-27T11:42:24.943862"
+    },
+    {
+      "test_name": "知识专家功能",
+      "status": "PASS",
+      "details": "知识专家分析功能正常",
+      "timestamp": "2025-11-27T11:42:24.944648"
+    },
+    {
+      "test_name": "检索专家功能",
+      "status": "PASS",
+      "details": "检索专家优化功能正常",
+      "timestamp": "2025-11-27T11:42:24.945134"
+    },
+    {
+      "test_name": "图谱专家功能",
+      "status": "FAIL",
+      "details": "",
+      "timestamp": "2025-11-27T11:42:24.945552"
+    },
+    {
+      "test_name": "综合专家回答功能",
+      "status": "PASS",
+      "details": "专家综合回答生成正常",
+      "timestamp": "2025-11-27T11:42:24.946056"
+    },
+    {
+      "test_name": "API接口兼容性",
+      "status": "FAIL",
+      "details": "attempted relative import with no known parent package",
+      "timestamp": "2025-11-27T11:42:25.603829"
+    }
+  ]
+}

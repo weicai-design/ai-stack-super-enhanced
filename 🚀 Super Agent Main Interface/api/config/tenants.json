@@ -1,0 +1,11 @@
+{
+  "tenants": [
+    {
+      "tenant_id": "global",
+      "name": "Global Default",
+      "plan": "enterprise",
+      "active": true,
+      "metadata": {}
+    }
+  ]
+}

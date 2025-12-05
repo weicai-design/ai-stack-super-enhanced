@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>售后服务管理中心 · ERP全流程</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --border: #334155;
+            --primary: #38bdf8;
+            --success: #10b981;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --text: #f8fafc;
+            --text-sub: #94a3b8;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+        .after-sales-app {
+            min-height: 100vh;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        .header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 16px;
+        }
+        .title h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .title p {
+            margin: 4px 0 0;
+            color: var(--text-sub);
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+        button {
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+            color: #fff;
+        }
+        .btn-secondary {
+            background: rgba(148, 163, 184, 0.2);
+            color: var(--text);
+        }
+        .grid {
+            display: grid;
+            gap: 16px;
+        }
+        .grid.stats {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .card h3 {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-sub);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .card strong {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .card span {
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+        .filters {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        .filters label {
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+            color: var(--text-sub);
+            gap: 6px;
+        }
+        .filters input,
+        .filters select {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text);
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(280px, 1.2fr);
+            gap: 20px;
+        }
+        .table-wrapper {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 0 20px 20px;
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead th {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            text-align: left;
+            padding: 16px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        tbody td {
+            padding: 18px 8px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            font-size: 14px;
+        }
+        tbody tr {
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        tbody tr:hover {
+            background: rgba(56, 189, 248, 0.08);
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge.success { background: rgba(16, 185, 129, 0.12); color: var(--success); }
+        .badge.info { background: rgba(96, 165, 250, 0.12); color: #60a5fa; }
+        .badge.warning { background: rgba(251, 191, 36, 0.12); color: var(--warning); }
+        .badge.danger { background: rgba(248, 113, 113, 0.12); color: var(--danger); }
+        .detail-panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 300px;
+        }
+        .detail-panel h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .lifecycle {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .lifecycle-step {
+            flex: 1 1 120px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.5);
+        }
+        .lifecycle-step.current { border-color: var(--primary); }
+        .lifecycle-step.completed { border-color: var(--success); }
+        .bar {
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            overflow: hidden;
+            margin-top: 6px;
+        }
+        .bar > span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #818cf8, #38bdf8);
+        }
+        .dimension-list {
+            display: grid;
+            gap: 8px;
+        }
+        .dimension-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+        .empty {
+            text-align: center;
+            padding: 40px 10px;
+            color: var(--text-sub);
+        }
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .chip {
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            font-size: 12px;
+        }
+        .case-info {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .case-item {
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 8px;
+        }
+        .case-item label {
+            font-size: 12px;
+            color: var(--text-sub);
+            display: block;
+            margin-bottom: 4px;
+        }
+        .case-item strong {
+            font-size: 18px;
+            display: block;
+        }
+        .sla-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+        .sla-badge.met {
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--success);
+        }
+        .sla-badge.breached {
+            background: rgba(248, 113, 113, 0.12);
+            color: var(--danger);
+        }
+        .severity-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .severity-badge.critical { background: rgba(248, 113, 113, 0.12); color: var(--danger); }
+        .severity-badge.high { background: rgba(251, 191, 36, 0.12); color: var(--warning); }
+        .severity-badge.medium { background: rgba(96, 165, 250, 0.12); color: #60a5fa; }
+        .severity-badge.low { background: rgba(148, 163, 184, 0.12); color: var(--text-sub); }
+        .satisfaction-stars {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .star {
+            color: var(--warning);
+            font-size: 16px;
+        }
+        .star.empty {
+            color: var(--text-sub);
+            opacity: 0.3;
+        }
+        @media (max-width: 1024px) {
+            .after-sales-app { padding: 16px; }
+            .layout { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="after-sales-app">
+        <div class="header">
+            <div class="title">
+                <h1>🛠️ 售后服务管理中心</h1>
+                <p>覆盖受理→诊断→调度→现场/远程处理→复盘的全生命周期，实时掌握15项能力指标</p>
+            </div>
+            <div class="actions">
+                <button class="btn-secondary" id="refreshBtn">刷新</button>
+                <button class="btn-primary" id="createBtn">➕ 新建工单</button>
+            </div>
+        </div>
+
+        <div class="grid stats" id="statsGrid">
+            <!-- 动态统计卡片 -->
+        </div>
+
+        <form class="filters" id="filters">
+            <label>
+                搜索关键词
+                <input type="text" name="search" placeholder="工单号/客户/问题描述" />
+            </label>
+            <label>
+                工单状态
+                <select name="status">
+                    <option value="">全部</option>
+                    <option value="open">待受理</option>
+                    <option value="acknowledged">已受理</option>
+                    <option value="diagnosing">诊断中</option>
+                    <option value="scheduled">已调度</option>
+                    <option value="in_progress">处理中</option>
+                    <option value="monitoring">监控中</option>
+                    <option value="resolved">已解决</option>
+                    <option value="closed">已关闭</option>
+                </select>
+            </label>
+            <label>
+                严重程度
+                <select name="severity">
+                    <option value="">全部</option>
+                    <option value="critical">严重</option>
+                    <option value="high">高</option>
+                    <option value="medium">中</option>
+                    <option value="low">低</option>
+                </select>
+            </label>
+            <label>
+                问题类别
+                <input type="text" name="category" placeholder="维修/升级/咨询" />
+            </label>
+            <label>
+                客户名称
+                <input type="text" name="customer" placeholder="客户名称" />
+            </label>
+            <label>
+                每页条数
+                <select name="page_size">
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </label>
+            <button class="btn-primary" type="submit" style="align-self:end;">应用筛选</button>
+        </form>
+
+        <div class="layout">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>工单号</th>
+                            <th>客户</th>
+                            <th>问题描述</th>
+                            <th>严重程度</th>
+                            <th>SLA</th>
+                            <th>状态</th>
+                            <th>处理人</th>
+                            <th>创建时间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="afterSalesTable">
+                        <tr><td colspan="8" class="empty">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="detail-panel" id="detailPanel">
+                <div>
+                    <h2 id="detailTitle">请选择工单</h2>
+                    <p id="detailSubtitle" class="chips"></p>
+                </div>
+                <div id="caseInfo" class="case-info">
+                    <!-- 工单信息 -->
+                </div>
+                <div>
+                    <h3>生命周期</h3>
+                    <div class="lifecycle" id="lifecycleView"></div>
+                </div>
+                <div>
+                    <h3>八维度评分</h3>
+                    <div class="dimension-list" id="dimensionList"></div>
+                </div>
+                <div id="insights"></div>
+            </div>
+        </div>
+
+        <div class="card" id="capabilitiesPanel">
+            <h3>15项能力清单</h3>
+            <div class="chips" id="capabilityChips"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/after-sales';
+        const statsGrid = document.getElementById('statsGrid');
+        const afterSalesTable = document.getElementById('afterSalesTable');
+        const detailTitle = document.getElementById('detailTitle');
+        const detailSubtitle = document.getElementById('detailSubtitle');
+        const caseInfo = document.getElementById('caseInfo');
+        const lifecycleView = document.getElementById('lifecycleView');
+        const dimensionList = document.getElementById('dimensionList');
+        const insightsBox = document.getElementById('insights');
+        const capabilityChips = document.getElementById('capabilityChips');
+        const filtersForm = document.getElementById('filters');
+
+        let overviewCache = null;
+        let currentTicketId = null;
+
+        const statusClass = (status) => {
+            const map = {
+                '待受理': 'warning',
+                '已受理': 'info',
+                '诊断中': 'info',
+                '已调度': 'info',
+                '处理中': 'success',
+                '监控中': 'info',
+                '已解决': 'success',
+                '已关闭': 'success'
+            };
+            return `badge ${map[status] || 'info'}`;
+        };
+
+        const severityClass = (severity) => {
+            const map = {
+                'critical': 'critical',
+                'high': 'high',
+                'medium': 'medium',
+                'low': 'low'
+            };
+            return `severity-badge ${map[severity] || 'medium'}`;
+        };
+
+        const severityLabel = (severity) => {
+            const map = {
+                'critical': '严重',
+                'high': '高',
+                'medium': '中',
+                'low': '低'
+            };
+            return map[severity] || severity;
+        };
+
+        async function loadOverview() {
+            const res = await fetch(`${API_BASE}/overview`);
+            const data = await res.json();
+            overviewCache = data;
+            renderStats(data);
+            renderCapabilities(data.capabilities || []);
+        }
+
+        function renderStats(data) {
+            const summary = data.summary || {};
+            statsGrid.innerHTML = `
+                <div class="card">
+                    <h3>总工单数</h3>
+                    <strong>${summary.total_cases ?? '--'}</strong>
+                    <span>待处理 ${summary.open_cases ?? '--'} 个</span>
+                </div>
+                <div class="card">
+                    <h3>SLA达成率</h3>
+                    <strong>${summary.sla_rate ?? '--'}%</strong>
+                    <span>已关闭工单的达成率</span>
+                </div>
+                <div class="card">
+                    <h3>一次解决率</h3>
+                    <strong>${summary.first_time_fix_rate ?? '--'}%</strong>
+                    <span>首次处理即解决的比例</span>
+                </div>
+                <div class="card">
+                    <h3>客户满意度</h3>
+                    <strong>${summary.avg_satisfaction ?? '--'}</strong>
+                    <span>平均评分（5分制）</span>
+                </div>
+            `;
+        }
+
+        async function loadAfterSales() {
+            const params = new URLSearchParams(new FormData(filtersForm));
+            params.append('page', '1');
+            const res = await fetch(`${API_BASE}?${params}`);
+            const data = await res.json();
+            renderAfterSales(data.cases || []);
+        }
+
+        function renderAfterSales(cases) {
+            if (!cases.length) {
+                afterSalesTable.innerHTML = '<tr><td colspan="8" class="empty">暂无工单，尝试调整筛选条件</td></tr>';
+                return;
+            }
+            afterSalesTable.innerHTML = cases.map(c => {
+                const slaBreached = c.is_sla_breached ? '⚠️ ' : '';
+                return `
+                    <tr data-id="${c.ticket_id}">
+                        <td>${slaBreached}${c.ticket_id}</td>
+                        <td>${c.customer || '—'}</td>
+                        <td>${c.issue || '—'}</td>
+                        <td><span class="${severityClass(c.severity)}">${severityLabel(c.severity)}</span></td>
+                        <td>${c.sla || '—'}</td>
+                        <td><span class="${statusClass(c.status_label)}">${c.status_label || '—'}</span></td>
+                        <td>${c.assignee || '—'}</td>
+                        <td>${c.created_at ? c.created_at.substring(0, 10) : '—'}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            afterSalesTable.querySelectorAll('tr').forEach(row => {
+                row.addEventListener('click', () => {
+                    const id = row.getAttribute('data-id');
+                    currentTicketId = id;
+                    loadCaseDetail(id);
+                });
+            });
+        }
+
+        async function loadCaseDetail(ticketId) {
+            const res = await fetch(`${API_BASE}/${ticketId}`);
+            if (!res.ok) {
+                detailTitle.textContent = '工单不存在';
+                return;
+            }
+            const data = await res.json();
+            const c = data.case || {};
+            detailTitle.textContent = `工单 ${c.ticket_id}`;
+            detailSubtitle.innerHTML = `
+                <span class="chip">${c.customer || '未定义客户'}</span>
+                <span class="chip ${severityClass(c.severity)}">${severityLabel(c.severity)}</span>
+                <span class="chip ${statusClass(data.status_label)}">${data.status_label || '未知'}</span>
+            `;
+
+            renderCaseInfo(c, data);
+            renderLifecycleDetail(data.lifecycle || []);
+            renderDimensionDetail(data.dimension_breakdown || []);
+            renderInsights(data.insights || []);
+        }
+
+        function renderCaseInfo(c, data) {
+            const slaInfo = data.sla_info || {};
+            const slaBadgeClass = slaInfo.is_breached ? 'breached' : (slaInfo.is_met ? 'met' : '');
+            const slaBadgeText = slaInfo.is_breached ? 'SLA超时' : (slaInfo.is_met ? 'SLA达成' : '');
+            
+            const satisfaction = c.customer_satisfaction;
+            const satisfactionStars = satisfaction ? '★'.repeat(satisfaction) + '☆'.repeat(5 - satisfaction) : '—';
+            
+            caseInfo.innerHTML = `
+                <div class="case-item">
+                    <label>问题类别</label>
+                    <strong>${c.category || '—'}</strong>
+                </div>
+                <div class="case-item">
+                    <label>SLA</label>
+                    <strong>${c.sla || '—'}</strong>
+                    ${slaBadgeClass ? `<span class="sla-badge ${slaBadgeClass}">${slaBadgeText}</span>` : ''}
+                </div>
+                <div class="case-item">
+                    <label>处理人</label>
+                    <strong>${c.assignee || '未分配'}</strong>
+                </div>
+                <div class="case-item">
+                    <label>客户满意度</label>
+                    <strong>${satisfaction || '—'}</strong>
+                    ${satisfaction ? `<div class="satisfaction-stars">${satisfactionStars}</div>` : ''}
+                </div>
+                <div class="case-item">
+                    <label>服务成本</label>
+                    <strong>¥${(c.cost || 0).toLocaleString()}</strong>
+                </div>
+                <div class="case-item">
+                    <label>处理时长</label>
+                    <strong>${data.resolution_hours ? data.resolution_hours + '小时' : '—'}</strong>
+                </div>
+                <div class="case-item">
+                    <label>诊断结果</label>
+                    <strong style="font-size:14px;">${c.diagnosis || '—'}</strong>
+                </div>
+                <div class="case-item">
+                    <label>解决方案</label>
+                    <strong style="font-size:14px;">${c.solution || '—'}</strong>
+                </div>
+            `;
+        }
+
+        function renderLifecycleDetail(steps) {
+            lifecycleView.innerHTML = steps.map(step => `
+                <div class="lifecycle-step ${step.status}">
+                    <div style="font-weight:600;">${step.stage}</div>
+                    <div style="font-size:12px;color:var(--text-sub);">序号 ${step.sequence}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderDimensionDetail(items) {
+            if (!items.length && overviewCache?.dimension_summary) {
+                items = overviewCache.dimension_summary;
+            }
+            dimensionList.innerHTML = items.map(item => {
+                const score = item.score || 0;
+                const percentage = Math.min(100, Math.round(score * 100));
+                return `
+                    <div>
+                        <div class="dimension-item">
+                            <span>${item.dimension || item.dimension_id}</span>
+                            <span>${percentage}%</span>
+                        </div>
+                        <div class="bar"><span style="width:${percentage}%;"></span></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderInsights(list) {
+            if (!list.length) {
+                insightsBox.innerHTML = '<p style="color:var(--text-sub);">暂无额外洞察</p>';
+                return;
+            }
+            insightsBox.innerHTML = list.map(text => `<p>${text}</p>`).join('');
+        }
+
+        function renderCapabilities(items) {
+            capabilityChips.innerHTML = items.slice(0, 15).map(item => `
+                <span class="chip">${item.name || item}</span>
+            `).join('');
+        }
+
+        filtersForm.addEventListener('submit', evt => {
+            evt.preventDefault();
+            loadAfterSales();
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            loadOverview();
+            loadAfterSales();
+            if (currentTicketId) loadCaseDetail(currentTicketId);
+        });
+
+        document.getElementById('createBtn').addEventListener('click', async () => {
+            const customer = prompt('客户名称');
+            if (!customer) return;
+            const issue = prompt('问题描述');
+            if (!issue) return;
+            const severity = prompt('严重程度（low/medium/high/critical）') || 'medium';
+            const payload = {
+                customer,
+                issue,
+                severity,
+                sla: '48h'
+            };
+            const res = await fetch(API_BASE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert('工单创建成功');
+                loadOverview();
+                loadAfterSales();
+            } else {
+                const data = await res.json();
+                alert(`创建失败: ${data.detail || '未知错误'}`);
+            }
+        });
+
+        loadOverview();
+        loadAfterSales();
+    </script>
+</body>
+</html>
+

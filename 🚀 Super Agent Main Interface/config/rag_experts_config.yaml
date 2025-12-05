@@ -1,0 +1,48 @@
+# RAG专家系统配置
+max_concurrent_requests: 15
+request_timeout: 60.0
+retry_attempts: 3
+cache_enabled: true
+cache_ttl: 1800
+monitoring_enabled: true
+metrics_port: 9090
+health_check_port: 8080
+experts:
+  rag_knowledge_expert:
+    quality_threshold: 0.85
+    high_quality_threshold: 0.9
+    max_processing_time: 30.0
+    batch_size: 100
+    enable_logging: true
+    log_level: "debug"
+    enable_monitoring: true
+    enable_tracing: true
+    expert_specific:
+      classification_categories: ["技术文档", "业务知识", "产品信息", "最佳实践"]
+      quality_metrics: ["完整性", "准确性", "时效性", "相关性"]
+      
+  rag_retrieval_expert:
+    quality_threshold: 0.8
+    high_quality_threshold: 0.85
+    max_processing_time: 25.0
+    batch_size: 50
+    enable_logging: true
+    log_level: "info"
+    enable_monitoring: true
+    enable_tracing: true
+    expert_specific:
+      retrieval_strategies: ["语义检索", "关键词匹配", "混合检索"]
+      optimization_techniques: ["查询扩展", "相关性重排序", "多模态检索"]
+      
+  rag_graph_expert:
+    quality_threshold: 0.75
+    high_quality_threshold: 0.8
+    max_processing_time: 35.0
+    batch_size: 80
+    enable_logging: true
+    log_level: "debug"
+    enable_monitoring: true
+    enable_tracing: true
+    expert_specific:
+      graph_analysis_metrics: ["连通性", "中心性", "密度", "模块性"]
+      enhancement_suggestions: ["实体补全", "关系优化", "结构重构"]

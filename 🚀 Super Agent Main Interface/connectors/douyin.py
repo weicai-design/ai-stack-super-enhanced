@@ -306,7 +306,7 @@ class DouyinConnector:
         scope: Optional[List[str]] = None,
     ) -> str:
         """
-        生成OAuth授权链接
+        生成OAuth授权链接（生产级实现）
         
         Args:
             state: 状态参数（用于防止CSRF攻击）
@@ -315,32 +315,62 @@ class DouyinConnector:
         Returns:
             授权链接URL
         """
+        # 参数验证
         if not self.app_id:
-            raise ValueError("缺少app_id，无法生成授权链接")
+            error_msg = "缺少app_id，无法生成授权链接"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         
-        # 生成state（如果未提供）
+        if not self.redirect_uri:
+            error_msg = "缺少redirect_uri，无法生成授权链接"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        # 生成state（如果未提供）- 使用安全的随机生成
         if not state:
             import secrets
             state = secrets.token_urlsafe(32)
+        elif not isinstance(state, str) or len(state) < 16:
+            error_msg = "state参数必须是至少16个字符的字符串"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        # 验证scope
+        if scope is not None:
+            if not isinstance(scope, list) or len(scope) == 0:
+                error_msg = "scope必须是非空列表"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            # 验证scope格式
+            valid_scopes = ["user_info", "video.create", "video.upload", "video.data", "video.delete"]
+            invalid_scopes = [s for s in scope if s not in valid_scopes]
+            if invalid_scopes:
+                logger.warning(f"检测到无效的scope: {invalid_scopes}")
         
         # 默认授权范围
         if not scope:
             scope = ["user_info", "video.create", "video.upload"]
         
-        # 构建授权参数
-        params = {
-            "client_key": self.app_id,
-            "response_type": "code",
-            "scope": ",".join(scope),
-            "redirect_uri": self.redirect_uri,
-            "state": state,
-        }
-        
-        # 生成授权链接
-        auth_url = f"{self.base_url}/platform/oauth/connect?{urlencode(params)}"
-        
-        logger.info(f"生成授权链接: {auth_url[:100]}...")
-        return auth_url
+        try:
+            # 构建授权参数
+            params = {
+                "client_key": self.app_id,
+                "response_type": "code",
+                "scope": ",".join(scope),
+                "redirect_uri": self.redirect_uri,
+                "state": state,
+            }
+            
+            # 生成授权链接
+            auth_url = f"{self.base_url}/platform/oauth/connect?{urlencode(params)}"
+            
+            logger.info(f"生成授权链接成功，state: {state[:8]}...")
+            return auth_url
+            
+        except Exception as e:
+            error_msg = f"生成授权链接失败: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise ValueError(error_msg)
     
     async def handle_callback(
         self,
@@ -348,7 +378,7 @@ class DouyinConnector:
         state: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        处理OAuth回调，获取access_token
+        处理OAuth回调，获取access_token（生产级实现）
         
         Args:
             code: 授权码
@@ -357,8 +387,22 @@ class DouyinConnector:
         Returns:
             Token信息
         """
+        # 参数验证
+        if not code or not isinstance(code, str):
+            error_msg = "无效的授权码"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
         if not self.app_id or not self.app_secret:
-            raise ValueError("缺少app_id或app_secret，无法获取token")
+            error_msg = "缺少app_id或app_secret，无法获取token"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
         
         try:
             # 构建token请求
@@ -369,7 +413,7 @@ class DouyinConnector:
                 "grant_type": "authorization_code",
             }
             
-            # 调用token接口
+            # 调用token接口（带重试）
             response = await self._make_request(
                 endpoint="/oauth/access_token",
                 method="POST",
@@ -378,14 +422,22 @@ class DouyinConnector:
             )
             
             if not response.get("success"):
-                raise Exception(f"获取token失败: {response.get('error', '未知错误')}")
+                error_msg = f"获取token失败: {response.get('error', '未知错误')}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
             
             data = response.get("data", {})
+            
+            # 验证响应数据
+            if not data.get("access_token"):
+                error_msg = "API返回数据格式错误，缺少access_token"
+                logger.error(f"{error_msg}: {data}")
+                raise Exception(error_msg)
             
             # 保存token
             self.access_token = data.get("access_token")
             self.refresh_token = data.get("refresh_token")
-            expires_in = data.get("expires_in", 7200)  # 默认2小时
+            expires_in = int(data.get("expires_in", 7200))  # 默认2小时
             self.token_expires_at = datetime.now() + timedelta(seconds=expires_in)
             
             # 保存到凭证管理器
@@ -401,22 +453,51 @@ class DouyinConnector:
                 "expires_at": self.token_expires_at.isoformat(),
             }
             
-        except Exception as e:
-            logger.error(f"处理回调失败: {str(e)}")
+        except httpx.TimeoutException as e:
+            error_msg = f"获取token超时: {str(e)}"
+            logger.error(error_msg)
             return {
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
+            }
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP错误 {e.response.status_code}: {e.response.text}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        except Exception as e:
+            error_msg = f"处理回调失败: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return {
+                "success": False,
+                "error": error_msg,
             }
     
     async def refresh_token(self) -> Dict[str, Any]:
         """
-        刷新access_token
+        刷新access_token（生产级实现）
         
         Returns:
             新的token信息
         """
+        # 参数验证
         if not self.refresh_token:
-            raise ValueError("缺少refresh_token，无法刷新token")
+            error_msg = "缺少refresh_token，无法刷新token"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
+        if not self.app_id or not self.app_secret:
+            error_msg = "缺少app_id或app_secret，无法刷新token"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
         
         try:
             # 构建刷新请求
@@ -427,7 +508,7 @@ class DouyinConnector:
                 "refresh_token": self.refresh_token,
             }
             
-            # 调用刷新接口
+            # 调用刷新接口（带重试）
             response = await self._make_request(
                 endpoint="/oauth/refresh_token",
                 method="POST",
@@ -436,16 +517,24 @@ class DouyinConnector:
             )
             
             if not response.get("success"):
-                raise Exception(f"刷新token失败: {response.get('error', '未知错误')}")
+                error_msg = f"刷新token失败: {response.get('error', '未知错误')}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
             
             data = response.get("data", {})
+            
+            # 验证响应数据
+            if not data.get("access_token"):
+                error_msg = "API返回数据格式错误，缺少access_token"
+                logger.error(f"{error_msg}: {data}")
+                raise Exception(error_msg)
             
             # 更新token
             self.access_token = data.get("access_token")
             new_refresh_token = data.get("refresh_token")
             if new_refresh_token:
                 self.refresh_token = new_refresh_token
-            expires_in = data.get("expires_in", 7200)
+            expires_in = int(data.get("expires_in", 7200))
             self.token_expires_at = datetime.now() + timedelta(seconds=expires_in)
             
             # 保存到凭证管理器
@@ -461,11 +550,33 @@ class DouyinConnector:
                 "expires_at": self.token_expires_at.isoformat(),
             }
             
-        except Exception as e:
-            logger.error(f"刷新token失败: {str(e)}")
+        except httpx.TimeoutException as e:
+            error_msg = f"刷新token超时: {str(e)}"
+            logger.error(error_msg)
             return {
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
+            }
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP错误 {e.response.status_code}: {e.response.text}"
+            logger.error(error_msg)
+            # 如果是401错误，说明refresh_token已失效，需要重新授权
+            if e.response.status_code == 401:
+                logger.warning("refresh_token已失效，需要重新授权")
+                self.access_token = None
+                self.refresh_token = None
+                self.token_expires_at = None
+                self._save_tokens()
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        except Exception as e:
+            error_msg = f"刷新token失败: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return {
+                "success": False,
+                "error": error_msg,
             }
     
     async def publish_video(
@@ -477,10 +588,10 @@ class DouyinConnector:
         privacy_level: int = 0,  # 0:公开, 1:仅自己可见
     ) -> Dict[str, Any]:
         """
-        发布视频
+        发布视频（生产级实现）
         
         Args:
-            video_url: 视频URL（需要先上传到抖音服务器）
+            video_url: 视频URL或video_id（需要先上传到抖音服务器）
             title: 视频标题
             description: 视频描述
             cover_url: 封面图URL
@@ -489,22 +600,66 @@ class DouyinConnector:
         Returns:
             发布结果
         """
+        # 参数验证
+        if not video_url or not isinstance(video_url, str):
+            error_msg = "无效的视频URL或video_id"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
+        if not title or not isinstance(title, str) or len(title.strip()) == 0:
+            error_msg = "视频标题不能为空"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
+        if len(title) > 55:  # 抖音标题最大长度限制
+            error_msg = f"视频标题过长（最大55字符），当前: {len(title)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
+        if description and len(description) > 2000:  # 抖音描述最大长度限制
+            error_msg = f"视频描述过长（最大2000字符），当前: {len(description)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
+        if privacy_level not in [0, 1]:
+            error_msg = f"无效的隐私级别: {privacy_level}，必须是0（公开）或1（仅自己可见）"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
         try:
+            # 确保token有效
+            await self._ensure_valid_token()
+            
             # 构建发布数据
             publish_data = {
                 "video_id": video_url,  # 实际应该是上传后返回的video_id
-                "text": title,
+                "text": title.strip(),
                 "poi_id": "",  # 位置ID（可选）
                 "privacy_level": privacy_level,
             }
             
             if description:
-                publish_data["text"] = f"{title}\n{description}"
+                publish_data["text"] = f"{title.strip()}\n{description.strip()}"
             
             if cover_url:
                 publish_data["cover_tsp"] = cover_url
             
-            # 调用发布接口
+            # 调用发布接口（带重试）
             response = await self._make_request(
                 endpoint="/video/create",
                 method="POST",
@@ -512,9 +667,17 @@ class DouyinConnector:
             )
             
             if not response.get("success"):
-                raise Exception(f"发布视频失败: {response.get('error', '未知错误')}")
+                error_msg = f"发布视频失败: {response.get('error', '未知错误')}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
             
             data = response.get("data", {})
+            
+            # 验证响应数据
+            if not data.get("item_id"):
+                error_msg = "API返回数据格式错误，缺少item_id"
+                logger.error(f"{error_msg}: {data}")
+                raise Exception(error_msg)
             
             logger.info(f"成功发布视频: {data.get('item_id', '')}")
             
@@ -525,11 +688,26 @@ class DouyinConnector:
                 "share_url": data.get("share_url", ""),
             }
             
-        except Exception as e:
-            logger.error(f"发布视频失败: {str(e)}")
+        except httpx.TimeoutException as e:
+            error_msg = f"发布视频超时: {str(e)}"
+            logger.error(error_msg)
             return {
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
+            }
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP错误 {e.response.status_code}: {e.response.text}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        except Exception as e:
+            error_msg = f"发布视频失败: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return {
+                "success": False,
+                "error": error_msg,
             }
     
     async def publish_image(
@@ -540,7 +718,7 @@ class DouyinConnector:
         privacy_level: int = 0,
     ) -> Dict[str, Any]:
         """
-        发布图文
+        发布图文（生产级实现）
         
         Args:
             images: 图片URL列表（需要先上传到抖音服务器）
@@ -551,21 +729,70 @@ class DouyinConnector:
         Returns:
             发布结果
         """
+        # 参数验证
+        if not images or not isinstance(images, list) or len(images) == 0:
+            error_msg = "图片列表不能为空"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
+        if len(images) > 9:  # 抖音图文最多9张图片
+            error_msg = f"图片数量过多（最多9张），当前: {len(images)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
+        if not title or not isinstance(title, str) or len(title.strip()) == 0:
+            error_msg = "标题不能为空"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
+        if len(title) > 55:  # 抖音标题最大长度限制
+            error_msg = f"标题过长（最大55字符），当前: {len(title)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
+        if description and len(description) > 2000:  # 抖音描述最大长度限制
+            error_msg = f"描述过长（最大2000字符），当前: {len(description)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
+        if privacy_level not in [0, 1]:
+            error_msg = f"无效的隐私级别: {privacy_level}，必须是0（公开）或1（仅自己可见）"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
         try:
-            if not images or len(images) == 0:
-                raise ValueError("图片列表不能为空")
+            # 确保token有效
+            await self._ensure_valid_token()
             
             # 构建发布数据
             publish_data = {
                 "image_list": images,
-                "text": title,
+                "text": title.strip(),
                 "privacy_level": privacy_level,
             }
             
             if description:
-                publish_data["text"] = f"{title}\n{description}"
+                publish_data["text"] = f"{title.strip()}\n{description.strip()}"
             
-            # 调用发布接口
+            # 调用发布接口（带重试）
             response = await self._make_request(
                 endpoint="/image/create",
                 method="POST",
@@ -573,9 +800,17 @@ class DouyinConnector:
             )
             
             if not response.get("success"):
-                raise Exception(f"发布图文失败: {response.get('error', '未知错误')}")
+                error_msg = f"发布图文失败: {response.get('error', '未知错误')}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
             
             data = response.get("data", {})
+            
+            # 验证响应数据
+            if not data.get("item_id"):
+                error_msg = "API返回数据格式错误，缺少item_id"
+                logger.error(f"{error_msg}: {data}")
+                raise Exception(error_msg)
             
             logger.info(f"成功发布图文: {data.get('item_id', '')}")
             
@@ -585,11 +820,26 @@ class DouyinConnector:
                 "share_url": data.get("share_url", ""),
             }
             
-        except Exception as e:
-            logger.error(f"发布图文失败: {str(e)}")
+        except httpx.TimeoutException as e:
+            error_msg = f"发布图文超时: {str(e)}"
+            logger.error(error_msg)
             return {
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
+            }
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP错误 {e.response.status_code}: {e.response.text}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        except Exception as e:
+            error_msg = f"发布图文失败: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return {
+                "success": False,
+                "error": error_msg,
             }
     
     def register_callback_handler(
@@ -613,7 +863,7 @@ class DouyinConnector:
         signature: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        处理Webhook回调
+        处理Webhook回调（生产级实现）
         
         Args:
             payload: 回调数据
@@ -622,48 +872,79 @@ class DouyinConnector:
         Returns:
             处理结果
         """
+        # 参数验证
+        if not payload or not isinstance(payload, dict):
+            error_msg = "无效的回调数据"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+            }
+        
         try:
             # 验证签名（如果提供）
-            if signature and self.app_secret:
-                if not self._verify_signature(payload, signature):
-                    logger.warning("Webhook签名验证失败")
+            if signature:
+                if not self.app_secret:
+                    logger.warning("提供了签名但缺少app_secret，跳过签名验证")
+                elif not self._verify_signature(payload, signature):
+                    error_msg = "Webhook签名验证失败"
+                    logger.warning(error_msg)
                     return {
                         "success": False,
-                        "error": "签名验证失败",
+                        "error": error_msg,
                     }
             
             # 获取事件类型
             event_type = payload.get("event", "")
+            if not event_type:
+                error_msg = "回调数据缺少event字段"
+                logger.error(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg,
+                }
+            
             event_data = payload.get("data", {})
             
             # 查找对应的处理器
             handler = self.callback_handlers.get(event_type)
             if handler:
-                # 调用处理器
-                if asyncio.iscoroutinefunction(handler):
-                    result = await handler(event_data)
-                else:
-                    result = handler(event_data)
-                
-                logger.info(f"处理Webhook事件: {event_type}")
-                
-                return {
-                    "success": True,
-                    "event_type": event_type,
-                    "result": result,
-                }
+                try:
+                    # 调用处理器
+                    if asyncio.iscoroutinefunction(handler):
+                        result = await handler(event_data)
+                    else:
+                        result = handler(event_data)
+                    
+                    logger.info(f"成功处理Webhook事件: {event_type}")
+                    
+                    return {
+                        "success": True,
+                        "event_type": event_type,
+                        "result": result,
+                    }
+                except Exception as handler_error:
+                    error_msg = f"事件处理器执行失败: {str(handler_error)}"
+                    logger.error(f"{error_msg} (事件类型: {event_type})", exc_info=True)
+                    return {
+                        "success": False,
+                        "error": error_msg,
+                        "event_type": event_type,
+                    }
             else:
                 logger.warning(f"未找到事件处理器: {event_type}")
                 return {
                     "success": False,
                     "error": f"未找到事件处理器: {event_type}",
+                    "event_type": event_type,
                 }
                 
         except Exception as e:
-            logger.error(f"处理Webhook失败: {str(e)}")
+            error_msg = f"处理Webhook失败: {str(e)}"
+            logger.error(error_msg, exc_info=True)
             return {
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
             }
     
     def _verify_signature(
@@ -672,7 +953,7 @@ class DouyinConnector:
         signature: str,
     ) -> bool:
         """
-        验证Webhook签名
+        验证Webhook签名（生产级实现）
         
         Args:
             payload: 回调数据
@@ -681,19 +962,41 @@ class DouyinConnector:
         Returns:
             是否验证通过
         """
+        # 参数验证
+        if not signature or not isinstance(signature, str):
+            logger.error("无效的签名")
+            return False
+        
+        if not self.app_secret:
+            logger.error("缺少app_secret，无法验证签名")
+            return False
+        
         try:
-            # 构建签名字符串
+            # 构建签名字符串（根据抖音API文档的签名算法）
             timestamp = payload.get("timestamp", "")
             nonce = payload.get("nonce", "")
+            
+            if not timestamp or not nonce:
+                logger.error("回调数据缺少timestamp或nonce字段")
+                return False
+            
+            # 抖音签名算法：SHA256(timestamp + nonce + app_secret)
             sign_str = f"{timestamp}{nonce}{self.app_secret}"
             
             # 计算签名
             calculated_signature = hashlib.sha256(sign_str.encode()).hexdigest()
             
-            return calculated_signature == signature
+            # 安全比较（防止时序攻击）
+            if len(calculated_signature) != len(signature):
+                logger.warning("签名长度不匹配")
+                return False
+            
+            # 使用hmac.compare_digest进行安全比较
+            import hmac
+            return hmac.compare_digest(calculated_signature, signature)
             
         except Exception as e:
-            logger.error(f"签名验证异常: {e}")
+            logger.error(f"签名验证异常: {e}", exc_info=True)
             return False
     
     async def get_user_info(self) -> Dict[str, Any]:

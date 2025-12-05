@@ -1,0 +1,29 @@
+SLO性能测试摘要报告
+====================
+测试时间: 2025-11-24 23:49:11
+测试文件: /Users/ywc/ai-stack-super-enhanced/🚀 Super Agent Main Interface/tests/performance/test_slo_2s.py
+日志文件: /Users/ywc/ai-stack-super-enhanced/🚀 Super Agent Main Interface/logs/performance/performance_test_20251124_234909.log
+SLO报告: /Users/ywc/ai-stack-super-enhanced/🚀 Super Agent Main Interface/performance_results/slo_2s_report_20251124_234909.json
+
+关键指标:
+  API总数: 11
+  API级合规率: 0.00%
+  请求级合规率: 0.00%
+  平均响应时间: 0.00 ms
+  P95响应时间: 0.00 ms
+  P99响应时间: 0.00 ms
+
+警告: 以下端点未能成功访问，可能需要检查服务状态：
+  - /api/workflow/intelligent
+  - /api/workflow/direct
+  - /api/workflow/status
+  - /api/super-agent/chat
+  - /api/super-agent/health
+  - /api/super-agent/rag/query
+  - /api/super-agent/erp/orders
+  - /api/super-agent/content/list
+  - /api/super-agent/trend/reports
+  - /api/task-lifecycle/list
+  - /api/task-lifecycle/statistics
+
+详细结果请查看完整JSON报告。

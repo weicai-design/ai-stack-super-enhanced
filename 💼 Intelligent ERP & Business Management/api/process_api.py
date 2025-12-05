@@ -17,6 +17,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 
+# 修复相对导入问题 - T0006-3优化
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from core.database import get_db
 from core.database_models import (
     BusinessProcess,

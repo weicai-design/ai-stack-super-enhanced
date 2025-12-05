@@ -1,0 +1,233 @@
+# 增强业务告警规则
+# P0-018: 可观测体系增强 - 业务指标监控告警规则
+
+groups:
+  - name: enhanced_business_metrics
+    rules:
+      
+      # API性能智能告警
+      - alert: IntelligentAPIPerformanceWarning
+        expr: |
+          (
+            predict_linear(api_response_time_seconds[1h], 3600) > 2.0
+          ) and (
+            rate(api_response_time_seconds[5m]) > 0.1
+          )
+        for: 3m
+        labels:
+          severity: warning
+          category: api
+          type: performance
+        annotations:
+          summary: "智能API性能预测告警"
+          description: |
+            基于历史趋势预测API响应时间将在1小时内超过2秒阈值。
+            当前趋势: {{ $value }}秒
+            
+      - alert: IntelligentAPIPerformanceCritical
+        expr: |
+          (
+            predict_linear(api_response_time_seconds[1h], 1800) > 5.0
+          ) and (
+            rate(api_response_time_seconds[5m]) > 0.2
+          )
+        for: 2m
+        labels:
+          severity: critical
+          category: api
+          type: performance
+        annotations:
+          summary: "智能API性能严重告警"
+          description: |
+            基于历史趋势预测API响应时间将在30分钟内超过5秒阈值。
+            当前趋势: {{ $value }}秒
+            
+      # 业务成功率智能告警
+      - alert: IntelligentBusinessSuccessRateWarning
+        expr: |
+          (
+            predict_linear(business_success_rate[2h], 7200) < 0.95
+          ) and (
+            business_success_rate < 0.98
+          )
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+          type: reliability
+        annotations:
+          summary: "智能业务成功率预测告警"
+          description: |
+            基于历史趋势预测业务成功率将在2小时内低于95%阈值。
+            当前趋势: {{ $value | humanizePercentage }}
+            
+      - alert: IntelligentBusinessSuccessRateCritical
+        expr: |
+          (
+            predict_linear(business_success_rate[1h], 3600) < 0.90
+          ) and (
+            business_success_rate < 0.95
+          )
+        for: 3m
+        labels:
+          severity: critical
+          category: business
+          type: reliability
+        annotations:
+          summary: "智能业务成功率严重告警"
+          description: |
+            基于历史趋势预测业务成功率将在1小时内低于90%阈值。
+            当前趋势: {{ $value | humanizePercentage }}
+            
+      # 用户行为异常检测
+      - alert: UserBehaviorAnomalyDetection
+        expr: |
+          (
+            user_activity_count > (
+              avg_over_time(user_activity_count[1h]) + 
+              3 * stddev_over_time(user_activity_count[1h])
+            )
+          ) or (
+            user_activity_count < (
+              avg_over_time(user_activity_count[1h]) - 
+              3 * stddev_over_time(user_activity_count[1h])
+            )
+          )
+        for: 2m
+        labels:
+          severity: warning
+          category: user
+          type: behavior
+        annotations:
+          summary: "用户行为异常检测"
+          description: |
+            检测到用户行为模式异常，超出正常范围3个标准差。
+            当前值: {{ $value }}
+            正常范围: {{ $labels.normal_range }}
+            
+      # 智能CPU使用率预测
+      - alert: IntelligentCPUUsagePrediction
+        expr: |
+          (
+            predict_linear(cpu_usage_percent[30m], 1800) > 80
+          ) and (
+            rate(cpu_usage_percent[5m]) > 0.5
+          )
+        for: 3m
+        labels:
+          severity: warning
+          category: system
+          type: resource
+        annotations:
+          summary: "智能CPU使用率预测告警"
+          description: |
+            基于历史趋势预测CPU使用率将在30分钟内超过80%阈值。
+            当前趋势: {{ $value }}%
+            
+      # 收入增长异常检测
+      - alert: RevenueGrowthAnomaly
+        expr: |
+          (
+            daily_revenue > (
+              avg_over_time(daily_revenue[7d]) + 
+              2.5 * stddev_over_time(daily_revenue[7d])
+            )
+          ) or (
+            daily_revenue < (
+              avg_over_time(daily_revenue[7d]) - 
+              2.5 * stddev_over_time(daily_revenue[7d])
+            )
+          )
+        for: 1h
+        labels:
+          severity: warning
+          category: business
+          type: financial
+        annotations:
+          summary: "收入增长异常检测"
+          description: |
+            检测到收入增长异常，超出正常范围2.5个标准差。
+            当前日收入: {{ $value }}
+            正常范围: {{ $labels.normal_range }}
+            
+      # 数据库查询延迟智能预测
+      - alert: IntelligentDatabaseQueryLatency
+        expr: |
+          (
+            predict_linear(database_query_latency_ms[1h], 3600) > 1000
+          ) and (
+            rate(database_query_latency_ms[5m]) > 10
+          )
+        for: 3m
+        labels:
+          severity: warning
+          category: database
+          type: performance
+        annotations:
+          summary: "智能数据库查询延迟预测告警"
+          description: |
+            基于历史趋势预测数据库查询延迟将在1小时内超过1秒阈值。
+            当前趋势: {{ $value }}ms
+            
+      # 网络丢包率智能预测
+      - alert: IntelligentPacketLossPrediction
+        expr: |
+          (
+            predict_linear(packet_loss_rate[30m], 1800) > 0.05
+          ) and (
+            rate(packet_loss_rate[5m]) > 0.001
+          )
+        for: 2m
+        labels:
+          severity: error
+          category: network
+          type: reliability
+        annotations:
+          summary: "智能网络丢包率预测告警"
+          description: |
+            基于历史趋势预测网络丢包率将在30分钟内超过5%阈值。
+            当前趋势: {{ $value | humanizePercentage }}
+            
+      # 会话时长异常检测
+      - alert: SessionDurationAnomaly
+        expr: |
+          (
+            session_duration_seconds > (
+              avg_over_time(session_duration_seconds[1h]) + 
+              3 * stddev_over_time(session_duration_seconds[1h])
+            )
+          ) or (
+            session_duration_seconds < (
+              avg_over_time(session_duration_seconds[1h]) - 
+              3 * stddev_over_time(session_duration_seconds[1h])
+            )
+          )
+        for: 5m
+        labels:
+          severity: info
+          category: user
+          type: behavior
+        annotations:
+          summary: "会话时长异常检测"
+          description: |
+            检测到用户会话时长异常，超出正常范围3个标准差。
+            当前会话时长: {{ $value }}秒
+            
+      # 智能业务转化率预测
+      - alert: IntelligentConversionRatePrediction
+        expr: |
+          (
+            predict_linear(user_conversion_rate[2h], 7200) < 0.02
+          ) and (
+            user_conversion_rate < 0.03
+          )
+        for: 10m
+        labels:
+          severity: error
+          category: business
+          type: performance
+        annotations:
+          summary: "智能用户转化率预测告警"
+          description: |
+            基于历史趋势预测用户转化率将在2小时内低于2%阈值。
+            当前趋势: {{ $value | humanizePercentage }}

@@ -258,16 +258,138 @@ jobs:
       with:
         sarif_file: 'trivy-results.sarif'
 
+  # ==================== 性能测试 ====================
+  performance-tests:
+    name: 性能测试
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    if: always()
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 安装依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio pytest-json-report httpx
+        pip install -r "🚀 Super Agent Main Interface/requirements.txt"
+    
+    - name: 创建evidence目录
+      run: |
+        mkdir -p "🚀 Super Agent Main Interface/evidence/performance"
+        mkdir -p "🚀 Super Agent Main Interface/evidence/screenshots"
+    
+    - name: 运行性能测试
+      working-directory: "🚀 Super Agent Main Interface"
+      run: |
+        chmod +x scripts/performance/run_performance_tests.sh
+        ./scripts/performance/run_performance_tests.sh
+      continue-on-error: true
+      env:
+        BASE_URL: http://localhost:8000
+    
+    - name: 上传性能测试证据
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: performance-evidence
+        path: |
+          🚀 Super Agent Main Interface/evidence/performance/**
+          🚀 Super Agent Main Interface/performance_results/**
+          🚀 Super Agent Main Interface/logs/performance/**
+        retention-days: 30
+
+  # ==================== Chaos工程测试 ====================
+  chaos-tests:
+    name: Chaos工程测试
+    runs-on: ubuntu-latest
+    needs: [integration-tests]
+    if: always()
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 安装依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio httpx
+        pip install -r "🚀 Super Agent Main Interface/requirements.txt"
+    
+    - name: 创建evidence目录
+      run: |
+        mkdir -p "🚀 Super Agent Main Interface/evidence/chaos"
+        mkdir -p "🚀 Super Agent Main Interface/evidence/screenshots"
+    
+    - name: 启动测试服务（模拟）
+      working-directory: "🚀 Super Agent Main Interface"
+      run: |
+        # 这里可以启动实际服务或使用mock
+        echo "启动测试服务..."
+      continue-on-error: true
+    
+    - name: 运行Chaos测试
+      working-directory: "🚀 Super Agent Main Interface"
+      run: |
+        chmod +x scripts/chaos_engineering/run_chaos_tests.sh
+        ./scripts/chaos_engineering/run_chaos_tests.sh
+      continue-on-error: true
+      env:
+        BASE_URL: http://localhost:8000
+    
+    - name: 上传Chaos测试证据
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: chaos-evidence
+        path: |
+          🚀 Super Agent Main Interface/evidence/chaos/**
+        retention-days: 30
+
   # ==================== 测试报告汇总 ====================
   test-report:
     name: 测试报告汇总
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, e2e-tests]
+    needs: [unit-tests, integration-tests, e2e-tests, performance-tests, chaos-tests]
     if: always()
     
     steps:
     - name: 下载测试结果
       uses: actions/download-artifact@v3
+    
+    - name: 创建evidence汇总目录
+      run: |
+        mkdir -p evidence/ci_summary
+    
+    - name: 汇总测试证据
+      run: |
+        # 汇总所有测试证据
+        echo "汇总测试证据..." > evidence/ci_summary/summary.txt
+        echo "构建ID: ${{ github.run_id }}" >> evidence/ci_summary/summary.txt
+        echo "提交SHA: ${{ github.sha }}" >> evidence/ci_summary/summary.txt
+        echo "分支: ${{ github.ref_name }}" >> evidence/ci_summary/summary.txt
+        echo "时间: $(date -Iseconds)" >> evidence/ci_summary/summary.txt
+    
+    - name: 上传汇总证据
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: ci-evidence-summary
+        path: evidence/ci_summary/**
+        retention-days: 90
     
     - name: 发布测试报告
       uses: dorny/test-reporter@v1

@@ -1,3 +1,35 @@
+// 3.3: 路由状态管理
+window.ROUTE_STATE = {
+    current: null,
+    history: [],
+    listeners: []
+};
+
+// 3.3: 添加路由状态监听器
+window.addRouteStateListener = function(callback) {
+    if (typeof callback === 'function') {
+        window.ROUTE_STATE.listeners.push(callback);
+    }
+};
+
+// 3.3: 通知路由状态变化
+window.notifyRouteStateChange = function(module, status) {
+    window.ROUTE_STATE.current = { module, status, timestamp: Date.now() };
+    window.ROUTE_STATE.history.push({ module, status, timestamp: Date.now() });
+    // 保持历史记录在合理范围内
+    if (window.ROUTE_STATE.history.length > 100) {
+        window.ROUTE_STATE.history.shift();
+    }
+    // 通知所有监听器
+    window.ROUTE_STATE.listeners.forEach(listener => {
+        try {
+            listener(module, status);
+        } catch (e) {
+            console.error('路由状态监听器错误:', e);
+        }
+    });
+};
+
 window.ROUTE_MAP = {
     "chat": {
         label: "智能聊天",

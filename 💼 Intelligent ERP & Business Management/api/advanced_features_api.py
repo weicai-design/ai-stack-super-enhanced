@@ -9,6 +9,11 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional, List
 from datetime import date
 
+# 修复相对导入问题 - T0006-3优化
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from core.database import get_db
 
 # 导入各模块的高级分析器

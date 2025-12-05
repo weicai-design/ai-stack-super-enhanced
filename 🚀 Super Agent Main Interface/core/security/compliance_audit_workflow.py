@@ -118,26 +118,65 @@ class ComplianceAuditWorkflow:
             metadata: 元数据
             
         Returns:
-            执行结果
+            执行结果字典，包含状态和详细信息
         """
         audit_id = f"audit_{uuid4()}"
         metadata = metadata or {}
         
-        # 1. 合规检查
-        check_result = self.compliance_manager.check_compliance(
+        # 1. 执行合规检查
+        check_result = self._perform_compliance_check(operation_type, operation, actor, metadata)
+        
+        # 2. 创建并保存审计记录
+        audit_record = self._create_audit_record(audit_id, operation_type, operation, actor, check_result, metadata)
+        
+        # 3. 处理审批需求
+        if check_result.requires_approval:
+            return self._handle_approval_required(audit_id, check_result)
+        
+        # 4. 处理操作阻止
+        if not check_result.allowed:
+            return self._handle_operation_blocked(audit_record, check_result)
+        
+        # 5. 执行操作（如果有执行器）
+        if executor:
+            return await self._execute_operation(audit_record, executor, operation, metadata)
+        
+        # 6. 无执行器的直接批准
+        return self._handle_approved_without_execution(audit_record)
+    
+    def _perform_compliance_check(
+        self,
+        operation_type: OperationType,
+        operation: str,
+        actor: str,
+        metadata: Dict[str, Any],
+    ) -> ComplianceCheckResult:
+        """执行合规检查"""
+        return self.compliance_manager.check_compliance(
             operation_type=operation_type,
             operation=operation,
             actor=actor,
             metadata=metadata,
         )
+    
+    def _create_audit_record(
+        self,
+        audit_id: str,
+        operation_type: OperationType,
+        operation: str,
+        actor: str,
+        check_result: ComplianceCheckResult,
+        metadata: Dict[str, Any],
+    ) -> ComplianceAuditRecord:
+        """创建审计记录"""
+        status = AuditStatus.PENDING if check_result.requires_approval else AuditStatus.APPROVED
         
-        # 2. 创建审计记录
         audit_record = ComplianceAuditRecord(
             audit_id=audit_id,
             operation_type=operation_type,
             operation=operation,
             actor=actor,
-            status=AuditStatus.PENDING if check_result.requires_approval else AuditStatus.APPROVED,
+            status=status,
             risk_level=check_result.risk_level,
             compliance_check_result=check_result,
             approval_id=check_result.approval_id,
@@ -147,57 +186,103 @@ class ComplianceAuditWorkflow:
         self.audit_records[audit_id] = audit_record
         self._persist_audit_record(audit_record)
         
-        # 3. 如果需要审批
-        if check_result.requires_approval:
-            return {
-                "success": False,
-                "audit_id": audit_id,
-                "status": "pending_approval",
-                "approval_id": check_result.approval_id,
-                "message": "操作需要审批，请等待审批结果",
-                "check_result": check_result.to_dict(),
-            }
+        return audit_record
+    
+    def _handle_approval_required(self, audit_id: str, check_result: ComplianceCheckResult) -> Dict[str, Any]:
+        """处理需要审批的情况"""
+        return {
+            "success": False,
+            "audit_id": audit_id,
+            "status": "pending_approval",
+            "approval_id": check_result.approval_id,
+            "message": "操作需要审批，请等待审批结果",
+            "check_result": check_result.to_dict(),
+        }
+    
+    def _handle_operation_blocked(self, audit_record: ComplianceAuditRecord, check_result: ComplianceCheckResult) -> Dict[str, Any]:
+        """处理操作被阻止的情况"""
+        audit_record.status = AuditStatus.REJECTED
+        audit_record.updated_at = datetime.utcnow().isoformat() + "Z"
+        self._persist_audit_record(audit_record)
         
-        # 4. 如果不允许
-        if not check_result.allowed:
-            audit_record.status = AuditStatus.REJECTED
+        return {
+            "success": False,
+            "audit_id": audit_record.audit_id,
+            "status": "blocked",
+            "message": "操作被合规策略阻止",
+            "reasons": check_result.reasons,
+            "check_result": check_result.to_dict(),
+        }
+    
+    async def _execute_operation(
+        self,
+        audit_record: ComplianceAuditRecord,
+        executor: callable,
+        operation: str,
+        metadata: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """执行操作并记录结果"""
+        try:
+            start_time = datetime.utcnow()
+            
+            # 执行操作
+            if asyncio.iscoroutinefunction(executor):
+                execution_result = await executor(operation, metadata)
+            else:
+                execution_result = executor(operation, metadata)
+            
+            execution_time = datetime.utcnow()
+            
+            # 更新审计记录
+            audit_record.status = AuditStatus.EXECUTED
+            audit_record.execution_time = execution_time.isoformat() + "Z"
+            audit_record.execution_result = {
+                "success": True,
+                "result": execution_result,
+                "duration_ms": (execution_time - start_time).total_seconds() * 1000,
+            }
+            audit_record.updated_at = datetime.utcnow().isoformat() + "Z"
+            self._persist_audit_record(audit_record)
+            
+            return {
+                "success": True,
+                "audit_id": audit_record.audit_id,
+                "status": "executed",
+                "result": execution_result,
+                "duration_ms": (execution_time - start_time).total_seconds() * 1000,
+            }
+            
+        except Exception as e:
+            logger.error(f"操作执行失败: {e}", exc_info=True)
+            audit_record.status = AuditStatus.FAILED
+            audit_record.execution_result = {
+                "success": False,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            }
             audit_record.updated_at = datetime.utcnow().isoformat() + "Z"
             self._persist_audit_record(audit_record)
             
             return {
                 "success": False,
-                "audit_id": audit_id,
-                "status": "blocked",
-                "message": "操作被合规策略阻止",
-                "reasons": check_result.reasons,
-                "check_result": check_result.to_dict(),
+                "audit_id": audit_record.audit_id,
+                "status": "failed",
+                "error": str(e),
+                "error_type": type(e).__name__,
             }
+    
+    def _handle_approved_without_execution(self, audit_record: ComplianceAuditRecord) -> Dict[str, Any]:
+        """处理无执行器的直接批准情况"""
+        audit_record.status = AuditStatus.APPROVED
+        audit_record.updated_at = datetime.utcnow().isoformat() + "Z"
+        self._persist_audit_record(audit_record)
         
-        # 5. 执行操作
-        execution_result = None
-        if executor:
-            try:
-                start_time = datetime.utcnow()
-                
-                # 执行操作
-                if asyncio.iscoroutinefunction(executor):
-                    execution_result = await executor(operation, metadata)
-                else:
-                    execution_result = executor(operation, metadata)
-                
-                execution_time = datetime.utcnow()
-                
-                audit_record.status = AuditStatus.EXECUTED
-                audit_record.execution_time = execution_time.isoformat() + "Z"
-                audit_record.execution_result = {
-                    "success": True,
-                    "result": execution_result,
-                    "duration_ms": (execution_time - start_time).total_seconds() * 1000,
-                }
-                
-            except Exception as e:
-                logger.error(f"操作执行失败: {e}", exc_info=True)
-                audit_record.status = AuditStatus.FAILED
+        return {
+            "success": True,
+            "audit_id": audit_record.audit_id,
+            "status": "approved",
+            "message": "操作已批准，无需执行",
+        }
                 audit_record.execution_result = {
                     "success": False,
                     "error": str(e),

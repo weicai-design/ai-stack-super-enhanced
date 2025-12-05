@@ -1,0 +1,204 @@
+version: '3.8'
+
+services:
+  # 采购管理应用服务
+  procurement-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: procurement-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://procurement_user:${DB_PASSWORD}@postgres:5432/procurement_db
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - procurement-logs:/var/log/procurement
+      - ./config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/procurement/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - procurement-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.procurement.rule=Host(`procurement.${DOMAIN:-localhost}`)"
+      - "traefik.http.services.procurement.loadbalancer.server.port=8000"
+
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:13-alpine
+    container_name: procurement-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=procurement_db
+      - POSTGRES_USER=procurement_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U procurement_user -d procurement_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - procurement-network
+    labels:
+      - "prometheus-job=postgres"
+
+  # Redis缓存
+  redis:
+    image: redis:6-alpine
+    container_name: procurement-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - procurement-network
+    labels:
+      - "prometheus-job=redis"
+
+  # 数据库管理界面 (可选)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: procurement-pgadmin
+    restart: unless-stopped
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - procurement-network
+    labels:
+      - "traefik.enable=false"
+
+  # Redis管理界面 (可选)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: procurement-redis-commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - procurement-network
+    labels:
+      - "traefik.enable=false"
+
+  # 监控服务 - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: procurement-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - procurement-network
+    labels:
+      - "traefik.enable=false"
+
+  # 监控服务 - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: procurement-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana-datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - procurement-network
+    labels:
+      - "traefik.enable=false"
+
+  # 数据库迁移服务
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: procurement-migration
+    restart: "no"
+    environment:
+      - DATABASE_URL=postgresql://procurement_user:${DB_PASSWORD}@postgres:5432/procurement_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python scripts/migrate.py
+    networks:
+      - procurement-network
+
+  # 健康检查服务
+  health-check:
+    image: curlimages/curl:latest
+    container_name: procurement-health-check
+    restart: "no"
+    depends_on:
+      procurement-app:
+        condition: service_healthy
+    command: >
+      sh -c "
+      echo '等待应用启动...' &&
+      sleep 30 &&
+      curl -f http://procurement-app:8000/api/procurement/health &&
+      echo '健康检查通过' ||
+      (echo '健康检查失败' && exit 1)
+      "
+    networks:
+      - procurement-network
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  procurement-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  procurement-network:
+    driver: bridge
+    name: procurement-network

@@ -1,0 +1,77 @@
+[
+  {
+    "id": "cd50fabb-3c84-4e5c-91e0-93199e225a47",
+    "timestamp": "2025-12-01T07:42:19.525694",
+    "user_id": "SYSTEM",
+    "session_id": null,
+    "action": "CREATE",
+    "category": "SYSTEM",
+    "resource_type": "audit_system",
+    "resource_id": null,
+    "description": "审计系统初始化完成",
+    "details": {
+      "config": {
+        "log_level": "DEBUG",
+        "storage_type": "file",
+        "retention_policy": "medium_term",
+        "log_directory": "./logs/audit",
+        "max_file_size_mb": 100,
+        "backup_count": 5,
+        "database_url": "",
+        "table_name": "audit_logs",
+        "batch_size": 100,
+        "flush_interval_seconds": 30,
+        "encrypt_logs": false,
+        "compress_logs": true,
+        "enable_user_audit": true,
+        "enable_system_audit": true,
+        "enable_business_audit": true,
+        "enable_security_audit": true,
+        "enable_alerting": false,
+        "alert_threshold": 10,
+        "alert_email": ""
+      },
+      "timestamp": "2025-12-01T07:42:19.525647"
+    },
+    "ip_address": "127.0.0.1",
+    "user_agent": "AuditSystem/1.0",
+    "success": true,
+    "error_message": null
+  },
+  {
+    "id": "14c77f2f-2698-48d9-8aec-0045984ecf22",
+    "timestamp": "2025-12-01T07:42:19.526172",
+    "user_id": "SYSTEM",
+    "session_id": null,
+    "action": "CREATE",
+    "category": "SYSTEM",
+    "resource_type": "audit_system",
+    "resource_id": null,
+    "description": "测试系统事件",
+    "details": {
+      "test": "data"
+    },
+    "ip_address": "127.0.0.1",
+    "user_agent": "AuditSystem/1.0",
+    "success": true,
+    "error_message": null
+  },
+  {
+    "id": "4b5d64c3-e17d-4562-8126-9b2c02d180c2",
+    "timestamp": "2025-12-01T07:42:19.526401",
+    "user_id": "test_user",
+    "session_id": null,
+    "action": "CREATE",
+    "category": "SYSTEM",
+    "resource_type": "TEST_MODULE",
+    "resource_id": null,
+    "description": "测试审计事件",
+    "details": {
+      "key": "value"
+    },
+    "ip_address": "192.168.1.1",
+    "user_agent": "TestClient/1.0",
+    "success": true,
+    "error_message": null
+  }
+]

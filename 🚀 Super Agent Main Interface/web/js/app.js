@@ -1002,6 +1002,21 @@ class App {
         
         // 更新模块状态
         this.updateModuleStatus(module, apiStatus);
+        
+        // 3.3: 记录API调用历史（用于调试）
+        if (window.ROUTE_STATE) {
+            window.ROUTE_STATE.apiHistory = window.ROUTE_STATE.apiHistory || [];
+            window.ROUTE_STATE.apiHistory.push({
+                module,
+                status: apiStatus,
+                httpStatus: status,
+                timestamp: Date.now()
+            });
+            // 保持历史记录在合理范围内
+            if (window.ROUTE_STATE.apiHistory.length > 1000) {
+                window.ROUTE_STATE.apiHistory.shift();
+            }
+        }
     }
     
     // 3.3: 处理API错误
@@ -1018,11 +1033,16 @@ class App {
             timestamp: Date.now()
         });
         
+        // 3.3: 通知路由状态变化
+        if (window.notifyRouteStateChange) {
+            window.notifyRouteStateChange(module, status);
+        }
+        
         // 更新按钮状态
         const buttons = document.querySelectorAll(`.nav-btn[data-module="${module}"]`);
         buttons.forEach(btn => {
             // 移除所有状态类
-            btn.classList.remove('api-success', 'api-warning', 'api-error');
+            btn.classList.remove('api-success', 'api-warning', 'api-error', 'api-loading');
             
             // 添加新的状态类
             if (status === 'success') {
@@ -1031,23 +1051,30 @@ class App {
                 btn.classList.add('api-warning');
             } else if (status === 'error') {
                 btn.classList.add('api-error');
+            } else if (status === 'loading') {
+                btn.classList.add('api-loading');
             }
         });
         
         // 如果当前激活的按钮匹配，也更新状态
         if (this.activeModuleButton && this.activeModuleButton.dataset.module === module) {
-            this.activeModuleButton.classList.remove('api-success', 'api-warning', 'api-error');
+            this.activeModuleButton.classList.remove('api-success', 'api-warning', 'api-error', 'api-loading');
             if (status === 'success') {
                 this.activeModuleButton.classList.add('api-success');
             } else if (status === 'warning') {
                 this.activeModuleButton.classList.add('api-warning');
             } else if (status === 'error') {
                 this.activeModuleButton.classList.add('api-error');
+            } else if (status === 'loading') {
+                this.activeModuleButton.classList.add('api-loading');
             }
         }
         
         // 更新状态指示器
         this.updateStatusIndicator(module, status);
+        
+        // 3.3: 显示通知（成功/告警）
+        this.showStatusNotification(module, status);
     }
     
     // 3.3: 更新状态指示器
@@ -1064,13 +1091,73 @@ class App {
         if (status === 'success') {
             statusDot.style.background = '#34C759';
             statusText.textContent = '运行正常';
+            statusDot.classList.add('active');
         } else if (status === 'warning') {
             statusDot.style.background = '#FF9500';
             statusText.textContent = '运行告警';
+            statusDot.classList.add('active');
         } else if (status === 'error') {
             statusDot.style.background = '#FF3B30';
             statusText.textContent = '运行异常';
+            statusDot.classList.add('active');
+        } else if (status === 'loading') {
+            statusDot.style.background = '#007AFF';
+            statusText.textContent = '加载中...';
+            statusDot.classList.add('active');
+        } else {
+            statusDot.style.background = '#34C759';
+            statusText.textContent = '运行中';
+            statusDot.classList.add('active');
         }
+    }
+    
+    // 3.3: 显示状态通知
+    showStatusNotification(module, status) {
+        // 只在有状态变化时显示通知
+        if (status === 'unknown' || status === 'loading') return;
+        
+        const moduleName = this.getModuleName(module);
+        let message = '';
+        let type = 'info';
+        
+        if (status === 'success') {
+            message = `${moduleName} 操作成功`;
+            type = 'success';
+        } else if (status === 'warning') {
+            message = `${moduleName} 操作告警`;
+            type = 'warning';
+        } else if (status === 'error') {
+            message = `${moduleName} 操作失败`;
+            type = 'error';
+        }
+        
+        if (message) {
+            this.showToast(message, type);
+        }
+    }
+    
+    // 3.3: 显示Toast通知
+    showToast(message, type = 'info') {
+        // 创建Toast元素
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        
+        // 添加到页面
+        document.body.appendChild(toast);
+        
+        // 显示动画
+        setTimeout(() => {
+            toast.classList.add('show');
+        }, 10);
+        
+        // 自动隐藏
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 300);
+        }, 3000);
     }
     
     getModuleName(module) {

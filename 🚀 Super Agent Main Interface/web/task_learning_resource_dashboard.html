@@ -635,25 +635,71 @@
             });
         }
         
-        // 加载工作流数据
+        // 加载工作流数据（生产级：带重试和错误处理）
+        let workflowRetryCount = 0;
+        const MAX_RETRIES = 3;
+        
         async function loadWorkflows() {
             try {
-                const statusRes = await fetch(`${API_BASE}/workflow/status`, {
-                    headers: { 'X-API-Key': API_KEY }
+                // 显示加载状态
+                document.getElementById('workflow-stats').innerHTML = '<div class="loading">加载中...</div>';
+                document.getElementById('intelligent-workflow-progress').innerHTML = '<div class="loading">加载中...</div>';
+                document.getElementById('direct-workflow-progress').innerHTML = '<div class="loading">加载中...</div>';
+                document.getElementById('workflow-list').innerHTML = '<div class="loading">加载中...</div>';
+                
+                const statusRes = await fetch(`/api/workflow/status?limit=50`, {
+                    headers: { 
+                        'X-API-Key': API_KEY,
+                        'Content-Type': 'application/json'
+                    }
                 });
+                
+                if (!statusRes.ok) {
+                    throw new Error(`HTTP ${statusRes.status}: ${statusRes.statusText}`);
+                }
+                
                 const status = await statusRes.json();
                 
                 if (status.success) {
+                    workflowRetryCount = 0; // 重置重试计数
                     renderWorkflowStats(status.data);
                     renderIntelligentWorkflowProgress(status.data.intelligent_workflows || []);
                     renderDirectWorkflowProgress(status.data.direct_workflows || []);
                     renderWorkflowList(status.data.active_workflows || []);
                     renderWorkflowTypeChart(status.data);
                 } else {
-                    console.error('加载工作流状态失败:', status.error);
+                    throw new Error(status.error || '加载工作流状态失败');
                 }
             } catch (error) {
                 console.error('加载工作流数据失败:', error);
+                
+                // 重试机制
+                if (workflowRetryCount < MAX_RETRIES) {
+                    workflowRetryCount++;
+                    setTimeout(() => {
+                        console.log(`重试加载工作流数据 (${workflowRetryCount}/${MAX_RETRIES})...`);
+                        loadWorkflows();
+                    }, 1000 * workflowRetryCount); // 指数退避
+                } else {
+                    // 显示错误信息
+                    const errorHtml = `
+                        <div style="padding: 20px; text-align: center; color: #ef4444;">
+                            <div style="font-size: 16px; font-weight: 600; margin-bottom: 10px;">
+                                ⚠️ 加载工作流数据失败
+                            </div>
+                            <div style="font-size: 14px; color: #666;">
+                                ${error.message || '请检查网络连接或稍后重试'}
+                            </div>
+                            <button class="btn btn-primary" onclick="loadWorkflows()" style="margin-top: 15px;">
+                                重试
+                            </button>
+                        </div>
+                    `;
+                    document.getElementById('workflow-stats').innerHTML = errorHtml;
+                    document.getElementById('intelligent-workflow-progress').innerHTML = errorHtml;
+                    document.getElementById('direct-workflow-progress').innerHTML = errorHtml;
+                    document.getElementById('workflow-list').innerHTML = errorHtml;
+                }
             }
         }
         
@@ -690,7 +736,12 @@
         
         function renderIntelligentWorkflowProgress(workflows) {
             if (workflows.length === 0) {
-                document.getElementById('intelligent-workflow-progress').innerHTML = '<div class="loading">暂无智能线工作流</div>';
+                document.getElementById('intelligent-workflow-progress').innerHTML = `
+                    <div style="padding: 40px; text-align: center; color: #666;">
+                        <div style="font-size: 48px; margin-bottom: 10px;">📭</div>
+                        <div style="font-size: 14px;">暂无智能线工作流</div>
+                    </div>
+                `;
                 return;
             }
             
@@ -771,7 +822,12 @@
         
         function renderDirectWorkflowProgress(workflows) {
             if (workflows.length === 0) {
-                document.getElementById('direct-workflow-progress').innerHTML = '<div class="loading">暂无直接操作线工作流</div>';
+                document.getElementById('direct-workflow-progress').innerHTML = `
+                    <div style="padding: 40px; text-align: center; color: #666;">
+                        <div style="font-size: 48px; margin-bottom: 10px;">📭</div>
+                        <div style="font-size: 14px;">暂无直接操作线工作流</div>
+                    </div>
+                `;
                 return;
             }
             
@@ -849,7 +905,12 @@
         
         function renderWorkflowList(workflows) {
             if (workflows.length === 0) {
-                document.getElementById('workflow-list').innerHTML = '<div class="loading">暂无活跃工作流</div>';
+                document.getElementById('workflow-list').innerHTML = `
+                    <div style="padding: 40px; text-align: center; color: #666;">
+                        <div style="font-size: 48px; margin-bottom: 10px;">📭</div>
+                        <div style="font-size: 14px;">暂无活跃工作流</div>
+                    </div>
+                `;
                 return;
             }
             
@@ -1136,14 +1197,47 @@
         // 初始化
         loadTasks();
         
-        // 自动刷新
-        setInterval(() => {
-            const activeTab = document.querySelector('.tab-content.active').id;
-            if (activeTab === 'tasks') loadTasks();
-            else if (activeTab === 'workflow') loadWorkflows();
-            else if (activeTab === 'learning') loadLearning();
-            else if (activeTab === 'resource') loadResource();
-        }, 5000);
+        // 自动刷新（优化：只在对应标签页激活时刷新）
+        let refreshInterval = null;
+        
+        function startAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+            
+            refreshInterval = setInterval(() => {
+                const activeTab = document.querySelector('.tab-content.active');
+                if (!activeTab) return;
+                
+                const tabId = activeTab.id;
+                if (tabId === 'tasks') loadTasks();
+                else if (tabId === 'workflow') loadWorkflows();
+                else if (tabId === 'learning') loadLearning();
+                else if (tabId === 'resource') loadResource();
+            }, 5000); // 5秒刷新一次
+        }
+        
+        // 标签切换时重新启动自动刷新
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                startAutoRefresh();
+            });
+        });
+        
+        // 页面可见性变化时暂停/恢复刷新
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (refreshInterval) {
+                    clearInterval(refreshInterval);
+                    refreshInterval = null;
+                }
+            } else {
+                startAutoRefresh();
+            }
+        });
+        
+        // 启动自动刷新
+        startAutoRefresh();
     </script>
 </body>
 </html>

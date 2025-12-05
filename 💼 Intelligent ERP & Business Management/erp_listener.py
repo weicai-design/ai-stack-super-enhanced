@@ -23,6 +23,8 @@ from urllib.parse import urlparse, parse_qs
 from core.data_listener import ERPDataListener, EventType, ERPEvent
 from core.listener_container import data_listener
 
+logger = logging.getLogger(__name__)
+
 # 导入任务队列（如果存在）
 try:
     from core.task_planning import TaskPlanning
@@ -30,8 +32,6 @@ try:
 except ImportError:
     TASK_PLANNING_AVAILABLE = False
     logger.warning("TaskPlanning模块不可用，将使用内置任务队列")
-
-logger = logging.getLogger(__name__)
 
 
 class ListenerMode(str, Enum):
@@ -103,6 +103,7 @@ class ERPListener:
         self.task_queue_stats = {
             "total_enqueued": 0,
             "total_processed": 0,
+            "failed_tasks": 0,
             "current_size": 0,
             "max_size": 0,
         }
@@ -255,7 +256,7 @@ class ERPListener:
         headers: Optional[Dict[str, str]] = None,
     ) -> bool:
         """
-        验证Webhook签名
+        验证Webhook签名（生产级实现）
         
         Args:
             payload: Webhook数据
@@ -265,20 +266,40 @@ class ERPListener:
         Returns:
             是否验证通过
         """
+        # 参数验证
+        if not signature or not isinstance(signature, str):
+            logger.error("无效的签名")
+            return False
+        
+        if not self.webhook_secret:
+            logger.error("缺少webhook_secret，无法验证签名")
+            return False
+        
         try:
-            # 构建签名字符串
+            # 构建签名字符串（根据ERP系统文档的签名算法）
             timestamp = headers.get("X-Timestamp", "") if headers else ""
             nonce = headers.get("X-Nonce", "") if headers else ""
+            
+            if not timestamp or not nonce:
+                logger.error("回调数据缺少X-Timestamp或X-Nonce字段")
+                return False
+            
             body_str = json.dumps(payload, sort_keys=True, separators=(',', ':'))
             sign_str = f"{timestamp}{nonce}{body_str}{self.webhook_secret}"
             
             # 计算签名
             calculated_signature = hashlib.sha256(sign_str.encode()).hexdigest()
             
-            return calculated_signature == signature
+            # 安全比较（防止时序攻击）
+            if len(calculated_signature) != len(signature):
+                logger.warning("签名长度不匹配")
+                return False
+            
+            # 使用hmac.compare_digest进行安全比较
+            return hmac.compare_digest(calculated_signature, signature)
             
         except Exception as e:
-            logger.error(f"签名验证异常: {e}")
+            logger.error(f"签名验证异常: {e}", exc_info=True)
             return False
     
     # ============ 轮询功能 ============
@@ -309,22 +330,58 @@ class ERPListener:
         logger.info("轮询已停止")
     
     async def _polling_loop(self):
-        """轮询循环"""
+        """轮询循环（生产级实现）"""
         logger.info("轮询循环已启动")
+        
+        consecutive_errors = 0
+        max_consecutive_errors = 5
         
         while self.is_polling:
             try:
                 # 执行轮询
                 await self._poll_erp_data()
                 
+                # 重置连续错误计数
+                consecutive_errors = 0
+                
                 # 等待下一次轮询
                 await asyncio.sleep(self.polling_interval)
                 
             except asyncio.CancelledError:
+                logger.info("轮询循环已取消")
                 break
+            except httpx.TimeoutException as e:
+                consecutive_errors += 1
+                error_msg = f"轮询超时: {str(e)}"
+                logger.error(error_msg)
+                
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.error(f"连续{max_consecutive_errors}次轮询超时，暂停轮询")
+                    await asyncio.sleep(self.polling_interval * 2)
+                    consecutive_errors = 0
+                else:
+                    await asyncio.sleep(self.polling_interval)
+            except httpx.HTTPStatusError as e:
+                consecutive_errors += 1
+                error_msg = f"轮询HTTP错误 {e.response.status_code}: {e.response.text}"
+                logger.error(error_msg)
+                
+                # 如果是5xx错误，增加等待时间
+                if e.response.status_code >= 500:
+                    await asyncio.sleep(self.polling_interval * 2)
+                else:
+                    await asyncio.sleep(self.polling_interval)
             except Exception as e:
-                logger.error(f"轮询错误: {e}", exc_info=True)
-                await asyncio.sleep(self.polling_interval)
+                consecutive_errors += 1
+                error_msg = f"轮询错误: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.error(f"连续{max_consecutive_errors}次轮询错误，暂停轮询")
+                    await asyncio.sleep(self.polling_interval * 2)
+                    consecutive_errors = 0
+                else:
+                    await asyncio.sleep(self.polling_interval)
     
     async def _poll_erp_data(self):
         """
@@ -612,7 +669,7 @@ class ERPListener:
     
     async def _enqueue_task(self, event: ERPEvent):
         """
-        将事件转换为任务并写入任务队列
+        将事件转换为任务并写入任务队列（生产级实现）
         
         Args:
             event: ERP事件
@@ -633,10 +690,24 @@ class ERPListener:
                 "priority": self._calculate_priority(event),
                 "status": "pending",
                 "created_at": event.timestamp.isoformat(),
+                "retry_count": 0,
+                "max_retries": 3,
             }
             
-            # 写入任务队列
-            await self.task_queue.put(task_data)
+            # 检查队列是否已满
+            if self.task_queue.full():
+                logger.warning("任务队列已满，等待空间...")
+                # 可以选择丢弃低优先级任务或等待
+                try:
+                    await asyncio.wait_for(
+                        self.task_queue.put(task_data),
+                        timeout=5.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(f"任务入队超时，任务ID: {task_data['task_id']}")
+                    return
+            else:
+                await self.task_queue.put(task_data)
             
             # 更新统计
             self.task_queue_stats["total_enqueued"] += 1
@@ -645,9 +716,12 @@ class ERPListener:
                 self.task_queue_stats["max_size"] = self.task_queue_stats["current_size"]
             
             # 同时发送到ERP数据监听器
-            await self.data_listener.emit_event(event)
+            try:
+                await self.data_listener.emit_event(event)
+            except Exception as e:
+                logger.warning(f"发送事件到数据监听器失败: {e}")
             
-            logger.debug(f"任务已入队: {task_data['task_id']}")
+            logger.debug(f"任务已入队: {task_data['task_id']}, 优先级: {task_data['priority']}")
             
         except Exception as e:
             logger.error(f"入队任务失败: {e}", exc_info=True)
@@ -676,8 +750,11 @@ class ERPListener:
         return priority_map.get(event.event_type, 5)
     
     async def _task_processor_loop(self):
-        """任务处理循环"""
+        """任务处理循环（生产级实现）"""
         logger.info("任务处理循环已启动")
+        
+        max_retries = 3
+        retry_delay = 1.0
         
         while self.is_processing:
             try:
@@ -690,17 +767,40 @@ class ERPListener:
                 except asyncio.TimeoutError:
                     continue
                 
-                # 处理任务
-                await self._process_task(task_data)
+                # 处理任务（带重试）
+                retry_count = 0
+                task_success = False
                 
-                # 更新统计
-                self.task_queue_stats["total_processed"] += 1
-                self.task_queue_stats["current_size"] = self.task_queue.qsize()
+                while retry_count < max_retries and not task_success:
+                    try:
+                        await self._process_task(task_data)
+                        task_success = True
+                        
+                        # 更新统计
+                        self.task_queue_stats["total_processed"] += 1
+                        self.task_queue_stats["current_size"] = self.task_queue.qsize()
+                        
+                    except Exception as e:
+                        retry_count += 1
+                        if retry_count < max_retries:
+                            logger.warning(
+                                f"任务处理失败，重试 {retry_count}/{max_retries}: {str(e)}"
+                            )
+                            await asyncio.sleep(retry_delay * retry_count)
+                        else:
+                            logger.error(
+                                f"任务处理失败，已达最大重试次数: {str(e)}",
+                                exc_info=True
+                            )
+                            # 将失败的任务记录到失败队列（如果实现）
+                            self.task_queue_stats["failed_tasks"] = \
+                                self.task_queue_stats.get("failed_tasks", 0) + 1
                 
             except asyncio.CancelledError:
+                logger.info("任务处理循环已取消")
                 break
             except Exception as e:
-                logger.error(f"任务处理错误: {e}", exc_info=True)
+                logger.error(f"任务处理循环错误: {e}", exc_info=True)
                 await asyncio.sleep(1)
     
     async def _process_task(self, task_data: Dict[str, Any]):
@@ -837,6 +937,10 @@ def get_erp_listener(
         )
     
     return _listener_instance
+
+
+
+
 
 
 

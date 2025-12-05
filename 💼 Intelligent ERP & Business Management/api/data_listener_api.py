@@ -8,14 +8,14 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from core.data_listener import EventType, ERPEvent
-from core.listener_container import data_listener
-
-# 导入ERP监听器
+# 修复相对导入问题 - T0006-3优化
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# 导入ERP监听器相关模块
+from core.data_listener import EventType, ERPEvent
+from core.listener_container import data_listener
 from erp_listener import get_erp_listener, ListenerMode
 
 router = APIRouter(prefix="/api/erp/listener", tags=["ERP Data Listener"])

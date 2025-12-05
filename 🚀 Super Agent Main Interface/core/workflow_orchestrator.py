@@ -68,6 +68,24 @@ from .unified_event_bus import (
     EventSeverity,
 )
 
+# 尝试导入生产级可观测性（可选）
+try:
+    from .workflow_orchestrator_observability import (
+        ProductionObservabilityMixin,
+        ObservabilityLevel,
+        StructuredLogger,
+        EnhancedMetrics,
+        OpenTelemetryIntegration,
+    )
+    OBSERVABILITY_AVAILABLE = True
+except ImportError:
+    OBSERVABILITY_AVAILABLE = False
+    ProductionObservabilityMixin = None
+    ObservabilityLevel = None
+    StructuredLogger = None
+    EnhancedMetrics = None
+    OpenTelemetryIntegration = None
+
 # 配置工作流日志，允许通过环境变量覆盖目录
 _default_log_dir = Path(os.environ.get("WORKFLOW_LOG_DIR", "logs/workflow"))
 _log_handler: logging.Handler
@@ -94,6 +112,20 @@ logger = logging.getLogger("workflow_orchestrator")
 logger.setLevel(logging.INFO)
 logger.addHandler(_log_handler)
 logger.propagate = False  # 避免重复输出到根日志
+
+
+class _TraceContextFilter(logging.Filter):
+    """确保日志记录包含 trace_id/span_id 字段，避免格式化错误"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not hasattr(record, "trace_id"):
+            record.trace_id = "N/A"
+        if not hasattr(record, "span_id"):
+            record.span_id = "N/A"
+        return True
+
+
+logger.addFilter(_TraceContextFilter())
 
 
 class WorkflowType(str, Enum):
@@ -267,7 +299,9 @@ class DirectWorkflowData:
 WorkflowData = IntelligentWorkflowData | DirectWorkflowData
 
 
-class WorkflowOrchestrator:
+class WorkflowOrchestrator(
+    ProductionObservabilityMixin if OBSERVABILITY_AVAILABLE else object
+):
     """
     工作流编排器
     
@@ -287,6 +321,11 @@ class WorkflowOrchestrator:
         expert_router: Optional[Any] = None,
         module_executor: Optional[Any] = None,
         observability_system: Optional[Any] = None,
+        enable_production_observability: bool = True,
+        observability_level: str = "standard",
+        enable_opentelemetry: bool = False,
+        otlp_endpoint: Optional[str] = None,
+        log_dir: Optional[Path] = None,
     ):
         """
         初始化工作流编排器
@@ -308,30 +347,57 @@ class WorkflowOrchestrator:
         self.workflows: Dict[str, WorkflowData] = {}
         self._lock = asyncio.Lock()
         
-        # Prometheus 指标
-        self.metrics = {
-            "workflow_total": Counter(
-                "workflow_total",
-                "Total number of workflows",
-                ["workflow_type", "status"]
-            ),
-            "workflow_duration": Histogram(
-                "workflow_duration_seconds",
-                "Workflow execution duration in seconds",
-                ["workflow_type", "status"],
-                buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0]
-            ),
-            "workflow_active": Gauge(
-                "workflow_active",
-                "Number of active workflows",
-                ["workflow_type", "state"]
-            ),
-            "workflow_steps_total": Counter(
-                "workflow_steps_total",
-                "Total number of workflow steps",
-                ["workflow_type", "step_name", "status"]
-            ),
-        }
+        # 初始化生产级可观测性
+        if enable_production_observability and OBSERVABILITY_AVAILABLE:
+            try:
+                level = ObservabilityLevel(observability_level) if ObservabilityLevel else ObservabilityLevel.STANDARD
+                self._init_observability(
+                    log_dir=log_dir,
+                    observability_level=level,
+                    enable_opentelemetry=enable_opentelemetry,
+                    otlp_endpoint=otlp_endpoint,
+                )
+                self._use_enhanced_metrics = True
+            except Exception as e:
+                logger.warning(f"初始化生产级可观测性失败: {e}，使用基础版本")
+                self._use_enhanced_metrics = False
+        else:
+            self._use_enhanced_metrics = False
+        
+        # Prometheus 指标（基础版本，如果未启用增强指标）
+        if not self._use_enhanced_metrics:
+            # 使用全局标志避免重复注册指标
+            if not hasattr(WorkflowOrchestrator, '_metrics_initialized'):
+                self.metrics = {
+                "workflow_total": Counter(
+                    "workflow_orchestrator_total",
+                    "Total number of workflows",
+                    ["workflow_type", "status"]
+                ),
+                "workflow_duration": Histogram(
+                    "workflow_orchestrator_duration_seconds",
+                    "Workflow execution duration in seconds",
+                    ["workflow_type", "status"],
+                    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0]
+                ),
+                "workflow_active": Gauge(
+                    "workflow_orchestrator_active",
+                    "Number of active workflows",
+                    ["workflow_type", "state"]
+                ),
+                "workflow_steps_total": Counter(
+                    "workflow_orchestrator_steps_total",
+                    "Total number of workflow steps",
+                    ["workflow_type", "step_name", "status"]
+                ),
+                }
+                WorkflowOrchestrator._metrics_initialized = True
+            else:
+                # 如果指标已经初始化，使用空字典避免重复注册
+                self.metrics = {}
+        else:
+            # 使用增强指标（在ProductionObservabilityMixin中初始化）
+            self.metrics = {}
         
         # 状态转换规则
         self._state_transitions = {
@@ -410,14 +476,17 @@ class WorkflowOrchestrator:
             self.workflows[workflow_id] = workflow
         
         # 更新指标
-        self.metrics["workflow_total"].labels(
-            workflow_type="intelligent",
-            status="started"
-        ).inc()
-        self.metrics["workflow_active"].labels(
-            workflow_type="intelligent",
-            state="initialized"
-        ).inc()
+        if self._use_enhanced_metrics and hasattr(self, 'enhanced_metrics'):
+            self.enhanced_metrics.record_workflow_started("intelligent", trace_id)
+        else:
+            self.metrics["workflow_total"].labels(
+                workflow_type="intelligent",
+                status="started"
+            ).inc()
+            self.metrics["workflow_active"].labels(
+                workflow_type="intelligent",
+                state="initialized"
+            ).inc()
         
         # 记录日志（带 trace_id 和 span_id）
         log_data = {
@@ -427,14 +496,40 @@ class WorkflowOrchestrator:
             "trace_id": trace_id,
             "span_id": span_id,
         }
-        self._write_log("workflow.created", log_data, trace_id, span_id)
         
-        await self._publish_event(
-            WorkflowEventType.WORKFLOW_STARTED,
-            workflow_id=workflow_id,
-            workflow_type=WorkflowType.INTELLIGENT.value,
-            payload={"user_input": user_input, "context": context, "trace_id": trace_id, "span_id": span_id},
-        )
+        # 使用结构化日志（如果可用）
+        if self._use_enhanced_metrics and hasattr(self, '_log_with_context'):
+            self._log_with_context(
+                level="info",
+                event="workflow.created",
+                workflow_id=workflow_id,
+                trace_id=trace_id,
+                span_id=span_id,
+                data=log_data,
+            )
+        else:
+            self._write_log("workflow.created", log_data, trace_id, span_id)
+        
+        # 发布事件（带埋点）
+        event_success = True
+        try:
+            await self._publish_event(
+                WorkflowEventType.WORKFLOW_STARTED,
+                workflow_id=workflow_id,
+                workflow_type=WorkflowType.INTELLIGENT.value,
+                payload={"user_input": user_input, "context": context, "trace_id": trace_id, "span_id": span_id},
+            )
+        except Exception as e:
+            event_success = False
+            logger.error(f"发布工作流启动事件失败: {e}", exc_info=True)
+        
+        # 记录事件指标
+        if self._use_enhanced_metrics and hasattr(self, 'enhanced_metrics'):
+            self.enhanced_metrics.record_event(
+                workflow_type="intelligent",
+                event_type=WorkflowEventType.WORKFLOW_STARTED.value,
+                success=event_success,
+            )
         
         logger.info(
             f"创建智能线工作流: {workflow_id}",
@@ -505,14 +600,17 @@ class WorkflowOrchestrator:
             self.workflows[workflow_id] = workflow
         
         # 更新指标
-        self.metrics["workflow_total"].labels(
-            workflow_type="direct",
-            status="started"
-        ).inc()
-        self.metrics["workflow_active"].labels(
-            workflow_type="direct",
-            state="initialized"
-        ).inc()
+        if self._use_enhanced_metrics and hasattr(self, 'enhanced_metrics'):
+            self.enhanced_metrics.record_workflow_started("direct", trace_id)
+        else:
+            self.metrics["workflow_total"].labels(
+                workflow_type="direct",
+                status="started"
+            ).inc()
+            self.metrics["workflow_active"].labels(
+                workflow_type="direct",
+                state="initialized"
+            ).inc()
         
         # 记录日志
         log_data = {
@@ -523,14 +621,40 @@ class WorkflowOrchestrator:
             "trace_id": trace_id,
             "span_id": span_id,
         }
-        self._write_log("workflow.created", log_data, trace_id, span_id)
         
-        await self._publish_event(
-            WorkflowEventType.WORKFLOW_STARTED,
-            workflow_id=workflow_id,
-            workflow_type=WorkflowType.DIRECT.value,
-            payload={"user_input": user_input, "target_module": target_module, "context": context, "trace_id": trace_id, "span_id": span_id},
-        )
+        # 使用结构化日志（如果可用）
+        if self._use_enhanced_metrics and hasattr(self, '_log_with_context'):
+            self._log_with_context(
+                level="info",
+                event="workflow.created",
+                workflow_id=workflow_id,
+                trace_id=trace_id,
+                span_id=span_id,
+                data=log_data,
+            )
+        else:
+            self._write_log("workflow.created", log_data, trace_id, span_id)
+        
+        # 发布事件（带埋点）
+        event_success = True
+        try:
+            await self._publish_event(
+                WorkflowEventType.WORKFLOW_STARTED,
+                workflow_id=workflow_id,
+                workflow_type=WorkflowType.DIRECT.value,
+                payload={"user_input": user_input, "target_module": target_module, "context": context, "trace_id": trace_id, "span_id": span_id},
+            )
+        except Exception as e:
+            event_success = False
+            logger.error(f"发布工作流启动事件失败: {e}", exc_info=True)
+        
+        # 记录事件指标
+        if self._use_enhanced_metrics and hasattr(self, 'enhanced_metrics'):
+            self.enhanced_metrics.record_event(
+                workflow_type="direct",
+                event_type=WorkflowEventType.WORKFLOW_STARTED.value,
+                success=event_success,
+            )
         
         logger.info(
             f"创建直接操作线工作流: {workflow_id}, 目标模块: {target_module}",
@@ -632,27 +756,60 @@ class WorkflowOrchestrator:
         
         # 更新指标
         workflow_type_str = workflow.workflow_type.value
-        self.metrics["workflow_steps_total"].labels(
-            workflow_type=workflow_type_str,
-            step_name=new_state.value,
-            status="success" if not error else "failed"
-        ).inc()
+        
+        # 计算状态转换持续时间
+        transition_duration = 0.0
+        if step_data and step_data.get("duration"):
+            transition_duration = step_data.get("duration")
+        
+        if self._use_enhanced_metrics and hasattr(self, 'enhanced_metrics'):
+            # 使用增强指标
+            self.enhanced_metrics.record_state_transition(
+                workflow_type=workflow_type_str,
+                from_state=old_state.value,
+                to_state=new_state.value,
+                duration=transition_duration,
+                success=not bool(error),
+            )
+            
+            if step_data:
+                step_duration = step_data.get("duration", 0.0)
+                self.enhanced_metrics.record_step(
+                    workflow_type=workflow_type_str,
+                    step_name=new_state.value,
+                    duration=step_duration,
+                    success=not bool(error),
+                )
+        else:
+            # 使用基础指标
+            self.metrics["workflow_steps_total"].labels(
+                workflow_type=workflow_type_str,
+                step_name=new_state.value,
+                status="success" if not error else "failed"
+            ).inc()
         
         # 如果完成或失败，更新指标并发布事件
         if new_state == WorkflowState.COMPLETED:
-            self.metrics["workflow_total"].labels(
-                workflow_type=workflow_type_str,
-                status="completed"
-            ).inc()
-            self.metrics["workflow_active"].labels(
-                workflow_type=workflow_type_str,
-                state=new_state.value
-            ).dec()
-            if workflow.total_duration:
-                self.metrics["workflow_duration"].labels(
+            if self._use_enhanced_metrics and hasattr(self, 'enhanced_metrics'):
+                self.enhanced_metrics.record_workflow_completed(
+                    workflow_type=workflow_type_str,
+                    duration=workflow.total_duration or 0.0,
+                    status="completed",
+                )
+            else:
+                self.metrics["workflow_total"].labels(
                     workflow_type=workflow_type_str,
                     status="completed"
-                ).observe(workflow.total_duration)
+                ).inc()
+                self.metrics["workflow_active"].labels(
+                    workflow_type=workflow_type_str,
+                    state=new_state.value
+                ).dec()
+                if workflow.total_duration:
+                    self.metrics["workflow_duration"].labels(
+                        workflow_type=workflow_type_str,
+                        status="completed"
+                    ).observe(workflow.total_duration)
             
             # 完成 span
             if self.observability and workflow.span_id:
@@ -667,19 +824,36 @@ class WorkflowOrchestrator:
                 payload={"workflow": workflow.to_dict()},
             )
         elif new_state == WorkflowState.FAILED:
-            self.metrics["workflow_total"].labels(
-                workflow_type=workflow_type_str,
-                status="failed"
-            ).inc()
-            self.metrics["workflow_active"].labels(
-                workflow_type=workflow_type_str,
-                state=new_state.value
-            ).dec()
-            if workflow.total_duration:
-                self.metrics["workflow_duration"].labels(
+            if self._use_enhanced_metrics and hasattr(self, 'enhanced_metrics'):
+                self.enhanced_metrics.record_workflow_completed(
+                    workflow_type=workflow_type_str,
+                    duration=workflow.total_duration or 0.0,
+                    status="failed",
+                )
+                # 记录错误
+                error_type = "unknown_error"
+                if "timeout" in (error or "").lower():
+                    error_type = "timeout"
+                elif "state" in (error or "").lower():
+                    error_type = "state_transition_error"
+                self.enhanced_metrics.record_error(
+                    workflow_type=workflow_type_str,
+                    error_type=error_type,
+                )
+            else:
+                self.metrics["workflow_total"].labels(
                     workflow_type=workflow_type_str,
                     status="failed"
-                ).observe(workflow.total_duration)
+                ).inc()
+                self.metrics["workflow_active"].labels(
+                    workflow_type=workflow_type_str,
+                    state=new_state.value
+                ).dec()
+                if workflow.total_duration:
+                    self.metrics["workflow_duration"].labels(
+                        workflow_type=workflow_type_str,
+                        status="failed"
+                    ).observe(workflow.total_duration)
             
             # 完成 span（失败）
             if self.observability and workflow.span_id:
@@ -701,8 +875,22 @@ class WorkflowOrchestrator:
             "new_state": new_state.value,
             "workflow_type": workflow_type_str,
             "error": error,
+            "duration": transition_duration,
         }
-        self._write_log("workflow.state_changed", log_data, workflow.trace_id, workflow.span_id)
+        
+        # 使用结构化日志（如果可用）
+        if self._use_enhanced_metrics and hasattr(self, '_log_with_context'):
+            self._log_with_context(
+                level="info" if not error else "error",
+                event="workflow.state_changed",
+                workflow_id=workflow_id,
+                trace_id=workflow.trace_id,
+                span_id=workflow.span_id,
+                data=log_data,
+                message=f"状态转换: {old_state.value} -> {new_state.value}",
+            )
+        else:
+            self._write_log("workflow.state_changed", log_data, workflow.trace_id, workflow.span_id)
         
         logger.info(
             f"工作流状态转换: {workflow_id} {old_state.value} -> {new_state.value}",
@@ -787,14 +975,18 @@ class WorkflowOrchestrator:
             }
             
             # 写入 JSON 日志文件
-            log_file = LOG_DIR / f"workflow_{datetime.now().strftime('%Y%m%d')}.jsonl"
+            log_file = _default_log_dir / f"workflow_{datetime.now().strftime('%Y%m%d')}.jsonl"
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
         except Exception as e:
             logger.error(f"写入工作流日志失败: {e}", exc_info=True)
     
     def get_prometheus_metrics(self) -> bytes:
-        """获取 Prometheus 格式的指标"""
+        """获取 Prometheus 格式的指标（增强版）"""
+        if self._use_enhanced_metrics and hasattr(self, 'get_enhanced_prometheus_metrics'):
+            return self.get_enhanced_prometheus_metrics()
+        
+        # 回退到基础版本
         try:
             return generate_latest()
         except Exception as e:
@@ -802,7 +994,11 @@ class WorkflowOrchestrator:
             return b"# Error generating metrics\n"
     
     async def get_metrics_json(self) -> Dict[str, Any]:
-        """获取 JSON 格式的指标"""
+        """获取 JSON 格式的指标（增强版）"""
+        if self._use_enhanced_metrics and hasattr(self, 'get_enhanced_metrics_json'):
+            return self.get_enhanced_metrics_json()
+        
+        # 回退到基础版本
         try:
             async with self._lock:
                 workflows = list(self.workflows.values())
@@ -943,9 +1139,40 @@ def get_workflow_orchestrator(
     expert_router: Optional[Any] = None,
     module_executor: Optional[Any] = None,
     observability_system: Optional[Any] = None,
+    production_mode: bool = True,
 ) -> WorkflowOrchestrator:
-    """获取工作流编排器单例"""
+    """
+    获取工作流编排器单例
+    
+    Args:
+        event_bus: 统一事件总线
+        rag_service: RAG服务适配器
+        expert_router: 专家路由器
+        module_executor: 模块执行器
+        observability_system: 可观测性系统
+        production_mode: 是否使用生产模式（默认True）
+    """
     global _workflow_orchestrator
+    
+    if production_mode:
+        # 尝试使用生产级编排器
+        try:
+            from .workflow_orchestrator_production import (
+                get_production_workflow_orchestrator,
+            )
+            if _workflow_orchestrator is None:
+                _workflow_orchestrator = get_production_workflow_orchestrator(
+                    event_bus=event_bus,
+                    rag_service=rag_service,
+                    expert_router=expert_router,
+                    module_executor=module_executor,
+                    observability_system=observability_system,
+                )
+            return _workflow_orchestrator
+        except ImportError:
+            logger.warning("生产级编排器不可用，使用基础版本")
+    
+    # 使用基础版本
     if _workflow_orchestrator is None:
         _workflow_orchestrator = WorkflowOrchestrator(
             event_bus=event_bus,

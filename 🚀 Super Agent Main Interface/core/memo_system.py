@@ -5,7 +5,12 @@
 
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from pathlib import Path
+import asyncio
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MemoSystem:
     """
@@ -17,9 +22,12 @@ class MemoSystem:
     3. 与智能工作计划联动
     """
     
-    def __init__(self, storage_path: str = "memos.db"):
-        self.storage_path = storage_path
-        self.memos = []
+    def __init__(self, storage_path: str = "memos.db", max_records: int = 1000):
+        self.storage_path = Path(storage_path)
+        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        self.max_records = max_records
+        self.memos: List[Dict[str, Any]] = []
+        self._lock = asyncio.Lock()
         self._load_memos()
         
     async def add_memo(self, memo_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -53,8 +61,10 @@ class MemoSystem:
             "status": "active"
         }
         
-        self.memos.append(memo)
-        await self._save_memos()
+        async with self._lock:
+            self.memos.append(memo)
+            self._apply_storage_limits()
+            await self._save_memos()
         
         return memo
     
@@ -97,7 +107,7 @@ class MemoSystem:
         tags: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """获取备忘录"""
-        filtered = self.memos
+        filtered = list(self.memos)
         
         if type:
             filtered = [m for m in filtered if m.get("type") == type]
@@ -112,30 +122,53 @@ class MemoSystem:
     
     async def update_memo(self, memo_id: int, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """更新备忘录"""
-        for memo in self.memos:
-            if memo["id"] == memo_id:
-                memo.update(updates)
-                memo["updated_at"] = datetime.now().isoformat()
-                await self._save_memos()
-                return memo
-        return None
+        async with self._lock:
+            for memo in self.memos:
+                if memo["id"] == memo_id:
+                    memo.update(updates)
+                    memo["updated_at"] = datetime.now().isoformat()
+                    await self._save_memos()
+                    return memo
+            return None
     
     async def delete_memo(self, memo_id: int) -> bool:
         """删除备忘录"""
-        for i, memo in enumerate(self.memos):
-            if memo["id"] == memo_id:
-                self.memos.pop(i)
-                await self._save_memos()
-                return True
-        return False
+        async with self._lock:
+            for i, memo in enumerate(self.memos):
+                if memo["id"] == memo_id:
+                    self.memos.pop(i)
+                    await self._save_memos()
+                    return True
+            return False
     
     async def _save_memos(self):
         """保存备忘录到文件"""
-        # TODO: 实现持久化存储
-        pass
+        loop = asyncio.get_running_loop()
+        data = list(self.memos)
+        try:
+            await loop.run_in_executor(None, self._write_storage, data)
+        except Exception as exc:
+            logger.warning("保存备忘录失败: %s", exc)
     
     def _load_memos(self):
         """从文件加载备忘录"""
-        # TODO: 实现从文件加载
-        pass
+        if not self.storage_path.exists():
+            return
+        try:
+            content = self.storage_path.read_text(encoding="utf-8")
+            if content:
+                self.memos = json.loads(content)
+        except Exception as exc:
+            logger.warning("加载备忘录失败: %s", exc)
+            self.memos = []
+
+    def _write_storage(self, data: List[Dict[str, Any]]):
+        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        self.storage_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def _apply_storage_limits(self):
+        """确保存储数量在阈值内"""
+        overflow = len(self.memos) - self.max_records
+        if overflow > 0:
+            self.memos = self.memos[overflow:]
 

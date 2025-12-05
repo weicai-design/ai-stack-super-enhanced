@@ -242,6 +242,73 @@ class ExpertCollaborationHub:
         session = await self._load_session(session_id)
         return session.to_dict()
 
+    async def create_collaboration_session(
+        self,
+        topic: str,
+        expert_ids: List[str]
+    ) -> str:
+        """
+        创建协同会话
+        
+        Args:
+            topic: 会话主题
+            expert_ids: 参与专家ID列表
+            
+        Returns:
+            会话ID
+        """
+        # 将专家ID转换为专家信息字典
+        experts = [{"expert_id": expert_id, "name": expert_id} for expert_id in expert_ids]
+        
+        # 使用现有的start_session方法创建会话
+        session_data = await self.start_session(
+            topic=topic,
+            initiator="system_test",
+            goals=[f"{topic}分析"],
+            experts=experts,
+            channel="multi"
+        )
+        
+        return session_data["session_id"]
+
+    def create_collaboration_session_sync(
+        self,
+        topic: str,
+        expert_ids: List[str]
+    ) -> str:
+        """
+        同步方式创建协同会话（用于测试）
+        
+        Args:
+            topic: 会话主题
+            expert_ids: 参与专家ID列表
+            
+        Returns:
+            会话ID
+        """
+        import asyncio
+        
+        # 将专家ID转换为专家信息字典
+        experts = [{"expert_id": expert_id, "name": expert_id} for expert_id in expert_ids]
+        
+        # 简化处理：总是创建新的事件循环
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            session_data = loop.run_until_complete(
+                self.start_session(
+                    topic=topic,
+                    initiator="system_test",
+                    goals=[f"{topic}分析"],
+                    experts=experts,
+                    channel="multi"
+                )
+            )
+        finally:
+            loop.close()
+        
+        return session_data["session_id"]
+
     async def _publish_event(
         self,
         event_type: str,

@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Key 权限管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .header h1 {
+            font-size: 36px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 10px;
+        }
+        
+        .section-title {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .api-key-list {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .api-key-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            transition: box-shadow 0.3s;
+        }
+        
+        .api-key-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .api-key-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .api-key-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .api-key-value {
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #666;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+        
+        .permissions-section {
+            margin-top: 15px;
+        }
+        
+        .permission-group {
+            margin-bottom: 15px;
+        }
+        
+        .permission-label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 10px;
+            display: block;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .checkbox-item label {
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .commands-section {
+            margin-top: 15px;
+        }
+        
+        .commands-input {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+        
+        .commands-help {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e8f4f8;
+            border-radius: 5px;
+            font-size: 13px;
+            color: #555;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #0d9b6c;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .create-section {
+            background: #f0f9ff;
+            border: 2px dashed #3b82f6;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 API Key 权限管理</h1>
+            <p>管理 API Key 的权限范围和执行命令</p>
+        </div>
+        
+        <div id="alert-container"></div>
+        
+        <!-- 创建新的 API Key -->
+        <div class="section create-section">
+            <h2 class="section-title">➕ 创建新的 API Key</h2>
+            <form id="create-api-key-form">
+                <div class="form-group">
+                    <label class="form-label">API Key 名称</label>
+                    <input type="text" class="form-input" id="api-key-name" placeholder="例如：生产环境API" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">权限范围（初始默认：只读）</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="scope-read" name="scopes" value="read" checked>
+                            <label for="scope-read">📖 只读权限 (read)</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="scope-write" name="scopes" value="write">
+                            <label for="scope-write">✏️ 读写权限 (write)</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="scope-admin" name="scopes" value="admin">
+                            <label for="scope-admin">⚙️ 管理员权限 (admin)</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="scope-full" name="scopes" value="full">
+                            <label for="scope-full">👑 完全访问权限 (full)</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">允许执行的命令（每行一个，留空则根据权限范围自动判断）</label>
+                    <textarea class="commands-input" id="allowed-commands" placeholder="例如：&#10;查询订单&#10;查看财务&#10;创建订单"></textarea>
+                    <div class="commands-help">
+                        💡 提示：如果不填写，系统会根据权限范围自动判断可执行的命令。<br>
+                        📖 只读：可以执行查询、查看、获取等命令<br>
+                        ✏️ 读写：可以执行创建、更新、删除等命令<br>
+                        ⚙️ 管理员：可以执行配置、设置等命令<br>
+                        ⚠️ 危险命令（如"删除所有"）需要完全访问权限
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">速率限制（每分钟最大请求数，留空表示无限制）</label>
+                    <input type="number" class="form-input" id="rate-limit" placeholder="例如：100" min="1">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">过期天数（留空表示永不过期）</label>
+                    <input type="number" class="form-input" id="expires-days" placeholder="例如：90" min="1" max="365">
+                </div>
+                
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-primary">✅ 创建 API Key</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- 现有的 API Keys -->
+        <div class="section">
+            <h2 class="section-title">📋 现有的 API Keys</h2>
+            <div id="api-keys-container">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE_URL = window.location.origin;
+        const TENANT_ID = localStorage.getItem('tenant_id') || 'default';
+        
+        // 显示提示信息
+        function showAlert(message, type = 'info') {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+        
+        // 创建 API Key
+        document.getElementById('create-api-key-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('api-key-name').value;
+            const scopes = Array.from(document.querySelectorAll('input[name="scopes"]:checked')).map(cb => cb.value);
+            const commandsText = document.getElementById('allowed-commands').value;
+            const allowedCommands = commandsText.split('\n').map(c => c.trim()).filter(c => c);
+            const rateLimit = document.getElementById('rate-limit').value ? parseInt(document.getElementById('rate-limit').value) : null;
+            const expiresDays = document.getElementById('expires-days').value ? parseInt(document.getElementById('expires-days').value) : null;
+            
+            // 如果没有选择权限范围，默认只读
+            if (scopes.length === 0) {
+                scopes.push('read');
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/tenant/auth/api-keys`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Tenant-ID': TENANT_ID
+                    },
+                    body: JSON.stringify({
+                        name,
+                        scopes,
+                        allowed_commands: allowedCommands.length > 0 ? allowedCommands : null,
+                        rate_limit: rateLimit,
+                        expires_days: expiresDays
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('创建失败');
+                }
+                
+                const data = await response.json();
+                showAlert(`✅ API Key 创建成功！请妥善保管：${data.api_key}`, 'success');
+                
+                // 重置表单
+                document.getElementById('create-api-key-form').reset();
+                document.getElementById('scope-read').checked = true;
+                
+                // 重新加载列表
+                loadAPIKeys();
+                
+            } catch (error) {
+                showAlert(`❌ 创建失败：${error.message}`, 'error');
+            }
+        });
+        
+        // 加载 API Keys 列表
+        async function loadAPIKeys() {
+            const container = document.getElementById('api-keys-container');
+            container.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/tenant/auth/api-keys`, {
+                    headers: {
+                        'X-Tenant-ID': TENANT_ID
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('加载失败');
+                }
+                
+                const data = await response.json();
+                
+                if (data.keys.length === 0) {
+                    container.innerHTML = '<div class="loading">暂无 API Keys，请创建新的 API Key</div>';
+                    return;
+                }
+                
+                container.innerHTML = data.keys.map(key => `
+                    <div class="api-key-card">
+                        <div class="api-key-header">
+                            <div>
+                                <div class="api-key-name">${key.name}</div>
+                                <div class="api-key-value">${key.id}</div>
+                            </div>
+                            <span class="status-badge status-${key.is_active ? 'active' : 'inactive'}">
+                                ${key.is_active ? '✅ 激活' : '❌ 已撤销'}
+                            </span>
+                        </div>
+                        
+                        <div class="permissions-section">
+                            <div class="permission-group">
+                                <span class="permission-label">权限范围：</span>
+                                <div class="checkbox-group">
+                                    ${key.scopes.map(scope => {
+                                        const scopeNames = {
+                                            'read': '📖 只读',
+                                            'write': '✏️ 读写',
+                                            'admin': '⚙️ 管理员',
+                                            'full': '👑 完全访问'
+                                        };
+                                        return `<span class="checkbox-item">
+                                            <input type="checkbox" checked disabled>
+                                            <label>${scopeNames[scope] || scope}</label>
+                                        </span>`;
+                                    }).join('')}
+                                </div>
+                            </div>
+                            
+                            ${key.allowed_commands && key.allowed_commands.length > 0 ? `
+                                <div class="permission-group">
+                                    <span class="permission-label">允许的命令：</span>
+                                    <div style="padding: 10px; background: white; border-radius: 5px; font-family: monospace; font-size: 13px;">
+                                        ${key.allowed_commands.map(cmd => `• ${cmd}`).join('<br>')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            <div style="margin-top: 15px; font-size: 13px; color: #666;">
+                                ${key.rate_limit ? `速率限制：${key.rate_limit} 次/分钟<br>` : '速率限制：无限制<br>'}
+                                ${key.expires_at ? `过期时间：${new Date(key.expires_at).toLocaleString('zh-CN')}<br>` : '过期时间：永不过期<br>'}
+                                ${key.last_used_at ? `最后使用：${new Date(key.last_used_at).toLocaleString('zh-CN')}<br>` : '最后使用：从未使用<br>'}
+                                创建时间：${new Date(key.created_at).toLocaleString('zh-CN')}
+                            </div>
+                        </div>
+                        
+                        ${key.is_active ? `
+                            <div class="btn-group">
+                                <button class="btn btn-danger" onclick="revokeAPIKey('${key.id}')">❌ 撤销</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                container.innerHTML = `<div class="alert alert-error">加载失败：${error.message}</div>`;
+            }
+        }
+        
+        // 撤销 API Key
+        async function revokeAPIKey(keyId) {
+            if (!confirm('确定要撤销这个 API Key 吗？撤销后将无法继续使用。')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/tenant/auth/api-keys/${keyId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-Tenant-ID': TENANT_ID
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('撤销失败');
+                }
+                
+                showAlert('✅ API Key 已撤销', 'success');
+                loadAPIKeys();
+                
+            } catch (error) {
+                showAlert(`❌ 撤销失败：${error.message}`, 'error');
+            }
+        }
+        
+        // 页面加载时获取列表
+        loadAPIKeys();
+    </script>
+</body>
+</html>
+

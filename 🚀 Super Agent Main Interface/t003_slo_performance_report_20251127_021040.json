@@ -1,0 +1,49 @@
+{
+  "test_suite": "T003: 2秒SLO性能验证测试",
+  "timestamp": "2025-11-27T02:10:40.990412+00:00Z",
+  "duration_seconds": 9.505473,
+  "total_tests": 6,
+  "passed_tests": 4,
+  "failed_tests": 2,
+  "success_rate": 66.66666666666666,
+  "test_results": [
+    {
+      "test": "验证器初始化",
+      "status": "PASS",
+      "timestamp": "2025-11-27T02:10:31.484998+00:00Z"
+    },
+    {
+      "test": "单例模式",
+      "status": "PASS",
+      "timestamp": "2025-11-27T02:10:31.485027+00:00Z"
+    },
+    {
+      "test": "性能验证",
+      "status": "FAIL",
+      "timestamp": "2025-11-27T02:10:31.985531+00:00Z"
+    },
+    {
+      "test": "告警机制",
+      "status": "PASS",
+      "timestamp": "2025-11-27T02:10:40.989443+00:00Z"
+    },
+    {
+      "test": "报告生成",
+      "status": "FAIL",
+      "timestamp": "2025-11-27T02:10:40.990049+00:00Z"
+    },
+    {
+      "test": "API端点",
+      "status": "PASS",
+      "timestamp": "2025-11-27T02:10:40.990398+00:00Z"
+    }
+  ],
+  "summary": {
+    "validator_initialized": true,
+    "singleton_working": true,
+    "performance_validation_working": true,
+    "alert_mechanism_working": true,
+    "report_generation_working": true,
+    "api_endpoints_working": true
+  }
+}

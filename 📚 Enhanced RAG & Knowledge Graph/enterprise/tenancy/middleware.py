@@ -51,8 +51,23 @@ class TenantIdentifier:
     @staticmethod
     def from_token(request: Request) -> Optional[str]:
         """从JWT token获取租户ID"""
-        # TODO: 解析JWT token提取租户ID
-        return None
+        from .auth import token_service, security_scheme
+        from fastapi.security import HTTPAuthorizationCredentials
+        
+        # 从 Authorization header 获取 token
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return None
+        
+        token = auth_header.replace("Bearer ", "").strip()
+        if not token:
+            return None
+        
+        try:
+            token_payload = token_service.verify_token(token)
+            return token_payload.tenant_id
+        except Exception:
+            return None
     
     @classmethod
     def identify_tenant(cls, request: Request) -> Optional[Tenant]:
@@ -168,6 +183,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
             request.state.tenant = tenant
             request.state.tenant_id = tenant.id
             
+            # 绑定租户上下文
+            from .auth import bind_tenant_context
+            bind_tenant_context(request, tenant)
+            
             # 记录日志
             logger.debug(f"请求来自租户: {tenant.name} ({tenant.id})")
         
@@ -235,6 +254,7 @@ __all__ = [
     "get_current_tenant",
     "require_tenant"
 ]
+
 
 
 

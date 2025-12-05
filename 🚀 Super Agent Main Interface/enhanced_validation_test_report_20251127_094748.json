@@ -1,0 +1,93 @@
+{
+  "test_suite": "增强工作流验证测试",
+  "total_tests": 4,
+  "passed_tests": 4,
+  "failed_tests": 0,
+  "overall_pass_rate": 100.0,
+  "test_results": [
+    {
+      "test_name": "验证工作流",
+      "success": true,
+      "duration_seconds": 1.000657,
+      "validations": {
+        "validation_id_exists": true,
+        "report_exists": true,
+        "workflow_id_correct": true,
+        "workflow_type_correct": true,
+        "has_validation_results": true,
+        "total_duration_positive": true,
+        "overall_status_valid": true,
+        "has_input_validation": true,
+        "has_performance_validation": true,
+        "has_functional_validation": true,
+        "has_dual_loop_validation": true,
+        "has_security_validation": true,
+        "has_reliability_validation": true,
+        "has_observability_validation": true
+      },
+      "pass_rate": 100.0,
+      "validation_id": "val_test_wf_001_1764179264562",
+      "overall_status": "passed",
+      "validation_results_count": 7,
+      "timestamp": "2025-11-27T09:47:45.563186"
+    },
+    {
+      "test_name": "验证统计信息",
+      "success": true,
+      "duration_seconds": 6e-06,
+      "validations": {
+        "stats_exists": true,
+        "has_total_validations": true,
+        "has_passed_validations": true,
+        "has_failed_validations": true,
+        "has_warning_validations": true,
+        "total_validations_non_negative": true,
+        "passed_validations_non_negative": true,
+        "failed_validations_non_negative": true,
+        "warning_validations_non_negative": true
+      },
+      "pass_rate": 100.0,
+      "stats": {
+        "total_validations": 7,
+        "passed_validations": 7,
+        "failed_validations": 0,
+        "warning_validations": 0
+      },
+      "timestamp": "2025-11-27T09:47:45.563597"
+    },
+    {
+      "test_name": "双线闭环验证",
+      "success": true,
+      "duration_seconds": 2.00186,
+      "validations": {
+        "intelligent_validation_exists": true,
+        "direct_validation_exists": true,
+        "intelligent_has_dual_loop_validation": true,
+        "direct_has_dual_loop_validation": true,
+        "intelligent_dual_loop_passed": true,
+        "direct_dual_loop_passed": true
+      },
+      "pass_rate": 100.0,
+      "intelligent_validation_id": "val_test_wf_intelligent_1764179265563",
+      "direct_validation_id": "val_test_wf_direct_1764179266564",
+      "timestamp": "2025-11-27T09:47:47.565803"
+    },
+    {
+      "test_name": "错误处理",
+      "success": true,
+      "duration_seconds": 1.000188,
+      "validations": {
+        "validation_completed": true,
+        "has_error_handling": true,
+        "overall_status_valid": true,
+        "input_validation_exists": true,
+        "input_validation_status": true
+      },
+      "pass_rate": 100.0,
+      "validation_id": "val__1764179267566",
+      "overall_status": "failed",
+      "timestamp": "2025-11-27T09:47:48.566338"
+    }
+  ],
+  "timestamp": "2025-11-27T09:47:48.566468"
+}

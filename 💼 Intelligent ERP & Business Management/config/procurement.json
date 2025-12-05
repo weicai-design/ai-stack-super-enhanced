@@ -1,0 +1,44 @@
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "erp_procurement",
+    "username": "erp_user",
+    "password": "erp_password"
+  },
+  "api": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "debug": true,
+    "workers": 4
+  },
+  "security": {
+    "jwt_secret": "your-secret-key-here",
+    "token_expire_hours": 24,
+    "cors_origins": ["http://localhost:3000", "http://localhost:8000"]
+  },
+  "cache": {
+    "redis_host": "localhost",
+    "redis_port": 6379,
+    "redis_password": "",
+    "default_ttl": 300
+  },
+  "rate_limit": {
+    "enabled": true,
+    "capacity": 100,
+    "rate": 10,
+    "max_requests_per_minute": 60
+  },
+  "circuit_breaker": {
+    "enabled": true,
+    "failure_threshold": 5,
+    "timeout_seconds": 60
+  },
+  "procurement": {
+    "auto_approval_threshold": 50000,
+    "default_currency": "CNY",
+    "supplier_evaluation_enabled": true,
+    "quality_check_required": true,
+    "delivery_tolerance_days": 3
+  }
+}

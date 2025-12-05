@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>财务结算管理中心 · ERP全流程</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --border: #334155;
+            --primary: #38bdf8;
+            --success: #10b981;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --text: #f8fafc;
+            --text-sub: #94a3b8;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+        .finance-app {
+            min-height: 100vh;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        .header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 16px;
+        }
+        .title h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .title p {
+            margin: 4px 0 0;
+            color: var(--text-sub);
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+        button {
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+            color: #fff;
+        }
+        .btn-secondary {
+            background: rgba(148, 163, 184, 0.2);
+            color: var(--text);
+        }
+        .grid {
+            display: grid;
+            gap: 16px;
+        }
+        .grid.stats {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .card h3 {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-sub);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .card strong {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .card span {
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+        .filters {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        .filters label {
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+            color: var(--text-sub);
+            gap: 6px;
+        }
+        .filters input,
+        .filters select {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text);
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(280px, 1.2fr);
+            gap: 20px;
+        }
+        .table-wrapper {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 0 20px 20px;
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead th {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            text-align: left;
+            padding: 16px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        tbody td {
+            padding: 18px 8px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            font-size: 14px;
+        }
+        tbody tr {
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        tbody tr:hover {
+            background: rgba(56, 189, 248, 0.08);
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge.success { background: rgba(16, 185, 129, 0.12); color: var(--success); }
+        .badge.info { background: rgba(96, 165, 250, 0.12); color: #60a5fa; }
+        .badge.warning { background: rgba(251, 191, 36, 0.12); color: var(--warning); }
+        .badge.danger { background: rgba(248, 113, 113, 0.12); color: var(--danger); }
+        .detail-panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 300px;
+        }
+        .detail-panel h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .lifecycle {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .lifecycle-step {
+            flex: 1 1 120px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.5);
+        }
+        .lifecycle-step.current { border-color: var(--primary); }
+        .lifecycle-step.completed { border-color: var(--success); }
+        .bar {
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            overflow: hidden;
+            margin-top: 6px;
+        }
+        .bar > span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #818cf8, #38bdf8);
+        }
+        .progress-bar {
+            width: 100%;
+            height: 24px;
+            border-radius: 12px;
+            background: rgba(148, 163, 184, 0.2);
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-bar > span {
+            display: block;
+            height: 100%;
+            border-radius: 12px;
+            background: linear-gradient(90deg, #818cf8, #38bdf8);
+            transition: width 0.3s ease;
+        }
+        .progress-bar > label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text);
+            z-index: 1;
+        }
+        .dimension-list {
+            display: grid;
+            gap: 8px;
+        }
+        .dimension-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+        .empty {
+            text-align: center;
+            padding: 40px 10px;
+            color: var(--text-sub);
+        }
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .chip {
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.2);
+            font-size: 12px;
+        }
+        .settlement-info {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .settlement-item {
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 8px;
+        }
+        .settlement-item label {
+            font-size: 12px;
+            color: var(--text-sub);
+            display: block;
+            margin-bottom: 4px;
+        }
+        .settlement-item strong {
+            font-size: 18px;
+            display: block;
+        }
+        @media (max-width: 1024px) {
+            .finance-app { padding: 16px; }
+            .layout { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="finance-app">
+        <div class="header">
+            <div class="title">
+                <h1>💰 财务结算管理中心</h1>
+                <p>覆盖开票→对账→收款→核销→结案的全生命周期，实时掌握15项能力指标</p>
+            </div>
+            <div class="actions">
+                <button class="btn-secondary" id="refreshBtn">刷新</button>
+                <button class="btn-primary" id="createBtn">➕ 新建结算单</button>
+                <button class="btn-secondary" id="paymentBtn">💵 记录收款</button>
+            </div>
+        </div>
+
+        <div class="grid stats" id="statsGrid">
+            <!-- 动态统计卡片 -->
+        </div>
+
+        <form class="filters" id="filters">
+            <label>
+                搜索关键词
+                <input type="text" name="search" placeholder="结算单号/订单号/客户/发票号" />
+            </label>
+            <label>
+                结算状态
+                <select name="status">
+                    <option value="">全部</option>
+                    <option value="awaiting_invoice">待开票</option>
+                    <option value="invoiced">已开票</option>
+                    <option value="awaiting_reconciliation">待对账</option>
+                    <option value="reconciled">已对账</option>
+                    <option value="in_collection">收款中</option>
+                    <option value="partially_collected">部分收款</option>
+                    <option value="collected">已收款</option>
+                    <option value="written_off">已核销</option>
+                    <option value="closed">已结案</option>
+                </select>
+            </label>
+            <label>
+                币种
+                <select name="currency">
+                    <option value="">全部</option>
+                    <option value="CNY">人民币</option>
+                    <option value="USD">美元</option>
+                    <option value="EUR">欧元</option>
+                </select>
+            </label>
+            <label>
+                订单号
+                <input type="text" name="order_id" placeholder="订单号" />
+            </label>
+            <label>
+                仅显示逾期
+                <input type="checkbox" name="overdue_only" />
+            </label>
+            <label>
+                每页条数
+                <select name="page_size">
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </label>
+            <button class="btn-primary" type="submit" style="align-self:end;">应用筛选</button>
+        </form>
+
+        <div class="layout">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>结算单号</th>
+                            <th>订单号</th>
+                            <th>客户</th>
+                            <th>结算金额</th>
+                            <th>已收款</th>
+                            <th>收款率</th>
+                            <th>到期日</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody id="financeTable">
+                        <tr><td colspan="8" class="empty">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="detail-panel" id="detailPanel">
+                <div>
+                    <h2 id="detailTitle">请选择结算单</h2>
+                    <p id="detailSubtitle" class="chips"></p>
+                </div>
+                <div id="settlementInfo" class="settlement-info">
+                    <!-- 结算单信息 -->
+                </div>
+                <div id="collectionSection">
+                    <!-- 收款进度 -->
+                </div>
+                <div>
+                    <h3>生命周期</h3>
+                    <div class="lifecycle" id="lifecycleView"></div>
+                </div>
+                <div>
+                    <h3>八维度评分</h3>
+                    <div class="dimension-list" id="dimensionList"></div>
+                </div>
+                <div id="insights"></div>
+            </div>
+        </div>
+
+        <div class="card" id="capabilitiesPanel">
+            <h3>15项能力清单</h3>
+            <div class="chips" id="capabilityChips"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/finance-settlement';
+        const statsGrid = document.getElementById('statsGrid');
+        const financeTable = document.getElementById('financeTable');
+        const detailTitle = document.getElementById('detailTitle');
+        const detailSubtitle = document.getElementById('detailSubtitle');
+        const settlementInfo = document.getElementById('settlementInfo');
+        const collectionSection = document.getElementById('collectionSection');
+        const lifecycleView = document.getElementById('lifecycleView');
+        const dimensionList = document.getElementById('dimensionList');
+        const insightsBox = document.getElementById('insights');
+        const capabilityChips = document.getElementById('capabilityChips');
+        const filtersForm = document.getElementById('filters');
+
+        let overviewCache = null;
+        let currentSettlementId = null;
+
+        const statusClass = (status) => {
+            const map = {
+                '待开票': 'warning',
+                '已开票': 'info',
+                '待对账': 'info',
+                '已对账': 'info',
+                '收款中': 'info',
+                '部分收款': 'warning',
+                '已收款': 'success',
+                '已核销': 'success',
+                '已结案': 'success'
+            };
+            return `badge ${map[status] || 'info'}`;
+        };
+
+        async function loadOverview() {
+            const res = await fetch(`${API_BASE}/overview`);
+            const data = await res.json();
+            overviewCache = data;
+            renderStats(data);
+            renderCapabilities(data.capabilities || []);
+        }
+
+        function renderStats(data) {
+            const summary = data.summary || {};
+            statsGrid.innerHTML = `
+                <div class="card">
+                    <h3>总结算金额</h3>
+                    <strong>¥${(summary.total_amount ?? 0).toLocaleString()}</strong>
+                    <span>已收款 ¥${(summary.total_received ?? 0).toLocaleString()}</span>
+                </div>
+                <div class="card">
+                    <h3>收款率</h3>
+                    <strong>${summary.collection_rate ?? '--'}%</strong>
+                    <span>总体收款完成度</span>
+                </div>
+                <div class="card">
+                    <h3>逾期金额</h3>
+                    <strong>¥${(summary.overdue_amount ?? 0).toLocaleString()}</strong>
+                    <span>逾期 ${summary.overdue_count ?? '--'} 笔</span>
+                </div>
+                <div class="card">
+                    <h3>生命周期</h3>
+                    <strong>${data.lifecycle?.length || 5}</strong>
+                    <span>开票→结案的关键节点</span>
+                </div>
+            `;
+        }
+
+        async function loadSettlements() {
+            const params = new URLSearchParams(new FormData(filtersForm));
+            params.append('page', '1');
+            if (params.get('overdue_only') === 'on') {
+                params.set('overdue_only', 'true');
+            }
+            const res = await fetch(`${API_BASE}?${params}`);
+            const data = await res.json();
+            renderSettlements(data.settlements || []);
+        }
+
+        function renderSettlements(settlements) {
+            if (!settlements.length) {
+                financeTable.innerHTML = '<tr><td colspan="8" class="empty">暂无结算单，尝试调整筛选条件</td></tr>';
+                return;
+            }
+            financeTable.innerHTML = settlements.map(s => {
+                const isOverdue = s.is_overdue ? '⚠️ ' : '';
+                const collectionRate = s.collection_rate || 0;
+                return `
+                    <tr data-id="${s.settlement_id}">
+                        <td>${isOverdue}${s.settlement_id}</td>
+                        <td>${s.order_id || '—'}</td>
+                        <td>${s.customer || '—'}</td>
+                        <td>¥${Number(s.amount || 0).toLocaleString()}</td>
+                        <td>¥${Number(s.received_amount || 0).toLocaleString()}</td>
+                        <td>
+                            <div class="progress-bar" style="width:100px;">
+                                <span style="width:${Math.min(100, collectionRate)}%;"></span>
+                                <label>${collectionRate.toFixed(1)}%</label>
+                            </div>
+                        </td>
+                        <td>${s.due_date || '—'}</td>
+                        <td><span class="${statusClass(s.status_label)}">${s.status_label || '—'}</span></td>
+                    </tr>
+                `;
+            }).join('');
+
+            financeTable.querySelectorAll('tr').forEach(row => {
+                row.addEventListener('click', () => {
+                    const id = row.getAttribute('data-id');
+                    currentSettlementId = id;
+                    loadSettlementDetail(id);
+                });
+            });
+        }
+
+        async function loadSettlementDetail(settlementId) {
+            const res = await fetch(`${API_BASE}/${settlementId}`);
+            if (!res.ok) {
+                detailTitle.textContent = '结算单不存在';
+                return;
+            }
+            const data = await res.json();
+            const s = data.settlement || {};
+            detailTitle.textContent = `结算单 ${s.settlement_id}`;
+            detailSubtitle.innerHTML = `
+                <span class="chip">${s.order_id || '未关联订单'}</span>
+                <span class="chip">${s.currency || 'CNY'}</span>
+                <span class="chip ${statusClass(data.status_label)}">${data.status_label || '未知'}</span>
+            `;
+
+            renderSettlementInfo(s, data);
+            renderCollectionProgress(data.financial_summary);
+            renderLifecycleDetail(data.lifecycle || []);
+            renderDimensionDetail(data.dimension_breakdown || []);
+            renderInsights(data.insights || []);
+        }
+
+        function renderSettlementInfo(s, data) {
+            const summary = data.financial_summary || {};
+            settlementInfo.innerHTML = `
+                <div class="settlement-item">
+                    <label>结算金额</label>
+                    <strong>¥${(summary.total_amount || 0).toLocaleString()}</strong>
+                </div>
+                <div class="settlement-item">
+                    <label>已收款</label>
+                    <strong>¥${(summary.received_amount || 0).toLocaleString()}</strong>
+                </div>
+                <div class="settlement-item">
+                    <label>未收款</label>
+                    <strong>¥${(summary.outstanding_amount || 0).toLocaleString()}</strong>
+                </div>
+                <div class="settlement-item">
+                    <label>收款率</label>
+                    <strong>${summary.collection_rate || 0}%</strong>
+                </div>
+                <div class="settlement-item">
+                    <label>到期日</label>
+                    <strong>${s.due_date || '—'}</strong>
+                </div>
+                <div class="settlement-item">
+                    <label>账龄</label>
+                    <strong>${summary.age_days ? summary.age_days + '天' : '—'}</strong>
+                </div>
+                <div class="settlement-item">
+                    <label>发票号</label>
+                    <strong>${s.invoice_number || '—'}</strong>
+                </div>
+                <div class="settlement-item">
+                    <label>客户</label>
+                    <strong>${s.customer || '—'}</strong>
+                </div>
+            `;
+        }
+
+        function renderCollectionProgress(summary) {
+            if (!summary) return;
+            const rate = summary.collection_rate || 0;
+            collectionSection.innerHTML = `
+                <div>
+                    <h3>收款进度</h3>
+                    <div class="progress-bar">
+                        <span style="width:${Math.min(100, rate)}%;"></span>
+                        <label>${rate.toFixed(1)}%</label>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderLifecycleDetail(steps) {
+            lifecycleView.innerHTML = steps.map(step => `
+                <div class="lifecycle-step ${step.status}">
+                    <div style="font-weight:600;">${step.stage}</div>
+                    <div style="font-size:12px;color:var(--text-sub);">序号 ${step.sequence}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderDimensionDetail(items) {
+            if (!items.length && overviewCache?.dimension_summary) {
+                items = overviewCache.dimension_summary;
+            }
+            dimensionList.innerHTML = items.map(item => {
+                const score = item.score || 0;
+                const percentage = Math.min(100, Math.round(score * 100));
+                return `
+                    <div>
+                        <div class="dimension-item">
+                            <span>${item.dimension || item.dimension_id}</span>
+                            <span>${percentage}%</span>
+                        </div>
+                        <div class="bar"><span style="width:${percentage}%;"></span></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderInsights(list) {
+            if (!list.length) {
+                insightsBox.innerHTML = '<p style="color:var(--text-sub);">暂无额外洞察</p>';
+                return;
+            }
+            insightsBox.innerHTML = list.map(text => `<p>${text}</p>`).join('');
+        }
+
+        function renderCapabilities(items) {
+            capabilityChips.innerHTML = items.slice(0, 15).map(item => `
+                <span class="chip">${item.name || item}</span>
+            `).join('');
+        }
+
+        filtersForm.addEventListener('submit', evt => {
+            evt.preventDefault();
+            loadSettlements();
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            loadOverview();
+            loadSettlements();
+            if (currentSettlementId) loadSettlementDetail(currentSettlementId);
+        });
+
+        document.getElementById('createBtn').addEventListener('click', async () => {
+            const orderId = prompt('订单号');
+            if (!orderId) return;
+            const amount = Number(prompt('结算金额（元）') || 0);
+            if (amount <= 0) return;
+            const payload = {
+                order_id: orderId,
+                amount,
+                currency: 'CNY',
+                status: 'awaiting_invoice'
+            };
+            const res = await fetch(API_BASE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert('结算单创建成功');
+                loadOverview();
+                loadSettlements();
+            } else {
+                const data = await res.json();
+                alert(`创建失败: ${data.detail || '未知错误'}`);
+            }
+        });
+
+        document.getElementById('paymentBtn').addEventListener('click', async () => {
+            if (!currentSettlementId) {
+                alert('请先选择结算单');
+                return;
+            }
+            const amount = Number(prompt('收款金额（元）') || 0);
+            if (amount <= 0) return;
+            const paymentDate = prompt('收款日期（YYYY-MM-DD）') || new Date().toISOString().split('T')[0];
+            const paymentMethod = prompt('收款方式（银行转账/现金/支票等）') || '银行转账';
+            const payload = {
+                payment_date: paymentDate,
+                payment_amount: amount,
+                payment_method: paymentMethod
+            };
+            const res = await fetch(`${API_BASE}/${currentSettlementId}/payment`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                alert('收款记录成功');
+                loadOverview();
+                loadSettlements();
+                loadSettlementDetail(currentSettlementId);
+            } else {
+                const data = await res.json();
+                alert(`收款失败: ${data.detail || '未知错误'}`);
+            }
+        });
+
+        loadOverview();
+        loadSettlements();
+    </script>
+</body>
+</html>
+

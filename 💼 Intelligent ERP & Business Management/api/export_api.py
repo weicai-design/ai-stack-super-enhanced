@@ -10,6 +10,11 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import io
 
+# 修复相对导入问题 - T0006-3优化
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from core.data_exporter import DataExporter
 from core.export_listener_bridge import DualChannelExportManager
 from core.listener_container import data_listener

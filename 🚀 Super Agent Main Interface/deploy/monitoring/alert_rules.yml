@@ -1,0 +1,180 @@
+# AI-STACK 告警规则配置
+groups:
+  # 应用级别告警
+  - name: ai_stack_app_alerts
+    rules:
+      # 高错误率告警
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: ai-stack
+        annotations:
+          summary: "高错误率检测"
+          description: "应用错误率超过5% (当前值: {{ $value }}%)"
+          
+      # 响应时间告警
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: ai-stack
+        annotations:
+          summary: "高响应时间检测"
+          description: "95%分位响应时间超过2秒 (当前值: {{ $value }}秒)"
+          
+      # 服务不可用告警
+      - alert: ServiceDown
+        expr: up{job="ai-stack-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ai-stack
+        annotations:
+          summary: "服务不可用"
+          description: "AI-STACK应用服务已停止响应"
+          
+      # 内存使用告警
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes{container="ai-stack-app"} / container_spec_memory_limit_bytes{container="ai-stack-app"}) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: ai-stack
+        annotations:
+          summary: "高内存使用率"
+          description: "应用内存使用率超过80% (当前值: {{ $value | humanizePercentage }})"
+          
+      # CPU使用告警
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{container="ai-stack-app"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: ai-stack
+        annotations:
+          summary: "高CPU使用率"
+          description: "应用CPU使用率超过80% (当前值: {{ $value | humanizePercentage }})"
+
+  # 数据库级别告警
+  - name: database_alerts
+    rules:
+      # 数据库连接数告警
+      - alert: HighDatabaseConnections
+        expr: pg_stat_activity_count > 50
+        for: 2m
+        labels:
+          severity: warning
+          service: postgres
+        annotations:
+          summary: "高数据库连接数"
+          description: "数据库连接数超过50 (当前值: {{ $value }})"
+          
+      # 数据库慢查询告警
+      - alert: SlowQueries
+        expr: rate(pg_stat_statements_calls{query!~"(COMMIT|BEGIN|ROLLBACK)"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: postgres
+        annotations:
+          summary: "慢查询检测"
+          description: "数据库慢查询数量异常 (当前值: {{ $value }})"
+
+  # Redis级别告警
+  - name: redis_alerts
+    rules:
+      # Redis内存使用告警
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 3m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "高Redis内存使用率"
+          description: "Redis内存使用率超过80% (当前值: {{ $value | humanizePercentage }})"
+          
+      # Redis连接数告警
+      - alert: HighRedisConnections
+        expr: redis_connected_clients > 100
+        for: 2m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "高Redis连接数"
+          description: "Redis连接数超过100 (当前值: {{ $value }})"
+
+  # 系统级别告警
+  - name: system_alerts
+    rules:
+      # 磁盘空间告警
+      - alert: LowDiskSpace
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) > 0.85
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "磁盘空间不足"
+          description: "磁盘使用率超过85% (当前值: {{ $value | humanizePercentage }})"
+          
+      # 系统负载告警
+      - alert: HighSystemLoad
+        expr: node_load1 > (count(node_cpu_seconds_total{mode="idle"}) by (instance) * 0.8)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "高系统负载"
+          description: "系统1分钟负载超过CPU核心数的80%"
+
+  # 业务级别告警
+  - name: business_alerts
+    rules:
+      # API调用频率异常
+      - alert: APICallAnomaly
+        expr: abs(delta(api_calls_total[10m])) > 1000
+        for: 2m
+        labels:
+          severity: warning
+          service: ai-stack
+        annotations:
+          summary: "API调用频率异常"
+          description: "API调用频率在10分钟内变化超过1000次"
+          
+      # 认证失败率告警
+      - alert: HighAuthFailureRate
+        expr: rate(auth_failures_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: critical
+          service: ai-stack
+        annotations:
+          summary: "高认证失败率"
+          description: "认证失败率异常 (当前值: {{ $value }}次/分钟)"
+
+  # 网络级别告警
+  - name: network_alerts
+    rules:
+      # 网络延迟告警
+      - alert: HighNetworkLatency
+        expr: rate(network_transmit_duration_seconds_total[5m]) > 0.5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "高网络延迟"
+          description: "网络传输延迟超过0.5秒"
+          
+      # 带宽使用告警
+      - alert: HighBandwidthUsage
+        expr: rate(network_transmit_bytes_total[5m]) > 100000000  # 100MB/s
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "高带宽使用"
+          description: "网络带宽使用超过100MB/s"

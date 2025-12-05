@@ -1,0 +1,357 @@
+name: Procurement Module CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'modules/procurement/**'
+      - '.github/workflows/procurement-ci.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'modules/procurement/**'
+
+env:
+  PYTHON_VERSION: '3.8'
+  APP_NAME: 'procurement'
+
+jobs:
+  # 代码质量检查
+  code-quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort mypy bandit safety
+    
+    - name: Check code formatting with black
+      run: |
+        black --check modules/procurement/
+    
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only modules/procurement/
+    
+    - name: Lint with flake8
+      run: |
+        flake8 modules/procurement/ --count --max-complexity=10 --max-line-length=88 --statistics
+    
+    - name: Security scan with bandit
+      run: |
+        bandit -r modules/procurement/ -f json -o bandit-report.json || true
+    
+    - name: Check for vulnerable dependencies
+      run: |
+        safety check --json > safety-report.json || true
+
+  # 单元测试
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_procurement
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r modules/procurement/requirements.txt
+        pip install pytest pytest-cov pytest-mock
+    
+    - name: Run unit tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_procurement
+      run: |
+        cd modules/procurement
+        pytest tests/ -v --cov=./ --cov-report=xml --cov-report=html
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./modules/procurement/coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  # 集成测试
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: procurement_integration
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:6-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r modules/procurement/requirements.txt
+        pip install pytest requests
+    
+    - name: Run integration tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/procurement_integration
+        REDIS_URL: redis://localhost:6379/0
+      run: |
+        cd modules/procurement
+        python -m pytest tests/test_integration.py -v
+    
+    - name: Run end-to-end tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/procurement_integration
+        REDIS_URL: redis://localhost:6379/0
+      run: |
+        cd modules/procurement
+        python -m pytest tests/test_e2e.py -v
+
+  # 性能测试
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r modules/procurement/requirements.txt
+        pip install locust
+    
+    - name: Run performance tests
+      run: |
+        cd modules/procurement
+        locust -f tests/performance/locustfile.py --headless -u 10 -r 2 -t 1m --host=http://localhost:8000
+    
+    - name: Generate performance report
+      run: |
+        cd modules/procurement
+        python tests/performance/generate_report.py
+
+  # 构建Docker镜像
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./modules/procurement
+        file: ./modules/procurement/Dockerfile
+        push: true
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.APP_NAME }}:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.APP_NAME }}:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # 部署到测试环境
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-docker
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy to staging server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.STAGING_HOST }}
+        username: ${{ secrets.STAGING_USER }}
+        key: ${{ secrets.STAGING_SSH_KEY }}
+        script: |
+          cd /opt/procurement
+          git pull origin develop
+          docker-compose down
+          docker-compose up -d
+          sleep 30
+          curl -f http://localhost:8000/api/procurement/health || exit 1
+
+  # 部署到生产环境
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-docker, deploy-staging]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Deploy to production server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.PRODUCTION_HOST }}
+        username: ${{ secrets.PRODUCTION_USER }}
+        key: ${{ secrets.PRODUCTION_SSH_KEY }}
+        script: |
+          cd /opt/procurement
+          # 创建备份
+          docker-compose exec -T app python backup_script.py
+          # 拉取最新镜像
+          docker-compose pull
+          # 滚动更新
+          docker-compose up -d
+          # 健康检查
+          sleep 60
+          curl -f http://localhost:8000/api/procurement/health || exit 1
+          # 清理旧镜像
+          docker image prune -f
+
+  # 安全扫描
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: './modules/procurement'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # 文档生成
+  generate-docs:
+    name: Generate Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install sphinx sphinx-rtd-theme
+    
+    - name: Generate API documentation
+      run: |
+        cd modules/procurement
+        python -m pydoc -w procurement_api.py procurement_manager.py
+    
+    - name: Upload documentation
+      uses: actions/upload-artifact@v4
+      with:
+        name: procurement-docs
+        path: modules/procurement/*.html
+
+# 工作流通知
+on:
+  workflow_run:
+    workflows: ["Procurement Module CI/CD"]
+    types:
+      - completed
+  
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production

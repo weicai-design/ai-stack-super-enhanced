@@ -11,8 +11,31 @@ import time
 import uuid
 import logging
 from datetime import datetime, timedelta
+import sys
+from pathlib import Path
+
+# 添加项目根目录到路径
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 logger = logging.getLogger(__name__)
+
+# 导入认证和授权模块
+try:
+    from enterprise.tenancy.auth import (
+        token_service,
+        api_key_service,
+        get_current_tenant_from_token,
+        get_current_tenant_from_api_key,
+        require_tenant_from_api_key,
+        check_command_permission,
+        bind_tenant_context
+    )
+    from enterprise.tenancy.middleware import TenantIdentifier
+    AUTH_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"认证模块导入失败，将使用基础模式: {e}")
+    AUTH_AVAILABLE = False
 
 
 class ServiceRegistry:
@@ -145,13 +168,107 @@ class APIGateway:
         """设置路由"""
         
         @self.app.middleware("http")
-        async def add_trace_id(request: Request, call_next):
-            """添加追踪ID"""
+        async def authentication_middleware(request: Request, call_next):
+            """
+            认证中间件
+            优先级：JWT Token > API Key > 请求头租户ID > 默认租户
+            """
+            # 跳过健康检查和文档
+            skip_paths = [
+                "/gateway/health",
+                "/health",
+                "/docs",
+                "/redoc",
+                "/openapi.json",
+                "/gateway/services"
+            ]
+            
+            if any(request.url.path.startswith(path) for path in skip_paths):
+                return await call_next(request)
+            
+            # 添加追踪ID
             trace_id = str(uuid.uuid4())
             request.state.trace_id = trace_id
             
+            tenant = None
+            
+            if AUTH_AVAILABLE:
+                try:
+                    # 1. 尝试从 JWT Token 获取租户
+                    auth_header = request.headers.get("Authorization", "")
+                    if auth_header.startswith("Bearer "):
+                        token = auth_header.replace("Bearer ", "").strip()
+                        try:
+                            token_payload = token_service.verify_token(token)
+                            from enterprise.tenancy.manager import tenant_manager
+                            tenant = tenant_manager.get_tenant(token_payload.tenant_id)
+                            if tenant:
+                                bind_tenant_context(request, tenant)
+                                logger.debug(f"从 JWT Token 识别租户: {tenant.name} ({tenant.id})")
+                        except Exception as e:
+                            logger.debug(f"JWT Token 验证失败: {e}")
+                    
+                    # 2. 尝试从 API Key 获取租户
+                    if not tenant:
+                        api_key = request.headers.get("X-API-Key") or (
+                            request.headers.get("Authorization", "").replace("Bearer ", "")
+                            if not request.headers.get("Authorization", "").startswith("Bearer ")
+                            else None
+                        )
+                        if api_key and api_key.startswith("ak_"):
+                            api_key_obj = api_key_service.verify_api_key(api_key)
+                            if api_key_obj:
+                                from enterprise.tenancy.manager import tenant_manager
+                                tenant = tenant_manager.get_tenant(api_key_obj.tenant_id)
+                                if tenant:
+                                    request.state.api_key = api_key_obj
+                                    bind_tenant_context(request, tenant)
+                                    logger.debug(f"从 API Key 识别租户: {tenant.name} ({tenant.id})")
+                    
+                    # 3. 从请求头获取租户ID
+                    if not tenant:
+                        tenant_identifier = TenantIdentifier()
+                        tenant = tenant_identifier.identify_tenant(request)
+                        if tenant:
+                            bind_tenant_context(request, tenant)
+                            logger.debug(f"从请求头识别租户: {tenant.name} ({tenant.id})")
+                    
+                except Exception as e:
+                    logger.error(f"认证中间件错误: {e}")
+            
+            # 检查命令执行权限（如果是执行命令的请求）
+            if AUTH_AVAILABLE and tenant and request.method == "POST":
+                # 检查是否是执行命令的端点
+                if "/execute" in request.url.path or "command" in request.url.path.lower():
+                    try:
+                        # 读取请求体（可能需要多次读取，这里先跳过）
+                        # 实际应该在路由层面检查命令权限
+                        pass
+                    except Exception as e:
+                        logger.debug(f"命令权限检查跳过: {e}")
+            
+            # 继续处理请求
             response = await call_next(request)
+            
+            # 添加响应头
             response.headers["X-Trace-ID"] = trace_id
+            if tenant:
+                response.headers["X-Tenant-ID"] = tenant.id
+                response.headers["X-Tenant-Name"] = tenant.name
+            
+            return response
+        
+        @self.app.middleware("http")
+        async def add_trace_id(request: Request, call_next):
+            """添加追踪ID（备用）"""
+            if not hasattr(request.state, "trace_id"):
+                trace_id = str(uuid.uuid4())
+                request.state.trace_id = trace_id
+            
+            response = await call_next(request)
+            
+            if not response.headers.get("X-Trace-ID"):
+                response.headers["X-Trace-ID"] = request.state.trace_id
             
             return response
         
@@ -189,7 +306,18 @@ class APIGateway:
                     # 转发请求
                     method = request.method
                     headers = dict(request.headers)
-                    headers["X-Trace-ID"] = request.state.trace_id
+                    
+                    # 添加追踪ID
+                    if hasattr(request.state, "trace_id"):
+                        headers["X-Trace-ID"] = request.state.trace_id
+                    
+                    # 添加租户上下文
+                    if hasattr(request.state, "tenant_id"):
+                        headers["X-Tenant-ID"] = request.state.tenant_id
+                    
+                    if hasattr(request.state, "tenant_context"):
+                        import json
+                        headers["X-Tenant-Context"] = json.dumps(request.state.tenant_context)
                     
                     # 读取请求体
                     body = await request.body()

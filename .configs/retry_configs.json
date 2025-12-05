@@ -1,0 +1,32 @@
+{
+  "updated_at": "2025-11-26T15:18:36.964279",
+  "configs": [
+    {
+      "name": "fixed_default",
+      "strategy": "fixed",
+      "max_retries": 3,
+      "initial_delay": 2.0,
+      "max_delay": 10.0,
+      "retryable_status_codes": null,
+      "retryable_exceptions": null
+    },
+    {
+      "name": "exp_backoff",
+      "strategy": "exponential",
+      "max_retries": 5,
+      "initial_delay": 1.0,
+      "max_delay": 60.0,
+      "retryable_status_codes": null,
+      "retryable_exceptions": null
+    },
+    {
+      "name": "linear_gentle",
+      "strategy": "linear",
+      "max_retries": 4,
+      "initial_delay": 1.5,
+      "max_delay": 30.0,
+      "retryable_status_codes": null,
+      "retryable_exceptions": null
+    }
+  ]
+}

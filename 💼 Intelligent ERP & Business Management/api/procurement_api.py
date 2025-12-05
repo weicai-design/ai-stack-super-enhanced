@@ -1,13 +1,65 @@
 """
 采购管理API
+提供采购申请、采购订单、供应商管理等接口
+支持健康检查、配置管理、限流熔断
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-router = APIRouter(prefix="/api/procurement", tags=["procurement"])
+# 导入采购管理模块
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from modules.procurement.procurement_manager import ProcurementManager
+from modules.config.config_manager import config_manager
+from modules.health.health_checker import health_checker
+
+router = APIRouter(prefix="/api/procurement", tags=["ERP Procurement Management"])
+procurement_manager = ProcurementManager()
+
+
+class HealthResponse(BaseModel):
+    """健康检查响应"""
+    status: str
+    healthy_count: int
+    total_count: int
+    checks: Dict[str, Any]
+    timestamp: str
+
+
+class ConfigResponse(BaseModel):
+    """配置响应"""
+    environment: str
+    configs: Dict[str, Any]
+
+
+@router.get("/health", response_model=HealthResponse)
+async def health_check():
+    """健康检查接口"""
+    status = health_checker.get_status()
+    return {
+        "status": status["overall_status"],
+        "healthy_count": status["healthy_count"],
+        "total_count": status["total_count"],
+        "checks": status["checks"],
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@router.get("/config", response_model=ConfigResponse)
+async def get_config():
+    """获取配置信息"""
+    return {
+        "environment": config_manager.get_environment().value,
+        "configs": {
+            "procurement": config_manager.get("procurement", "procurement", {}),
+            "rate_limit": config_manager.get("rate_limit", "rate_limit", {}),
+            "circuit_breaker": config_manager.get("circuit_breaker", "circuit_breaker", {})
+        }
+    }
 
 
 class SupplierCreate(BaseModel):

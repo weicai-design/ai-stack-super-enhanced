@@ -9,6 +9,11 @@ from typing import Dict, List, Optional, Any
 from datetime import date, datetime
 from sqlalchemy.orm import Session
 
+# 修复相对导入问题 - T0006-3优化
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from core.database import get_db
 from core.data_integration import DataIntegrationService
 
@@ -348,7 +353,7 @@ async def get_integration_status(db: Session = Depends(get_db)):
         集成状态信息
     """
     try:
-        from core.database_models import Order, FinancialData, ProcessInstance
+        from ..core.database_models import Order, FinancialData, ProcessInstance
         
         # 统计各模块数据量
         order_count = db.query(Order).count()

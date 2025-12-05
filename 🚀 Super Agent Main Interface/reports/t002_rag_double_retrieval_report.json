@@ -1,0 +1,33 @@
+{
+  "task": "T002 - RAG双检索完整验证",
+  "timestamp": "2025-11-27T01:58:49.372752Z",
+  "total_tests": 5,
+  "passed_tests": 5,
+  "pass_rate": 100.0,
+  "test_results": [
+    [
+      "验证器初始化",
+      "PASSED"
+    ],
+    [
+      "单例模式",
+      "PASSED"
+    ],
+    [
+      "第1次检索验证",
+      "PASSED"
+    ],
+    [
+      "完整双检索验证",
+      "PASSED"
+    ],
+    [
+      "验证统计信息",
+      "PASSED"
+    ]
+  ],
+  "mock_service_stats": {
+    "retrieve_count": 2,
+    "retrieve_for_integration_count": 1
+  }
+}

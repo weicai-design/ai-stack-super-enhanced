@@ -7,6 +7,11 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import asyncio
 from .task_templates import TaskTemplateLibrary
+from .task_lifecycle_manager import (
+    TaskLifecycleManager,
+    TaskPriority,
+    TaskStatus,
+)
 
 class TaskPlanning:
     """
@@ -19,11 +24,12 @@ class TaskPlanning:
     4. 任务规划/执行/监控/分析
     """
     
-    def __init__(self, memo_system=None):
+    def __init__(self, memo_system=None, lifecycle_manager: Optional[TaskLifecycleManager] = None):
         self.memo_system = memo_system
         self.tasks = []
         self.plans = []
         self.template_library = TaskTemplateLibrary()  # 任务模板库
+        self.lifecycle_manager = lifecycle_manager
         
     async def extract_tasks_from_memos(self) -> List[Dict[str, Any]]:
         """
@@ -92,6 +98,7 @@ class TaskPlanning:
                     "needs_confirmation": True,  # 需要用户确认
                     "extraction_confidence": task_info.get("confidence", 0.7)
                 }
+                self._register_lifecycle_task(task)
                 extracted_tasks.append(task)
                 processed_memo_ids.add(memo_id)
         
@@ -268,7 +275,38 @@ class TaskPlanning:
         
         return min(confidence, 1.0)  # 限制在0-1之间
     
-    async def create_plan(self, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _register_lifecycle_task(self, task: Dict[str, Any]) -> None:
+        """将任务注册到生命周期管理器"""
+        if not self.lifecycle_manager:
+            return
+        try:
+            priority = TaskPriority(task.get("priority", "medium"))
+        except ValueError:
+            priority = TaskPriority.MEDIUM
+        lifecycle = self.lifecycle_manager.create_task(
+            task_name=task.get("title", "未命名任务"),
+            task_type=task.get("template_type", "general"),
+            priority=priority,
+            metadata={
+                "task_source": task.get("source"),
+                "original_task_id": task.get("id"),
+                "tags": task.get("tags"),
+                "due_date": task.get("due_date"),
+                "extraction_confidence": task.get("extraction_confidence"),
+            },
+        )
+        task["lifecycle_id"] = lifecycle.task_id
+    
+    async def create_plan(
+        self,
+        tasks: List[Dict[str, Any]],
+        *,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        category: str = "work",
+        priority: str = "medium",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         创建工作计划⭐增强版（世界级功能）
         
@@ -290,8 +328,14 @@ class TaskPlanning:
         # 生成计划建议
         suggestions = self._generate_plan_suggestions(sorted_tasks, total_duration)
         
+        plan_id = len(self.plans) + 1
+        plan_title = title or f"智能工作计划 #{plan_id}"
         plan = {
-            "id": len(self.plans) + 1,
+            "id": plan_id,
+            "title": plan_title,
+            "description": description or "",
+            "category": category,
+            "priority": priority,
             "tasks": sorted_tasks,
             "total_tasks": len(sorted_tasks),
             "pending_tasks": len([t for t in sorted_tasks if t.get("status") == "pending"]),
@@ -301,12 +345,39 @@ class TaskPlanning:
             "critical_path": critical_path,
             "suggestions": suggestions,
             "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
             "status": "draft",
-            "needs_confirmation": True  # 需要用户确认
+            "needs_confirmation": True,  # 需要用户确认
+            "metadata": metadata or {},
         }
+        
+        for task in sorted_tasks:
+            task["plan_id"] = plan_id
+            task.setdefault("plan_history", []).append(plan_id)
         
         self.plans.append(plan)
         return plan
+    
+    async def create_plan_from_task_ids(
+        self,
+        task_ids: Optional[List[int]] = None,
+        **plan_kwargs,
+    ) -> Dict[str, Any]:
+        """根据任务ID创建计划（若未指定则使用待确认任务）"""
+        selected_tasks = []
+        if task_ids:
+            selected_tasks = [t for t in self.tasks if t["id"] in task_ids]
+        else:
+            selected_tasks = [
+                t for t in self.tasks
+                if t.get("status") in ("pending", "confirmed", "scheduled")
+            ]
+        if not selected_tasks:
+            raise ValueError("无可用任务用以生成工作计划")
+        return await self.create_plan(selected_tasks, **plan_kwargs)
+    
+    def get_plan(self, plan_id: int) -> Optional[Dict[str, Any]]:
+        return next((p for p in self.plans if p["id"] == plan_id), None)
     
     def _sort_tasks_intelligently(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """智能任务排序"""
@@ -421,10 +492,17 @@ class TaskPlanning:
                 if confirmed:
                     task["status"] = "confirmed"
                     task["confirmed_at"] = datetime.now().isoformat()
+                    if task.get("lifecycle_id") and self.lifecycle_manager:
+                        self.lifecycle_manager.mark_task_ready(
+                            task["lifecycle_id"],
+                            {"confirmed_at": task["confirmed_at"]},
+                        )
                 else:
                     task["status"] = "rejected"
                     task["rejection_reason"] = reason
                     task["rejected_at"] = datetime.now().isoformat()
+                    if task.get("lifecycle_id") and self.lifecycle_manager:
+                        self.lifecycle_manager.cancel_task(task["lifecycle_id"])
                 
                 task["needs_confirmation"] = False
                 task.setdefault("timeline", []).append({
@@ -435,6 +513,40 @@ class TaskPlanning:
                 return task
         
         return None
+    
+    def update_plan(self, plan_id: int, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """更新计划元数据或任务"""
+        plan = self.get_plan(plan_id)
+        if not plan:
+            return None
+        allowed_fields = {"title", "description", "category", "priority", "metadata"}
+        for field in allowed_fields:
+            if field in updates:
+                plan[field] = updates[field]
+        if "task_ids" in updates:
+            task_ids = updates["task_ids"] or []
+            new_tasks = [
+                t for t in self.tasks if t["id"] in task_ids
+            ] if task_ids else plan["tasks"]
+            plan["tasks"] = self._sort_tasks_intelligently(new_tasks)
+            plan["total_tasks"] = len(plan["tasks"])
+            plan["pending_tasks"] = len([t for t in plan["tasks"] if t.get("status") == "pending"])
+            plan["completed_tasks"] = len([t for t in plan["tasks"] if t.get("status") == "completed"])
+            plan["total_duration_minutes"] = sum(t.get("estimated_duration", 0) for t in plan["tasks"])
+            plan["estimated_completion_time"] = self._estimate_completion_time(plan["tasks"])
+        plan["updated_at"] = datetime.now().isoformat()
+        return plan
+    
+    def delete_plan(self, plan_id: int) -> bool:
+        """删除计划"""
+        for idx, plan in enumerate(self.plans):
+            if plan["id"] == plan_id:
+                for task in plan.get("tasks", []):
+                    if task.get("plan_id") == plan_id:
+                        del task["plan_id"]
+                self.plans.pop(idx)
+                return True
+        return False
     
     async def schedule_task(
         self,
@@ -456,6 +568,15 @@ class TaskPlanning:
                 task["status"] = "scheduled"
                 task["scheduled_at"] = datetime.now().isoformat()
                 task["needs_confirmation"] = False
+                if task.get("lifecycle_id") and self.lifecycle_manager:
+                    self.lifecycle_manager.mark_task_ready(
+                        task["lifecycle_id"],
+                        {
+                            "scheduled_for": scheduled_for,
+                            "owner": task.get("owner"),
+                            "scheduled_at": task["scheduled_at"],
+                        },
+                    )
                 task.setdefault("timeline", []).append({
                     "event": "schedule",
                     "timestamp": task["scheduled_at"],
@@ -483,17 +604,26 @@ class TaskPlanning:
         if task.get("status") not in ("confirmed", "scheduled"):
             return {"success": False, "error": "任务未确认或未排期"}
         
+        lifecycle_id = task.get("lifecycle_id")
+        
         # 检查依赖任务是否完成
         dependencies = task.get("dependencies", [])
         if dependencies:
             for dep_task_id in dependencies:
                 dep_task = next((t for t in self.tasks if t["id"] == dep_task_id), None)
                 if dep_task and dep_task.get("status") != "completed":
-                    return {
+                    result = {
                         "success": False,
                         "error": f"依赖任务 {dep_task_id} 尚未完成",
                         "blocked_by": dep_task_id
                     }
+                    if lifecycle_id and self.lifecycle_manager:
+                        self.lifecycle_manager.set_task_status(
+                            lifecycle_id,
+                            TaskStatus.PENDING,
+                            {"blocked_by": dep_task_id},
+                        )
+                    return result
         
         # 执行任务
         task["status"] = "in_progress"
@@ -504,6 +634,8 @@ class TaskPlanning:
             "event": "execute",
             "timestamp": task["started_at"]
         })
+        if lifecycle_id and self.lifecycle_manager:
+            self.lifecycle_manager.start_task(lifecycle_id)
         
         # 执行任务步骤
         steps = task.get("steps", [])
@@ -532,6 +664,13 @@ class TaskPlanning:
                         if step_result.get("success"):
                             completed_steps += 1
                             task["progress"] = int((completed_steps / total_steps) * 100)
+                            if lifecycle_id and self.lifecycle_manager:
+                                self.lifecycle_manager.update_progress(
+                                    lifecycle_id,
+                                    progress=task["progress"],
+                                    current_step=step_name,
+                                    completed_steps=completed_steps,
+                                )
                             break
                         else:
                             if attempt < max_retries:
@@ -543,6 +682,12 @@ class TaskPlanning:
                             task["status"] = "failed"
                             task["failed_at"] = datetime.now().isoformat()
                             task["failure_reason"] = step_result.get("error", "步骤执行失败")
+                            if lifecycle_id and self.lifecycle_manager:
+                                self.lifecycle_manager.fail_task(
+                                    lifecycle_id,
+                                    task["failure_reason"],
+                                    retry=False,
+                                )
                             return {
                                 "success": False,
                                 "error": f"步骤 '{step_name}' 执行失败",
@@ -565,6 +710,12 @@ class TaskPlanning:
                         task["status"] = "failed"
                         task["failed_at"] = datetime.now().isoformat()
                         task["failure_reason"] = str(e)
+                        if lifecycle_id and self.lifecycle_manager:
+                            self.lifecycle_manager.fail_task(
+                                lifecycle_id,
+                                task["failure_reason"],
+                                retry=False,
+                            )
                         return {
                             "success": False,
                             "error": f"步骤 '{step_name}' 执行异常: {str(e)}",
@@ -583,13 +734,22 @@ class TaskPlanning:
             "timestamp": task["completed_at"]
         })
         
+        execution_time = (
+            datetime.fromisoformat(task["completed_at"]) - 
+            datetime.fromisoformat(task["started_at"])
+        ).total_seconds()
+        if lifecycle_id and self.lifecycle_manager:
+            self.lifecycle_manager.complete_task(
+                lifecycle_id,
+                {
+                    "execution_time": execution_time,
+                    "steps": len(task.get("steps", [])),
+                },
+            )
         return {
             "success": True,
             "task": task,
-            "execution_time": (
-                datetime.fromisoformat(task["completed_at"]) - 
-                datetime.fromisoformat(task["started_at"])
-            ).total_seconds()
+            "execution_time": execution_time
         }
     
     async def _execute_task_step(self, task: Dict, step: Dict) -> Dict[str, Any]:

@@ -5,13 +5,181 @@ AI-STACK V5.0 - 智能工作计划与任务API
 日期：2025-11-09
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from enum import Enum
 import time
 import asyncio
+import redis
+from functools import wraps
+from circuitbreaker import circuit
+import logging
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ==================== 限流熔断配置 ====================
+
+# 限流配置
+RATE_LIMIT_CONFIG = {
+    "create_task": {"max_requests": 10, "window_seconds": 60},  # 每分钟最多10个创建请求
+    "list_tasks": {"max_requests": 30, "window_seconds": 60},  # 每分钟最多30个查询请求
+    "confirm_task": {"max_requests": 5, "window_seconds": 60},  # 每分钟最多5个确认请求
+    "sync_agent": {"max_requests": 3, "window_seconds": 60},  # 每分钟最多3个同步请求
+}
+
+# 熔断器配置
+CIRCUIT_BREAKER_CONFIG = {
+    "failure_threshold": 5,  # 连续失败5次触发熔断
+    "recovery_timeout": 30,  # 30秒后尝试恢复
+    "expected_exception": (Exception,),  # 监控所有异常
+}
+
+# Redis连接（用于分布式限流）
+redis_client = None
+try:
+    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+    redis_client.ping()
+except Exception as e:
+    logger.warning(f"Redis连接失败，使用内存限流: {e}")
+    redis_client = None
+
+# 内存限流存储
+rate_limit_memory = {}
+
+# ==================== 限流熔断装饰器 ====================
+
+def rate_limit(limit_name: str):
+    """限流装饰器"""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            config = RATE_LIMIT_CONFIG.get(limit_name)
+            if not config:
+                return await func(*args, **kwargs)
+            
+            # 获取客户端IP（从FastAPI Request对象）
+            client_ip = "unknown"
+            for arg in args:
+                if isinstance(arg, Request):
+                    client_ip = arg.client.host
+                    break
+            
+            # 生成限流键
+            key = f"rate_limit:{limit_name}:{client_ip}"
+            
+            # 检查限流
+            if not check_rate_limit(key, config["max_requests"], config["window_seconds"]):
+                logger.warning(f"限流触发: {limit_name} from {client_ip}")
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"请求过于频繁，请{config['window_seconds']}秒后再试"
+                )
+            
+            return await func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def check_rate_limit(key: str, max_requests: int, window_seconds: int) -> bool:
+    """检查是否超过限流"""
+    current_time = int(time.time())
+    window_start = current_time - window_seconds
+    
+    if redis_client:
+        # 使用Redis进行分布式限流
+        try:
+            # 使用Redis事务确保原子性
+            pipe = redis_client.pipeline()
+            pipe.zremrangebyscore(key, 0, window_start)
+            pipe.zadd(key, {str(current_time): current_time})
+            pipe.zcard(key)
+            pipe.expire(key, window_seconds + 10)
+            _, _, count, _ = pipe.execute()
+            
+            return count <= max_requests
+        except Exception as e:
+            logger.error(f"Redis限流失败: {e}")
+    
+    # 回退到内存限流
+    if key not in rate_limit_memory:
+        rate_limit_memory[key] = []
+    
+    # 清理过期请求
+    rate_limit_memory[key] = [t for t in rate_limit_memory[key] if t > window_start]
+    
+    # 检查是否超过限制
+    if len(rate_limit_memory[key]) >= max_requests:
+        return False
+    
+    # 记录当前请求
+    rate_limit_memory[key].append(current_time)
+    return True
+
+
+def circuit_breaker(func):
+    """熔断器装饰器"""
+    @circuit(
+        failure_threshold=CIRCUIT_BREAKER_CONFIG["failure_threshold"],
+        recovery_timeout=CIRCUIT_BREAKER_CONFIG["recovery_timeout"],
+        expected_exception=CIRCUIT_BREAKER_CONFIG["expected_exception"]
+    )
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"熔断器捕获异常: {e}")
+            raise
+    return wrapper
+
+
+def monitoring_metrics(func):
+    """监控指标装饰器"""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        start_time = time.time()
+        
+        try:
+            result = await func(*args, **kwargs)
+            execution_time = time.time() - start_time
+            
+            # 记录成功指标
+            logger.info(f"API调用成功: {func.__name__}, 耗时: {execution_time:.3f}s")
+            
+            # 记录到监控系统
+            record_metrics(func.__name__, "success", execution_time)
+            
+            return result
+        except Exception as e:
+            execution_time = time.time() - start_time
+            
+            # 记录失败指标
+            logger.error(f"API调用失败: {func.__name__}, 耗时: {execution_time:.3f}s, 错误: {e}")
+            
+            # 记录到监控系统
+            record_metrics(func.__name__, "failure", execution_time)
+            
+            raise
+    return wrapper
+
+
+def record_metrics(api_name: str, status: str, execution_time: float):
+    """记录监控指标"""
+    # 实际应发送到监控系统（如Prometheus、StatsD等）
+    metrics_data = {
+        "api_name": api_name,
+        "status": status,
+        "execution_time": execution_time,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # 这里可以集成到现有的监控系统
+    logger.debug(f"监控指标: {metrics_data}")
+
 
 router = APIRouter(prefix="/api/v5/task", tags=["Task-Management-V5"])
 
@@ -101,6 +269,9 @@ task_execution_logs = []
 # ==================== 核心功能1: 任务创建 ====================
 
 @router.post("/create", response_model=Task)
+@rate_limit("create_task")
+@circuit_breaker
+@monitoring_metrics
 async def create_task(request: TaskCreateRequest):
     """
     创建任务
@@ -130,6 +301,9 @@ async def create_task(request: TaskCreateRequest):
 
 
 @router.post("/create/from-agent")
+@rate_limit("create_task")
+@circuit_breaker
+@monitoring_metrics
 async def create_task_from_agent(
     title: str,
     description: str,
@@ -169,6 +343,9 @@ async def create_task_from_agent(
 # ==================== 核心功能2: 任务确认（用户确认机制⭐关键） ====================
 
 @router.post("/confirm")
+@rate_limit("confirm_task")
+@circuit_breaker
+@monitoring_metrics
 async def confirm_task(request: TaskConfirmRequest, background_tasks: BackgroundTasks):
     """
     用户确认任务⭐关键功能
@@ -320,6 +497,9 @@ async def call_module_for_task(module: str, task: Task):
 # ==================== 核心功能4: 任务查询 ====================
 
 @router.get("/list")
+@rate_limit("list_tasks")
+@circuit_breaker
+@monitoring_metrics
 async def list_tasks(
     source: Optional[TaskSource] = None,
     status: Optional[TaskStatus] = None,
@@ -364,6 +544,9 @@ async def list_tasks(
 
 
 @router.get("/{task_id}")
+@rate_limit("list_tasks")
+@circuit_breaker
+@monitoring_metrics
 async def get_task(task_id: str):
     """获取任务详情"""
     task = tasks_db.get(task_id)
@@ -455,6 +638,9 @@ async def get_task_stats():
 # ==================== 核心功能7: 与超级Agent集成⭐关键 ====================
 
 @router.post("/sync-with-agent")
+@rate_limit("sync_agent")
+@circuit_breaker
+@monitoring_metrics
 async def sync_with_super_agent():
     """
     与超级Agent同步⭐核心功能

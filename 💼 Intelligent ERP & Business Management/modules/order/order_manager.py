@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from decimal import Decimal
+import re
+import html
 import sys
 sys.path.append('../..')
 from core.database_models import Order, Customer, OrderItem
@@ -29,6 +31,126 @@ class OrderManager:
         """
         self.db = db_session
         self.data_listener = data_listener
+    
+    # ============ 安全防护辅助函数 ============
+    
+    def _sanitize_sql_input(self, input_str: str) -> str:
+        """
+        SQL注入防护：过滤SQL关键词和特殊字符
+        
+        Args:
+            input_str: 输入字符串
+            
+        Returns:
+            清理后的字符串
+        """
+        if not input_str:
+            return ""
+        
+        # SQL注入关键词列表
+        sql_keywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DROP', 'UNION', 'OR', 'AND', 'WHERE', 'FROM', 'JOIN', 
+                       'CREATE', 'ALTER', 'TRUNCATE', 'EXEC', 'EXECUTE', 'DECLARE', 'XP_', 'SP_', ';', '--', '/*', '*/']
+        
+        # 转换为小写进行匹配
+        input_lower = input_str.upper()
+        
+        # 检查是否包含SQL关键词
+        for keyword in sql_keywords:
+            if keyword in input_lower:
+                # 移除关键词
+                input_str = re.sub(re.escape(keyword), '', input_str, flags=re.IGNORECASE)
+        
+        # 移除危险字符
+        dangerous_chars = [';', '--', '/*', '*/', "'", '"', '`']
+        for char in dangerous_chars:
+            input_str = input_str.replace(char, '')
+        
+        return input_str.strip()
+    
+    def _sanitize_html_input(self, input_str: str) -> str:
+        """
+        XSS防护：HTML转义特殊字符
+        
+        Args:
+            input_str: 输入字符串
+            
+        Returns:
+            转义后的字符串
+        """
+        if not input_str:
+            return ""
+        
+        # HTML转义
+        return html.escape(input_str)
+    
+    def _validate_numeric_input(self, value: Any, min_val: Optional[float] = None, 
+                               max_val: Optional[float] = None) -> bool:
+        """
+        验证数值输入
+        
+        Args:
+            value: 输入值
+            min_val: 最小值
+            max_val: 最大值
+            
+        Returns:
+            是否有效
+        """
+        try:
+            num = float(value)
+            if min_val is not None and num < min_val:
+                return False
+            if max_val is not None and num > max_val:
+                return False
+            return True
+        except (ValueError, TypeError):
+            return False
+    
+    def _validate_string_length(self, input_str: str, max_length: int) -> bool:
+        """
+        验证字符串长度
+        
+        Args:
+            input_str: 输入字符串
+            max_length: 最大长度
+            
+        Returns:
+            是否有效
+        """
+        return input_str is not None and len(input_str) <= max_length
+    
+    def _validate_order_status(self, status: str) -> bool:
+        """
+        验证订单状态
+        
+        Args:
+            status: 订单状态
+            
+        Returns:
+            是否有效
+        """
+        valid_statuses = ['待确认', '已确认', '生产中', '已完成', '已取消']
+        return status in valid_statuses
+    
+    def _validate_order_id(self, order_id: Any) -> bool:
+        """
+        验证订单ID格式
+        
+        Args:
+            order_id: 订单ID
+            
+        Returns:
+            是否有效
+        """
+        if not order_id:
+            return False
+        
+        # 订单ID应该是正整数
+        try:
+            order_id_int = int(order_id)
+            return order_id_int > 0
+        except (ValueError, TypeError):
+            return False
     
     # ============ CRUD操作 ============
     
@@ -52,9 +174,41 @@ class OrderManager:
             创建的订单信息
         """
         try:
+            # 安全验证：输入数据清理和验证
+            if not order_data:
+                return {"success": False, "error": "订单数据不能为空"}
+            
+            # 验证客户ID
+            customer_id = order_data.get('customer_id')
+            if not self._validate_numeric_input(customer_id, min_val=1):
+                return {"success": False, "error": "客户ID格式不正确"}
+            
+            # 验证订单编号
+            order_number = order_data.get('order_number', '')
+            order_number = self._sanitize_html_input(self._sanitize_sql_input(order_number))
+            if not order_number or not self._validate_string_length(order_number, 100):
+                return {"success": False, "error": "订单编号格式不正确"}
+            
+            # 验证订单状态
+            status = order_data.get('status', '待确认')
+            status = self._sanitize_html_input(self._sanitize_sql_input(status))
+            if not self._validate_order_status(status):
+                return {"success": False, "error": "订单状态格式不正确"}
+            
+            # 验证订单类型
+            order_type = order_data.get('order_type', '短期')
+            order_type = self._sanitize_html_input(self._sanitize_sql_input(order_type))
+            if order_type not in ['长期', '短期']:
+                return {"success": False, "error": "订单类型格式不正确"}
+            
+            # 验证订单金额
+            order_amount = order_data.get('order_amount', 0)
+            if not self._validate_numeric_input(order_amount, min_val=0):
+                return {"success": False, "error": "订单金额格式不正确"}
+            
             # 验证客户是否存在
             customer = self.db.query(Customer).filter(
-                Customer.id == order_data['customer_id']
+                Customer.id == customer_id
             ).first()
             
             if not customer:
@@ -84,7 +238,7 @@ class OrderManager:
                 delivery_date=datetime.fromisoformat(order_data['delivery_date'])
                              if order_data.get('delivery_date') and isinstance(order_data['delivery_date'], str)
                              else order_data.get('delivery_date'),
-                order_amount=Decimal(str(order_data.get('order_amount', 0))),
+                total_amount=Decimal(str(order_data.get('order_amount', 0))),
                 status=order_data.get('status', '待确认'),
                 extra_metadata={
                     "order_type": order_data.get('order_type', '短期'),
@@ -141,6 +295,22 @@ class OrderManager:
     ) -> Dict[str, Any]:
         """获取订单列表"""
         try:
+            # 安全验证：输入参数验证
+            if customer_id and not self._validate_numeric_input(customer_id, min_val=1):
+                return {"success": False, "error": "客户ID格式不正确"}
+            
+            if status:
+                status = self._sanitize_html_input(self._sanitize_sql_input(status))
+                if not self._validate_order_status(status):
+                    return {"success": False, "error": "订单状态格式不正确"}
+            
+            # 验证分页参数
+            if not self._validate_numeric_input(page, min_val=1):
+                return {"success": False, "error": "页码格式不正确"}
+            
+            if not self._validate_numeric_input(page_size, min_val=1, max_val=100):
+                return {"success": False, "error": "每页数量格式不正确（1-100）"}
+            
             query = self.db.query(Order)
             
             # 客户筛选
@@ -190,6 +360,18 @@ class OrderManager:
     ) -> Dict[str, Any]:
         """更新订单状态"""
         try:
+            # 安全验证：输入参数验证
+            if not self._validate_order_id(order_id):
+                return {"success": False, "error": "订单ID格式不正确"}
+            
+            new_status = self._sanitize_html_input(self._sanitize_sql_input(new_status))
+            if not self._validate_order_status(new_status):
+                return {"success": False, "error": "订单状态格式不正确"}
+            
+            note = self._sanitize_html_input(self._sanitize_sql_input(note))
+            if not self._validate_string_length(note, 1000):
+                return {"success": False, "error": "备注长度超过限制（1000字符）"}
+            
             order = self.db.query(Order).filter(Order.id == order_id).first()
             
             if not order:
@@ -310,7 +492,7 @@ class OrderManager:
             result = self.db.query(
                 Customer.category,
                 func.count(Order.id).label('order_count'),
-                func.sum(Order.order_amount).label('total_amount')
+                func.sum(Order.total_amount).label('total_amount')
             ).join(Order, Customer.id == Order.customer_id)\
              .group_by(Customer.category).all()
             
@@ -474,12 +656,14 @@ class OrderManager:
         
         return {
             "id": order.id,
+            "order_id": order.id,  # 添加order_id字段以兼容集成测试
             "customer_id": order.customer_id,
             "customer_name": customer.name if customer else None,
             "order_number": order.order_number,
             "order_date": order.order_date.isoformat() if order.order_date else None,
             "delivery_date": order.delivery_date.isoformat() if order.delivery_date else None,
-            "order_amount": float(order.order_amount) if order.order_amount else 0,
+            "order_amount": float(order.total_amount) if order.total_amount else 0,
+            "total_amount": float(order.total_amount) if order.total_amount else 0,  # 添加total_amount字段以兼容集成测试
             "status": order.status,
             "extra_metadata": order.extra_metadata,
             "created_at": order.created_at.isoformat() if order.created_at else None,
@@ -500,7 +684,7 @@ class OrderManager:
             query = query.filter(Order.status == status)
         
         total = query.count()
-        total_amount = self.db.query(func.sum(Order.order_amount)).filter(
+        total_amount = self.db.query(func.sum(Order.total_amount)).filter(
             Order.id.in_([o.id for o in query.all()])
         ).scalar() or 0
         
@@ -544,7 +728,7 @@ class OrderManager:
                     factors.append("普通客户（+10分）")
             
             # 2. 订单金额因素（0-30分）
-            amount = float(order.order_amount) if order.order_amount else 0
+            amount = float(order.total_amount) if order.total_amount else 0
             if amount >= 1000000:
                 priority_score += 30
                 factors.append("大额订单≥100万（+30分）")
@@ -649,7 +833,7 @@ class OrderManager:
                         })
                 
                 # 2. 检测金额异常（超出正常范围）
-                amount = float(order.order_amount) if order.order_amount else 0
+                amount = float(order.total_amount) if order.total_amount else 0
                 if amount > 5000000:  # 超大额
                     abnormal_orders["amount_abnormal"].append({
                         "order_id": order.id,
@@ -855,7 +1039,7 @@ class OrderManager:
                         "priority_score": priority_result["priority_score"],
                         "priority_level": priority_result["priority_level"],
                         "delivery_date": order.delivery_date.isoformat() if order.delivery_date else None,
-                        "amount": float(order.order_amount) if order.order_amount else 0
+                        "amount": float(order.total_amount) if order.total_amount else 0
                     })
             
             # 按优先级排序

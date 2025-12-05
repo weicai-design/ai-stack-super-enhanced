@@ -1,0 +1,46 @@
+# Prometheus监控配置
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# 告警规则文件
+rule_files:
+  - "alert_rules.yml"
+
+# 抓取配置
+scrape_configs:
+  # AI-STACK应用指标
+  - job_name: 'ai-stack-app'
+    static_configs:
+      - targets: ['ai-stack-app:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    
+  # Prometheus自身指标
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    
+  # Node Exporter (系统指标)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    
+  # Redis指标
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    
+  # PostgreSQL指标
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+# 远程写入配置 (可选)
+remote_write:
+  - url: "http://thanos:10908/api/v1/receive"
+    
+# 远程读取配置 (可选)
+remote_read:
+  - url: "http://thanos:10908/api/v1/read"

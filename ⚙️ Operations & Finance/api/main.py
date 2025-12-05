@@ -10,6 +10,10 @@ from contextlib import asynccontextmanager
 import sys
 import os
 
+# 导入结构化日志系统
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from core.structured_logging import get_logger, RequestTracer, trace_operation
+
 # 添加模块路径
 operations_path = os.path.join(os.path.dirname(__file__), "..", "operations")
 finance_path = os.path.join(os.path.dirname(__file__), "..", "finance")
@@ -18,9 +22,11 @@ sys.path.insert(0, finance_path)
 
 from api.operations_api import router as operations_router
 from api.finance_api import router as finance_router
+from api.experts_api import router as experts_router
+from api.metrics_api import router as metrics_router
 
 # 导入ERP连接器
-from core.erp_connector import ERPConnector
+from finance.core.erp_connector import ERPConnector
 
 # 全局ERP连接器
 erp_connector = ERPConnector(connection_type="both")
@@ -53,6 +59,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# 初始化日志记录器
+logger = get_logger("operations_finance_api")
+
 # 配置CORS
 app.add_middleware(
     CORSMiddleware,
@@ -67,9 +76,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 添加请求追踪中间件
+request_tracer = RequestTracer("http")
+
+@app.middleware("http")
+async def tracing_middleware(request, call_next):
+    """请求追踪中间件"""
+    return await request_tracer.trace_request(request, call_next)
+
 # 注册路由
 app.include_router(operations_router)
 app.include_router(finance_router)
+app.include_router(experts_router)
+app.include_router(metrics_router)
 
 # 静态文件服务（前端）
 static_dir = os.path.join(os.path.dirname(__file__), "web")
@@ -109,7 +128,9 @@ def root():
             "docs": "/docs",
             "health": "/health",
             "operations": "/api/operations/*",
-            "finance": "/api/finance/*"
+            "finance": "/api/finance/*",
+            "experts": "/api/experts/*",
+            "metrics": "/api/metrics/*"
         }
     }
 

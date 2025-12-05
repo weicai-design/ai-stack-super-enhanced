@@ -19,17 +19,67 @@ logger = logging.getLogger(__name__)
 
 
 class AuditAction(str, Enum):
-    """审计操作类型"""
+    """审计操作类型（生产级扩展 - 5.2）"""
+    # 基础CRUD操作
     CREATE = "create"
     READ = "read"
     UPDATE = "update"
     DELETE = "delete"
+    
+    # 认证授权操作
     LOGIN = "login"
     LOGOUT = "logout"
+    TOKEN_CREATE = "token_create"
+    TOKEN_REVOKE = "token_revoke"
+    API_KEY_CREATE = "api_key_create"
+    API_KEY_REVOKE = "api_key_revoke"
+    
+    # 配额和限制操作
     QUOTA_EXCEEDED = "quota_exceeded"
+    QUOTA_RESET = "quota_reset"
+    RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+    
+    # 配置管理操作
     CONFIG_CHANGE = "config_change"
+    CONFIG_VIEW = "config_view"
+    PERMISSION_GRANT = "permission_grant"
+    PERMISSION_REVOKE = "permission_revoke"
+    
+    # 数据操作
     DATA_EXPORT = "data_export"
     DATA_IMPORT = "data_import"
+    DATA_BACKUP = "data_backup"
+    DATA_RESTORE = "data_restore"
+    
+    # 安全操作
+    SECURITY_SCAN = "security_scan"
+    SECURITY_ALERT = "security_alert"
+    PASSWORD_CHANGE = "password_change"
+    PASSWORD_RESET = "password_reset"
+    
+    # 合规操作
+    COMPLIANCE_CHECK = "compliance_check"
+    COMPLIANCE_VIOLATION = "compliance_violation"
+    AUDIT_REPORT_GENERATE = "audit_report_generate"
+    
+    # 反爬操作
+    CRAWLER_DETECTED = "crawler_detected"
+    CRAWLER_BLOCKED = "crawler_blocked"
+    CAPTCHA_REQUIRED = "captcha_required"
+    CAPTCHA_VERIFIED = "captcha_verified"
+    
+    # 命令执行操作
+    COMMAND_EXECUTE = "command_execute"
+    COMMAND_BLOCKED = "command_blocked"
+    COMMAND_WHITELIST_UPDATE = "command_whitelist_update"
+    
+    # 工作流操作
+    WORKFLOW_START = "workflow_start"
+    WORKFLOW_COMPLETE = "workflow_complete"
+    WORKFLOW_FAIL = "workflow_fail"
+    
+    # 其他操作
+    CUSTOM = "custom"
 
 
 @dataclass

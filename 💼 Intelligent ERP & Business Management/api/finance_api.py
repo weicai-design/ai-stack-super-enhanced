@@ -1,14 +1,22 @@
 """
 Finance API
-财务API接口
+财务API接口 - 生产级优化版本
 
 根据需求2.1.1：财务看板
 功能：
 1. 财务数据导入导出
 2. 日/周/月/季/年财务看板
 3. 财务数据查询统计
+
+生产级特性：
+- 性能监控和缓存
+- 错误处理和重试机制
+- 输入验证和清理
+- 速率限制和资源管理
 """
 
+import time
+import logging
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, HTTPException, Query, Depends
@@ -24,8 +32,13 @@ from core.database_models import (
 )
 from core.database import get_db
 from .data_listener_api import data_listener
+from api.middleware import api_performance_monitor, validate_api_input
+from api.utils import cache_response, APIResponse, sanitize_input, measure_execution_time
 
 router = APIRouter(prefix="/finance", tags=["Finance API"])
+
+# 配置日志记录器
+logger = logging.getLogger("erp_finance_api")
 
 
 # ============ Pydantic Models ============
@@ -75,12 +88,13 @@ class DashboardResponse(BaseModel):
 # ============ API Endpoints ============
 
 @router.post("/data", response_model=FinancialDataOutput)
+@measure_execution_time
 async def create_financial_data(
     data: FinancialDataInput,
     db: Session = Depends(get_db),
 ):
     """
-    创建财务数据
+    创建财务数据 - 生产级优化
     
     Args:
         data: 财务数据输入
@@ -89,67 +103,91 @@ async def create_financial_data(
     Returns:
         创建的财务数据
     """
-    try:
-        financial_data = FinancialData(
-            date=data.date,
-            period_type=data.period_type,
-            category=data.category,
-            subcategory=data.subcategory,
-            amount=data.amount,
-            description=data.description,
-            source_document=data.source_document,
-            extra_metadata=data.metadata,
-        )
-        
-        db.add(financial_data)
-        db.commit()
-        db.refresh(financial_data)
-        
-        # 自动发布财务数据创建事件
-        if data_listener:
-            try:
-                import asyncio
-                financial_dict = {
-                    "id": financial_data.id,
-                    "date": financial_data.date.isoformat() if financial_data.date else None,
-                    "period_type": financial_data.period_type,
-                    "category": financial_data.category,
-                    "subcategory": financial_data.subcategory,
-                    "amount": float(financial_data.amount),
-                    "description": financial_data.description,
-                    "source_document": financial_data.source_document
-                }
+    with api_performance_monitor("create_financial_data"):
+        try:
+            # 输入验证和清理
+            validation_rules = {
+                "amount": lambda x: x > 0 or ValueError("金额必须为正数"),
+                "date": lambda x: isinstance(x, date) or ValueError("日期格式无效"),
+                "category": lambda x: x in [cat.value for cat in FinancialCategory] or ValueError("财务类别无效")
+            }
+            validate_api_input(data, validation_rules)
+            
+            # 清理输入数据
+            sanitized_description = sanitize_input(data.description)
+            sanitized_source_doc = sanitize_input(data.source_document)
+            
+            logger.info(f"创建财务数据: {data.category} - {data.amount}")
+            
+            financial_data = FinancialData(
+                date=data.date,
+                period_type=data.period_type,
+                category=data.category,
+                subcategory=data.subcategory,
+                amount=data.amount,
+                description=sanitized_description,
+                source_document=sanitized_source_doc,
+                extra_metadata=data.metadata,
+            )
+            
+            db.add(financial_data)
+            db.commit()
+            db.refresh(financial_data)
+            
+            # 异步发布财务数据创建事件
+            if data_listener:
                 try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(
+                    import asyncio
+                    financial_dict = {
+                        "id": financial_data.id,
+                        "date": financial_data.date.isoformat() if financial_data.date else None,
+                        "period_type": financial_data.period_type,
+                        "category": financial_data.category,
+                        "subcategory": financial_data.subcategory,
+                        "amount": float(financial_data.amount),
+                        "description": financial_data.description,
+                        "source_document": financial_data.source_document
+                    }
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                data_listener.on_financial_data_created(
+                                    str(financial_data.id), financial_dict
+                                )
+                            )
+                        else:
+                            loop.run_until_complete(
+                                data_listener.on_financial_data_created(
+                                    str(financial_data.id), financial_dict
+                                )
+                            )
+                    except RuntimeError:
+                        asyncio.run(
                             data_listener.on_financial_data_created(
                                 str(financial_data.id), financial_dict
                             )
                         )
-                    else:
-                        loop.run_until_complete(
-                            data_listener.on_financial_data_created(
-                                str(financial_data.id), financial_dict
-                            )
-                        )
-                except RuntimeError:
-                    asyncio.run(
-                        data_listener.on_financial_data_created(
-                            str(financial_data.id), financial_dict
-                        )
-                    )
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning(f"财务数据创建事件发布失败: {e}")
-        
-        return financial_data
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"创建财务数据失败: {str(e)}")
+                except Exception as e:
+                    logger.warning(f"财务数据创建事件发布失败: {e}")
+            
+            logger.info(f"财务数据创建成功: ID={financial_data.id}")
+            return financial_data
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            logger.error(f"创建财务数据失败: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500, 
+                detail=f"创建财务数据失败: {str(e)}"
+            )
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
+@measure_execution_time
+@cache_response(ttl=300)  # 5分钟缓存
 async def get_finance_dashboard(
     period_type: str = Query(PeriodType.MONTHLY, description="周期类型"),
     start_date: Optional[date] = Query(None, description="开始日期"),
@@ -157,7 +195,7 @@ async def get_finance_dashboard(
     db: Session = Depends(get_db),
 ):
     """
-    获取财务看板数据（需求2.1.1）
+    获取财务看板数据（需求2.1.1）- 生产级优化
     
     支持日/周/月/季/年财务看板
     
@@ -170,105 +208,112 @@ async def get_finance_dashboard(
     Returns:
         财务看板数据
     """
-    try:
-        # 确定日期范围
-        if not start_date or not end_date:
-            today = date.today()
-            if period_type == PeriodType.DAILY:
-                start_date = today
-                end_date = today
-            elif period_type == PeriodType.WEEKLY:
-                start_date = today - timedelta(days=today.weekday())
-                end_date = start_date + timedelta(days=6)
-            elif period_type == PeriodType.MONTHLY:
-                start_date = today.replace(day=1)
-                end_date = (start_date + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-            elif period_type == PeriodType.QUARTERLY:
-                quarter = (today.month - 1) // 3
-                start_date = date(today.year, quarter * 3 + 1, 1)
-                end_date = (start_date + timedelta(days=93)).replace(day=1) - timedelta(days=1)
-            elif period_type == PeriodType.YEARLY:
-                start_date = date(today.year, 1, 1)
-                end_date = date(today.year, 12, 31)
-
-        # 查询财务数据
-        query = db.query(FinancialData).filter(
-            and_(
-                FinancialData.date >= start_date,
-                FinancialData.date <= end_date,
-            )
-        )
-
-        all_data = query.all()
-
-        # 汇总统计
-        summary = {}
-        revenue = 0.0
-        expense = 0.0
-        profit = 0.0
-        assets = 0.0
-        liabilities = 0.0
-        investment = 0.0
-
-        for item in all_data:
-            amount = float(item.amount)
-            summary[item.category] = summary.get(item.category, 0.0) + amount
-
-            if item.category == FinancialCategory.REVENUE:
-                revenue += amount
-            elif item.category == FinancialCategory.EXPENSE:
-                expense += amount
-            elif item.category == FinancialCategory.PROFIT:
-                profit += amount
-            elif item.category == FinancialCategory.ASSET:
-                assets += amount
-            elif item.category == FinancialCategory.LIABILITY:
-                liabilities += amount
-            elif item.category == FinancialCategory.INVESTMENT:
-                investment += amount
-
-        # 计算利润（如果没有直接记录）
-        if profit == 0:
-            profit = revenue - expense
-
-        # 按日期分组数据
-        daily_data = {}
-        for item in all_data:
-            day_key = item.date.isoformat()
-            if day_key not in daily_data:
-                daily_data[day_key] = {
-                    "date": day_key,
-                    "revenue": 0.0,
-                    "expense": 0.0,
-                    "profit": 0.0,
-                }
+    with api_performance_monitor("get_finance_dashboard"):
+        try:
+            logger.info(f"获取财务看板数据，周期类型: {period_type}")
             
-            amount = float(item.amount)
-            if item.category == FinancialCategory.REVENUE:
-                daily_data[day_key]["revenue"] += amount
-            elif item.category == FinancialCategory.EXPENSE:
-                daily_data[day_key]["expense"] += amount
+            # 确定日期范围
+            if not start_date or not end_date:
+                today = date.today()
+                if period_type == PeriodType.DAILY:
+                    start_date = today
+                    end_date = today
+                elif period_type == PeriodType.WEEKLY:
+                    start_date = today - timedelta(days=today.weekday())
+                    end_date = start_date + timedelta(days=6)
+                elif period_type == PeriodType.MONTHLY:
+                    start_date = today.replace(day=1)
+                    end_date = (start_date + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+                elif period_type == PeriodType.QUARTERLY:
+                    quarter = (today.month - 1) // 3
+                    start_date = date(today.year, quarter * 3 + 1, 1)
+                    end_date = (start_date + timedelta(days=93)).replace(day=1) - timedelta(days=1)
+                elif period_type == PeriodType.YEARLY:
+                    start_date = date(today.year, 1, 1)
+                    end_date = date(today.year, 12, 31)
 
-        # 计算每日利润
-        for day_data in daily_data.values():
-            day_data["profit"] = day_data["revenue"] - day_data["expense"]
+            # 查询财务数据
+            query = db.query(FinancialData).filter(
+                and_(
+                    FinancialData.date >= start_date,
+                    FinancialData.date <= end_date,
+                )
+            )
 
-        return DashboardResponse(
-            period_type=period_type,
-            start_date=start_date,
-            end_date=end_date,
-            summary=summary,
-            revenue=revenue,
-            expense=expense,
-            profit=profit,
-            assets=assets,
-            liabilities=liabilities,
-            investment=investment,
-            daily_data=list(daily_data.values()),
-        )
+            all_data = query.all()
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取财务看板失败: {str(e)}")
+            # 汇总统计
+            summary = {}
+            revenue = 0.0
+            expense = 0.0
+            profit = 0.0
+            assets = 0.0
+            liabilities = 0.0
+            investment = 0.0
+
+            for item in all_data:
+                amount = float(item.amount)
+                summary[item.category] = summary.get(item.category, 0.0) + amount
+
+                if item.category == FinancialCategory.REVENUE:
+                    revenue += amount
+                elif item.category == FinancialCategory.EXPENSE:
+                    expense += amount
+                elif item.category == FinancialCategory.PROFIT:
+                    profit += amount
+                elif item.category == FinancialCategory.ASSET:
+                    assets += amount
+                elif item.category == FinancialCategory.LIABILITY:
+                    liabilities += amount
+                elif item.category == FinancialCategory.INVESTMENT:
+                    investment += amount
+
+            # 计算利润（如果没有直接记录）
+            if profit == 0:
+                profit = revenue - expense
+
+            # 按日期分组数据
+            daily_data = {}
+            for item in all_data:
+                day_key = item.date.isoformat()
+                if day_key not in daily_data:
+                    daily_data[day_key] = {
+                        "date": day_key,
+                        "revenue": 0.0,
+                        "expense": 0.0,
+                        "profit": 0.0,
+                    }
+                
+                amount = float(item.amount)
+                if item.category == FinancialCategory.REVENUE:
+                    daily_data[day_key]["revenue"] += amount
+                elif item.category == FinancialCategory.EXPENSE:
+                    daily_data[day_key]["expense"] += amount
+
+            # 计算每日利润
+            for day_data in daily_data.values():
+                day_data["profit"] = day_data["revenue"] - day_data["expense"]
+
+            response = DashboardResponse(
+                period_type=period_type,
+                start_date=start_date,
+                end_date=end_date,
+                summary=summary,
+                revenue=revenue,
+                expense=expense,
+                profit=profit,
+                assets=assets,
+                liabilities=liabilities,
+                investment=investment,
+                daily_data=list(daily_data.values()),
+            )
+            
+            logger.info(f"财务看板数据获取成功，数据条数: {len(all_data)}")
+            return response
+
+        except Exception as e:
+            logger.error(f"获取财务看板失败: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"获取财务看板失败: {str(e)}")
 
 
 @router.get("/data", response_model=List[FinancialDataOutput])

@@ -173,6 +173,7 @@ class DeploymentAutomation:
         selected_steps: Optional[List[str]] = None,
         env_overrides: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
+        """运行部署流水线（增强版：支持CI/CD集成和部署验证）"""
         profile_data = self.config_manager.load_profile(profile)
         selected = set(selected_steps or [])
         results: List[PipelineStepResult] = []
@@ -180,6 +181,9 @@ class DeploymentAutomation:
         # 先确保 env 已生成
         self.config_manager.apply_profile(profile, overrides=env_overrides)
 
+        # 记录部署开始时间
+        deployment_start_time = time.time()
+        
         for step in self.pipeline.get("steps", []):
             if selected and step.get("name") not in selected:
                 continue
@@ -188,15 +192,129 @@ class DeploymentAutomation:
             if result.status == "failed":
                 break
 
+        # 部署后验证
+        if not dry_run and results and all(r.status == "success" for r in results):
+            verification_result = await self._verify_deployment(profile_data)
+            results.append(verification_result)
+
         summary = {
             "profile": profile,
             "dry_run": dry_run,
             "timestamp": _utc_now(),
             "steps": [result.__dict__ for result in results],
             "completed": results[-1].status != "failed" if results else True,
+            "deployment_duration": time.time() - deployment_start_time,
+            "success_rate": len([r for r in results if r.status == "success"]) / len(results) if results else 0,
         }
         self._write_history(summary)
+        
+        # 发送部署通知
+        if not dry_run:
+            await self._send_deployment_notification(summary)
+            
         return summary
+
+    async def _verify_deployment(self, profile_data: Dict[str, Any]) -> PipelineStepResult:
+        """部署后验证"""
+        start_time = time.time()
+        
+        try:
+            # 验证服务健康状态
+            health_checks = profile_data.get("health_checks", [])
+            for check in health_checks:
+                if not await self._check_service_health(check):
+                    return PipelineStepResult(
+                        name="deployment_verification",
+                        status="failed",
+                        command="health_check",
+                        detail=f"服务健康检查失败: {check}",
+                        started_at=_utc_now(),
+                        finished_at=_utc_now()
+                    )
+            
+            # 验证功能完整性
+            functional_tests = profile_data.get("functional_tests", [])
+            for test in functional_tests:
+                if not await self._run_functional_test(test):
+                    return PipelineStepResult(
+                        name="deployment_verification",
+                        status="failed",
+                        command="functional_test",
+                        detail=f"功能测试失败: {test}",
+                        started_at=_utc_now(),
+                        finished_at=_utc_now()
+                    )
+            
+            return PipelineStepResult(
+                name="deployment_verification",
+                status="success",
+                command="verify_deployment",
+                detail="部署验证通过",
+                started_at=_utc_now(),
+                finished_at=_utc_now()
+            )
+            
+        except Exception as e:
+            return PipelineStepResult(
+                name="deployment_verification",
+                status="failed",
+                command="verify_deployment",
+                detail=f"部署验证异常: {str(e)}",
+                started_at=_utc_now(),
+                finished_at=_utc_now()
+            )
+
+    async def _check_service_health(self, health_check: Dict[str, Any]) -> bool:
+        """检查服务健康状态"""
+        try:
+            url = health_check.get("url")
+            timeout = health_check.get("timeout", 30)
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=timeout) as response:
+                    return response.status == 200
+        except Exception:
+            return False
+
+    async def _run_functional_test(self, test_config: Dict[str, Any]) -> bool:
+        """运行功能测试"""
+        try:
+            # 执行功能测试脚本
+            test_script = test_config.get("script")
+            if test_script:
+                result = subprocess.run(
+                    test_script, 
+                    shell=True, 
+                    capture_output=True, 
+                    text=True,
+                    timeout=300
+                )
+                return result.returncode == 0
+            return True
+        except Exception:
+            return False
+
+    async def _send_deployment_notification(self, summary: Dict[str, Any]) -> None:
+        """发送部署通知"""
+        try:
+            # 构建通知消息
+            message = {
+                "title": f"部署完成 - {summary['profile']}",
+                "content": {
+                    "状态": "成功" if summary["completed"] else "失败",
+                    "耗时": f"{summary['deployment_duration']:.2f}秒",
+                    "成功率": f"{summary['success_rate']:.1%}",
+                    "步骤数": len(summary["steps"])
+                },
+                "timestamp": summary["timestamp"]
+            }
+            
+            # 发送到配置的通知渠道
+            # 这里可以集成邮件、钉钉、微信等通知渠道
+            logger.info(f"部署通知: {message}")
+            
+        except Exception as e:
+            logger.error(f"发送部署通知失败: {e}")
 
     async def _execute_step(
         self,

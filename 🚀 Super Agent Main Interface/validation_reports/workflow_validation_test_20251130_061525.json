@@ -1,0 +1,113 @@
+{
+  "workflow_id": "test",
+  "workflow_type": "unknown_type",
+  "start_time": "2025-11-30T06:15:24.687735Z",
+  "end_time": "2025-11-30T06:15:25.192317Z",
+  "total_duration": 0.504582,
+  "overall_status": "warning",
+  "summary": {
+    "total_validations": 7,
+    "passed_validations": 6,
+    "failed_validations": 0,
+    "warning_validations": 1,
+    "pass_rate": 0.8571428571428571
+  },
+  "validation_results": [
+    {
+      "name": "input_validation",
+      "status": "passed",
+      "level": "critical",
+      "description": "输入验证通过",
+      "details": {
+        "user_input_length": 4,
+        "context_keys": [],
+        "workflow_type": "unknown_type"
+      },
+      "timestamp": "2025-11-30T06:15:24.687759Z",
+      "error": null
+    },
+    {
+      "name": "performance_validation",
+      "status": "passed",
+      "level": "high",
+      "description": "性能验证通过",
+      "details": {
+        "workflow_id": "test",
+        "workflow_type": "unknown_type",
+        "max_response_time": 2.0,
+        "max_memory_usage": 512.0,
+        "max_cpu_usage": 80.0
+      },
+      "timestamp": "2025-11-30T06:15:24.788816Z",
+      "error": null
+    },
+    {
+      "name": "functional_validation",
+      "status": "passed",
+      "level": "critical",
+      "description": "功能验证通过",
+      "details": {
+        "workflow_id": "test",
+        "workflow_type": "unknown_type",
+        "min_step_completion_rate": 0.95,
+        "max_error_rate": 0.05
+      },
+      "timestamp": "2025-11-30T06:15:24.889962Z",
+      "error": null
+    },
+    {
+      "name": "dual_loop_integrity",
+      "status": "warning",
+      "level": "medium",
+      "description": "未知工作流类型，跳过双线闭环验证",
+      "details": {
+        "workflow_id": "test",
+        "workflow_type": "unknown_type",
+        "dual_loop_integrity_required": true,
+        "validation_timestamp": "2025-11-30T06:15:24.890005Z"
+      },
+      "timestamp": "2025-11-30T06:15:24.890024Z",
+      "error": null
+    },
+    {
+      "name": "security_validation",
+      "status": "passed",
+      "level": "high",
+      "description": "安全验证通过",
+      "details": {
+        "workflow_id": "test",
+        "workflow_type": "unknown_type",
+        "input_validation_required": true,
+        "output_sanitization_required": true
+      },
+      "timestamp": "2025-11-30T06:15:24.990991Z",
+      "error": null
+    },
+    {
+      "name": "reliability_validation",
+      "status": "passed",
+      "level": "high",
+      "description": "可靠性验证通过",
+      "details": {
+        "workflow_id": "test",
+        "workflow_type": "unknown_type",
+        "retry_mechanism_enabled": true,
+        "circuit_breaker_enabled": true
+      },
+      "timestamp": "2025-11-30T06:15:25.091212Z",
+      "error": null
+    },
+    {
+      "name": "observability_validation",
+      "status": "passed",
+      "level": "medium",
+      "description": "可观测性验证通过",
+      "details": {
+        "workflow_id": "test",
+        "workflow_type": "unknown_type"
+      },
+      "timestamp": "2025-11-30T06:15:25.192301Z",
+      "error": null
+    }
+  ]
+}
